@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: comptaflow_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: comptaflow
+      POSTGRES_PASSWORD: comptaflow_dev_password
+      POSTGRES_DB: comptaflow_db
+    ports:
+      - "5433:5432"   # <-- 5433 côté machine, pas 5432, pour ne PAS entrer en conflit avec l'autre projet
+    volumes:
+      - comptaflow_pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: comptaflow_redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"   # même logique, décalé de 6379 par défaut
+  ollama:
+    image: ollama/ollama:latest
+    container_name: comptaflow_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - comptaflow_ollama_data:/root/.ollama
+volumes:
+  comptaflow_pgdata:
+  comptaflow_ollama_data:
