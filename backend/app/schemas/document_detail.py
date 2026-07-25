@@ -16,6 +16,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 from app.models.enums import StatutDocumentEnum
+from app.schemas.mouvement_bancaire import MouvementBancaireOut
 
 
 class EcritureResumeOut(BaseModel):
@@ -26,10 +27,13 @@ class EcritureResumeOut(BaseModel):
     numero_piece: str | None
     date_piece: str | None
     tiers: str | None
-    montant_ht: Decimal
-    taux_tva: str
-    montant_tva: Decimal
+    
+    # --- MODIFICATIONS ICI : HT, Taux TVA et TVA optionnels ---
+    montant_ht: Decimal | None = None
+    taux_tva: str | None = None
+    montant_tva: Decimal | None = None
     montant_ttc: Decimal
+    
     statut_validation: str
     anomalie_detectee: bool
     anomalie_details: str | None
@@ -57,3 +61,6 @@ class DocumentDetailOut(BaseModel):
     error_code: Optional[str] = None
 
     ecriture: Optional[EcritureResumeOut] = None
+    
+    # --- NOUVEAU : Le document renvoie aussi ses mouvements bancaires s'il y en a ---
+    mouvements_bancaires: list[MouvementBancaireOut] = []

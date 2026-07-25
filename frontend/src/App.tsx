@@ -3,7 +3,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Layout } from "./components/Layout";
 
-// Importation des composants correspondant aux différentes pages de l'application
+// Importation des composants existants
 import { LoginPage } from "./pages/LoginPage";
 import { HomePage } from "./pages/HomePage";
 import { UploadPage } from "./pages/UploadPage";
@@ -16,25 +16,23 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { TvaMensuellePage } from "./pages/TvaMensuellePage";
 import { RappelsPage } from "./pages/RappelsPage";
-
-// Nouveaux imports ajoutés
 import { ParametresPage } from "./pages/ParametresPage";
 import { RapportsPage } from "./pages/RapportsPage";
 
+// --- NOUVELLES IMPORTATIONS AJOUTÉES ---
+import { AchatsPage } from "./pages/AchatsPage";
+import { VentesPage } from "./pages/VentesPage";
+import { RelevesBancairesPage } from "./pages/RelevesBancairesPage";
+
 export default function App() {
   return (
-    // BrowserRouter gère l'historique de navigation et l'URL dans le navigateur
     <BrowserRouter>
-      {/* AuthProvider englobe l'application pour fournir le contexte d'authentification à tous les composants enfants */}
       <AuthProvider>
         <Routes>
           {/* ---- ROUTE PUBLIQUE ---- */}
-          {/* Accessible sans être connecté */}
           <Route path="/login" element={<LoginPage />} />
 
           {/* ---- ROUTES PROTÉGÉES ---- */}
-          {/* Toutes ces routes nécessitent que l'utilisateur soit authentifié (géré par <ProtectedRoute>). 
-              Si l'utilisateur est connecté, la page s'affiche à l'intérieur de la structure commune <Layout> (navbar, sidebar, etc.). */}
           <Route
             path="/"
             element={
@@ -67,8 +65,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          
-          {/* Route dynamique : ":id" permet de récupérer l'identifiant du document dans le composant DocumentDetailPage */}
           <Route
             path="/documents/:id"
             element={
@@ -101,8 +97,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          
-          {/* Route réservée à l'administration */}
           <Route
             path="/admin/utilisateurs"
             element={
@@ -111,8 +105,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* Route pour consulter la ventilation mensuelle de la TVA */}
           <Route
             path="/tva-mensuelle"
             element={
@@ -121,8 +113,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* Route pour les Rappels & Tâches */}
           <Route
             path="/rappels"
             element={
@@ -131,8 +121,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* --- NOUVELLES ROUTES --- */}
           <Route 
             path="/parametres" 
             element={
@@ -150,8 +138,33 @@ export default function App() {
             } 
           />
 
+          {/* --- NOUVELLES ROUTES POUR LES TABLEAUX --- */}
+          <Route 
+            path="/achats" 
+            element={
+              <ProtectedRoute>
+                <Layout><AchatsPage /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/ventes" 
+            element={
+              <ProtectedRoute>
+                <Layout><VentesPage /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/banque" 
+            element={
+              <ProtectedRoute>
+                <Layout><RelevesBancairesPage /></Layout>
+              </ProtectedRoute>
+            } 
+          />
+
           {/* ---- ROUTE PAR DÉFAUT (CATCH-ALL) ---- */}
-          {/* Si l'utilisateur tente d'accéder à une URL qui n'est pas définie ci-dessus, il est automatiquement redirigé vers la racine "/" */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

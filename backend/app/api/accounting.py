@@ -292,10 +292,10 @@ def get_registre(
         item.nom_fichier_document = nom_fichier
         lignes.append(item)
 
-    # Calcule les totaux globaux du registre
-    total_ht = sum((l.montant_ht for l in lignes), Decimal("0.00"))
-    total_tva = sum((l.montant_tva for l in lignes), Decimal("0.00"))
-    total_ttc = sum((l.montant_ttc for l in lignes), Decimal("0.00"))
+    # Calcule les totaux globaux du registre avec protection contre les valeurs None
+    total_ht = sum((l.montant_ht or Decimal("0.00") for l in lignes), Decimal("0.00"))
+    total_tva = sum((l.montant_tva or Decimal("0.00") for l in lignes), Decimal("0.00"))
+    total_ttc = sum((l.montant_ttc or Decimal("0.00") for l in lignes), Decimal("0.00"))
 
     return RegistreOut(
         categorie=categorie,
@@ -354,10 +354,12 @@ def get_tva_mensuelle(
         mois = int(mois)
         type_str = type_ecriture.value if hasattr(type_ecriture, "value") else str(type_ecriture)
         
+        valeur_tva = montant_tva or Decimal("0.00")
+        
         if type_str.lower() == "vente":
-            par_mois[mois]["collectee"] += montant_tva
+            par_mois[mois]["collectee"] += valeur_tva
         elif type_str.lower() == "achat":
-            par_mois[mois]["deductible"] += montant_tva
+            par_mois[mois]["deductible"] += valeur_tva
             
         par_mois[mois]["nombre"] += 1
 

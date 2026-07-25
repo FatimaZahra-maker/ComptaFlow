@@ -18,6 +18,14 @@ const ANNEES = [2026, 2025, 2024];
 
 const API_BASE_URL = "http://localhost:8000";
 
+// NOUVEAU : Fonction utilitaire pour sécuriser le parsing des montants potentiellement nuls
+function formatMontant(valeur: string | null | undefined): string {
+  if (valeur === null || valeur === undefined || valeur === "") return "—";
+  const parsed = parseFloat(valeur);
+  if (isNaN(parsed)) return "—";
+  return parsed.toFixed(2);
+}
+
 export function RegistreComptablePage() {
   const [entreprises, setEntreprises] = useState<Entreprise[]>([]);
   const [entrepriseId, setEntrepriseId] = useState<string>("");
@@ -133,15 +141,15 @@ export function RegistreComptablePage() {
                 </div>
                 <div className="bg-white rounded-lg shadow-sm p-4">
                   <p className="text-xs text-gray-400 uppercase">Total HT</p>
-                  <p className="text-lg font-semibold">{parseFloat(registre.total_ht).toFixed(2)} MAD</p>
+                  <p className="text-lg font-semibold">{formatMontant(registre.total_ht)} MAD</p>
                 </div>
                 <div className="bg-white rounded-lg shadow-sm p-4">
                   <p className="text-xs text-gray-400 uppercase">Total TVA</p>
-                  <p className="text-lg font-semibold">{parseFloat(registre.total_tva).toFixed(2)} MAD</p>
+                  <p className="text-lg font-semibold">{formatMontant(registre.total_tva)} MAD</p>
                 </div>
                 <div className="bg-white rounded-lg shadow-sm p-4">
                   <p className="text-xs text-gray-400 uppercase">Total TTC</p>
-                  <p className="text-lg font-semibold">{parseFloat(registre.total_ttc).toFixed(2)} MAD</p>
+                  <p className="text-lg font-semibold">{formatMontant(registre.total_ttc)} MAD</p>
                 </div>
               </div>
             </div>
@@ -190,9 +198,10 @@ export function RegistreComptablePage() {
                         <AnomalyBadge detected={ligne.anomalie_detectee} details={ligne.anomalie_details} />
                       </td>
                       <td className="p-3">{ligne.numero_piece ?? "—"}</td>
-                      <td className="p-3">{parseFloat(ligne.montant_ht).toFixed(2)}</td>
-                      <td className="p-3">{parseFloat(ligne.montant_tva).toFixed(2)}</td>
-                      <td className="p-3">{parseFloat(ligne.montant_ttc).toFixed(2)}</td>
+                      {/* Utilisation de la nouvelle fonction pour éviter l'erreur TypeScript */}
+                      <td className="p-3">{formatMontant(ligne.montant_ht)}</td>
+                      <td className="p-3">{formatMontant(ligne.montant_tva)}</td>
+                      <td className="p-3">{formatMontant(ligne.montant_ttc)}</td>
                     </tr>
                   ))}
                   {registre.lignes.length === 0 && (

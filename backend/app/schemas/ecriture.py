@@ -21,10 +21,13 @@ class EcritureOut(BaseModel):
     numero_piece: str | None
     date_piece: date | None
     tiers: str | None
-    montant_ht: Decimal
-    taux_tva: str
-    montant_tva: Decimal
+    
+    # --- MODIFICATIONS ICI : HT, Taux TVA et TVA deviennent optionnels ---
+    montant_ht: Decimal | None = None
+    taux_tva: str | None = None
+    montant_tva: Decimal | None = None
     montant_ttc: Decimal
+    
     statut_validation: str
     anomalie_detectee: bool
     anomalie_details: str | None

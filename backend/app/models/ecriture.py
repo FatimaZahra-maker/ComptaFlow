@@ -37,10 +37,12 @@ class EcritureComptable(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin):
     date_piece: Mapped[date | None] = mapped_column(Date, nullable=True)
     tiers: Mapped[str | None] = mapped_column(String(255), nullable=True)  # nom fournisseur/client
 
-    # Numeric(12,2) : JAMAIS de float pour de l'argent (erreurs d'arrondi).
-    montant_ht: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    taux_tva: Mapped[TauxTVAEnum] = mapped_column(Enum(TauxTVAEnum, name="taux_tva_enum"), nullable=False)
-    montant_tva: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    # --- MODIFICATIONS ICI : HT, Taux TVA et TVA deviennent optionnels (pour la CNSS etc.) ---
+    montant_ht: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    taux_tva: Mapped[TauxTVAEnum | None] = mapped_column(Enum(TauxTVAEnum, name="taux_tva_enum"), nullable=True)
+    montant_tva: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    
+    # Le TTC reste obligatoire (Total facture, total à payer CNSS, etc.)
     montant_ttc: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
 
     statut_validation: Mapped[StatutValidationEnum] = mapped_column(

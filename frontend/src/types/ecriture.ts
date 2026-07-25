@@ -6,9 +6,9 @@ export interface Ecriture {
   numero_piece: string | null;
   date_piece: string | null;
   tiers: string | null;
-  montant_ht: string;
-  taux_tva: string;
-  montant_tva: string;
+  montant_ht: string | null;
+  taux_tva: string | null;
+  montant_tva: string | null;
   montant_ttc: string;
   statut_validation: "brouillon" | "a_verifier" | "valide" | "rejete";
   anomalie_detectee: boolean;

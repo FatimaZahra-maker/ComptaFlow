@@ -15,12 +15,14 @@ Résolution des montants manquants :
 """
 import uuid
 from datetime import date as date_type
+from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy.orm import Session
 
 from app.models.document import Document
 from app.models.ecriture import EcritureComptable
+from app.models.mouvement_bancaire import MouvementBancaire
 from app.models.enums import TypeEcritureEnum, TauxTVAEnum, StatutValidationEnum
 
 _MAPPING_CATEGORIE_TYPE = {
@@ -61,10 +63,10 @@ def _vers_decimal(valeur) -> Decimal | None:
         return None
 
 
-def _resoudre_montants(donnees: dict, taux_enum: TauxTVAEnum) -> tuple[Decimal, Decimal, Decimal, bool, str | None]:
+def _resoudre_montants(donnees: dict, taux_enum: TauxTVAEnum) -> tuple[Decimal | None, Decimal | None, Decimal, bool, str | None]:
     """
     Retourne (montant_ht, montant_tva, montant_ttc, anomalie, message).
-    Tente de déduire les montants manquants avant d'abandonner sur 0.00.
+    Tente de déduire les montants manquants. HT et TVA peuvent désormais rester None.
     """
     ht = _vers_decimal(donnees.get("montant_ht"))
     tva = _vers_decimal(donnees.get("montant_tva"))
@@ -82,15 +84,12 @@ def _resoudre_montants(donnees: dict, taux_enum: TauxTVAEnum) -> tuple[Decimal, 
         tva = tva if tva is not None else (ht * taux_pct).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         ttc = (ht + tva).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    if ht is None:
-        ht = Decimal("0.00")
-    if tva is None:
-        tva = Decimal("0.00")
+    # Note : HT et TVA ne sont plus forcés à 0.00 s'ils sont None (pour gérer CNSS etc.)
 
     if ttc is None:
         # Aucun montant exploitable trouvé dans le document -> anomalie
-        # explicite, on ne devine rien.
-        return ht, tva, Decimal("0.00"), True, "Aucun montant total détecté dans le document."
+        # explicite, on ne devine rien. Le TTC étant obligatoire en base, on met 0.00.
+        return ht, tva, Decimal("0.00"), True, "Aucun montant total TTC détecté dans le document."
 
     return ht, tva, ttc, False, None
 
@@ -148,3 +147,49 @@ def creer_ecriture_depuis_document(db: Session, document: Document) -> EcritureC
     db.commit()
     db.refresh(ecriture)
     return ecriture
+
+
+def creer_mouvements_bancaires(db: Session, document: Document) -> list[MouvementBancaire]:
+    """
+    Crée une liste de mouvements bancaires à partir des données extraites
+    d'un relevé bancaire par l'IA.
+    """
+    donnees = document.donnees_extraites or {}
+    lignes_extraites = donnees.get("lignes_bancaires", [])
+    
+    mouvements_crees = []
+    
+    for ligne in lignes_extraites:
+        # Sécurisation de la date
+        date_str = ligne.get("date_operation")
+        try:
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else document.created_at.date()
+        except ValueError:
+            date_obj = document.created_at.date()
+            
+        # Sécurisation des décimales
+        try:
+            montant = Decimal(str(ligne.get("montant", "0.00")))
+        except:
+            montant = Decimal("0.00")
+            
+        try:
+            solde = Decimal(str(ligne.get("solde_apres_operation", "0.00"))) if ligne.get("solde_apres_operation") else None
+        except:
+            solde = None
+
+        mouvement = MouvementBancaire(
+            document_id=document.id,
+            entreprise_id=document.entreprise_id,
+            date_operation=date_obj,
+            libelle=ligne.get("libelle", "Opération inconnue")[:255],
+            reference=ligne.get("reference"),
+            type_mouvement=ligne.get("type_mouvement", "DEBIT"),
+            montant=montant,
+            solde_apres_operation=solde
+        )
+        db.add(mouvement)
+        mouvements_crees.append(mouvement)
+        
+    db.commit()
+    return mouvements_crees

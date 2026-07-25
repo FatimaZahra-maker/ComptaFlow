@@ -63,9 +63,9 @@ def _recuperer_lignes_et_totaux(
     lignes = db.execute(query).scalars().all()
 
     totaux = {
-        "total_ht": sum((l.montant_ht for l in lignes), Decimal("0.00")),
-        "total_tva": sum((l.montant_tva for l in lignes), Decimal("0.00")),
-        "total_ttc": sum((l.montant_ttc for l in lignes), Decimal("0.00")),
+        "total_ht": sum((l.montant_ht or Decimal("0.00") for l in lignes), Decimal("0.00")),
+        "total_tva": sum((l.montant_tva or Decimal("0.00") for l in lignes), Decimal("0.00")),
+        "total_ttc": sum((l.montant_ttc or Decimal("0.00") for l in lignes), Decimal("0.00")),
     }
     return lignes, totaux
 

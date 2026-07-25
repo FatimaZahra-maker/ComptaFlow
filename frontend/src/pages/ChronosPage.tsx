@@ -51,9 +51,11 @@ const CATEGORIE_COLORS: Record<string, string> = {
   divers: "bg-gray-100 text-gray-600",
 };
 
-function formatMontant(valeur: string | null): string {
-  if (valeur === null) return "—";
-  return `${parseFloat(valeur).toFixed(2)} MAD`;
+function formatMontant(valeur: string | number | null | undefined): string {
+  if (valeur === null || valeur === undefined || valeur === "") return "—";
+  const parsed = typeof valeur === 'string' ? parseFloat(valeur) : valeur;
+  if (isNaN(parsed)) return "—";
+  return `${parsed.toFixed(2)} MAD`;
 }
 
 export function ChronosPage() {
@@ -82,7 +84,6 @@ export function ChronosPage() {
         setAnnee(null);
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entrepriseId, categorie]);
 
   const refresh = useCallback(async () => {
@@ -122,7 +123,7 @@ export function ChronosPage() {
       await retraiterDocument(documentId);
       await refresh();
     } catch {
-      // le prochain refresh() manuel affichera l'état réel du document
+      // Ignore
     } finally {
       setRetraitementEnCours(null);
     }

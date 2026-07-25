@@ -77,11 +77,11 @@ function calculerVerifications(detail: DocumentDetail): VerificationItem[] {
     },
     {
       label: "Montants HT/TVA/TTC cohérents",
-      ok: detail.ecriture
+      ok: detail.ecriture && detail.ecriture.montant_ttc
         ? Math.abs(
-            parseFloat(detail.ecriture.montant_ht) +
-              parseFloat(detail.ecriture.montant_tva) -
-              parseFloat(detail.ecriture.montant_ttc)
+            parseFloat(detail.ecriture.montant_ht || "0") +
+              parseFloat(detail.ecriture.montant_tva || "0") -
+              parseFloat(detail.ecriture.montant_ttc || "0")
           ) < 0.05
         : null,
     },
@@ -101,18 +101,22 @@ function construireLignesEcriture(detail: DocumentDetail) {
   if (!e) return [];
   const estVente = e.type_ecriture?.toLowerCase().includes("vente");
   const tiers = e.tiers ?? "Tiers";
+  
+  const ht = e.montant_ht || null;
+  const tva = e.montant_tva || null;
+  const ttc = e.montant_ttc || null;
 
   if (estVente) {
     return [
-      { compte: "3421", libelle: `Client ${tiers}`, debit: e.montant_ttc, credit: null },
-      { compte: "7111", libelle: "Ventes de marchandises", debit: null, credit: e.montant_ht },
-      { compte: "4455", libelle: "État — TVA facturée", debit: null, credit: e.montant_tva },
+      { compte: "3421", libelle: `Client ${tiers}`, debit: ttc, credit: null },
+      { compte: "7111", libelle: "Ventes de marchandises", debit: null, credit: ht },
+      { compte: "4455", libelle: "État — TVA facturée", debit: null, credit: tva },
     ];
   }
   return [
-    { compte: "6111", libelle: "Achats marchandises", debit: e.montant_ht, credit: null },
-    { compte: "34552", libelle: "TVA déductible sur achats", debit: e.montant_tva, credit: null },
-    { compte: "4411", libelle: `Fournisseur ${tiers}`, debit: null, credit: e.montant_ttc },
+    { compte: "6111", libelle: "Achats marchandises", debit: ht, credit: null },
+    { compte: "34552", libelle: "TVA déductible sur achats", debit: tva, credit: null },
+    { compte: "4411", libelle: `Fournisseur ${tiers}`, debit: null, credit: ttc },
   ];
 }
 
@@ -192,8 +196,8 @@ export function DocumentDetailPage() {
       tiers: detail.ecriture.tiers ?? "",
       numero_piece: detail.ecriture.numero_piece ?? "",
       date_piece: detail.ecriture.date_piece ?? "",
-      montant_ht: detail.ecriture.montant_ht,
-      montant_tva: detail.ecriture.montant_tva,
+      montant_ht: detail.ecriture.montant_ht ?? "",
+      montant_tva: detail.ecriture.montant_tva ?? "",
       montant_ttc: detail.ecriture.montant_ttc,
     });
     setIsEditing(true);
@@ -400,33 +404,74 @@ export function DocumentDetailPage() {
           </div>
 
           <div className="col-span-12 lg:col-span-4 space-y-4">
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <h2 className="text-sm font-medium mb-3">Écriture comptable proposée</h2>
-              {lignesEcriture.length > 0 ? (
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-gray-400 border-b">
-                      <th className="pb-1.5">Compte</th>
-                      <th className="pb-1.5">Libellé</th>
-                      <th className="pb-1.5 text-right">Débit</th>
-                      <th className="pb-1.5 text-right">Crédit</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lignesEcriture.map((ligne) => (
-                      <tr key={ligne.compte} className="border-b last:border-0">
-                        <td className="py-1.5">{ligne.compte}</td>
-                        <td className="py-1.5">{ligne.libelle}</td>
-                        <td className="py-1.5 text-right">{ligne.debit ? parseFloat(ligne.debit).toFixed(2) : "-"}</td>
-                        <td className="py-1.5 text-right">{ligne.credit ? parseFloat(ligne.credit).toFixed(2) : "-"}</td>
+            
+            {/* ---- AFFICHAGE CONDITIONNEL : BANQUE OU ECRITURE CLASSIQUE ---- */}
+            {detail.categorie === "banque" ? (
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <h2 className="text-sm font-medium mb-3">Mouvements du relevé bancaire</h2>
+                {detail.mouvements_bancaires && detail.mouvements_bancaires.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-gray-400 border-b">
+                          <th className="pb-1.5 font-medium">Date</th>
+                          <th className="pb-1.5 font-medium">Libellé</th>
+                          <th className="pb-1.5 font-medium">Réf.</th>
+                          <th className="pb-1.5 font-medium text-right">Débit</th>
+                          <th className="pb-1.5 font-medium text-right">Crédit</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detail.mouvements_bancaires.map((mvt) => (
+                          <tr key={mvt.id} className="border-b last:border-0 hover:bg-gray-50">
+                            <td className="py-2 whitespace-nowrap">{mvt.date_operation}</td>
+                            <td className="py-2 max-w-[120px] truncate" title={mvt.libelle}>{mvt.libelle}</td>
+                            <td className="py-2 text-gray-500">{mvt.reference || "-"}</td>
+                            <td className="py-2 text-right text-red-600 font-medium">
+                              {mvt.type_mouvement === "DEBIT" ? Number(mvt.montant).toFixed(2) : ""}
+                            </td>
+                            <td className="py-2 text-right text-green-600 font-medium">
+                              {mvt.type_mouvement === "CREDIT" ? Number(mvt.montant).toFixed(2) : ""}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400">Aucun mouvement n'a encore été extrait pour ce relevé.</p>
+                )}
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <h2 className="text-sm font-medium mb-3">Écriture comptable proposée</h2>
+                {lignesEcriture.length > 0 ? (
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-gray-400 border-b">
+                        <th className="pb-1.5">Compte</th>
+                        <th className="pb-1.5">Libellé</th>
+                        <th className="pb-1.5 text-right">Débit</th>
+                        <th className="pb-1.5 text-right">Crédit</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p className="text-sm text-gray-400">Pas encore d'écriture générée pour ce document.</p>
-              )}
-            </div>
+                    </thead>
+                    <tbody>
+                      {lignesEcriture.map((ligne) => (
+                        <tr key={ligne.compte} className="border-b last:border-0">
+                          <td className="py-1.5">{ligne.compte}</td>
+                          <td className="py-1.5">{ligne.libelle}</td>
+                          <td className="py-1.5 text-right">{ligne.debit ? parseFloat(ligne.debit).toFixed(2) : "-"}</td>
+                          <td className="py-1.5 text-right">{ligne.credit ? parseFloat(ligne.credit).toFixed(2) : "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-sm text-gray-400">Pas encore d'écriture générée pour ce document.</p>
+                )}
+              </div>
+            )}
+            {/* ----------------------------------------------------------- */}
 
             <div className="bg-white rounded-lg shadow-sm p-4">
               <h2 className="text-sm font-medium mb-2">Commentaires</h2>

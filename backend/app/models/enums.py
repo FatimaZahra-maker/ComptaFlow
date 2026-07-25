@@ -85,3 +85,8 @@ class RecurrenceTacheEnum(str, enum.Enum):
     MENSUELLE = "mensuelle"
     TRIMESTRIELLE = "trimestrielle"
     ANNUELLE = "annuelle"
+    
+class TypeMouvementBancaireEnum(str, enum.Enum):
+    """Pour catégoriser les lignes d'un relevé bancaire."""
+    DEBIT = "debit"    # Retrait / Décaissement
+    CREDIT = "credit"  # Dépôt / Encaissement

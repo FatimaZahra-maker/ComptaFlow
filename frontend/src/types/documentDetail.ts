@@ -1,7 +1,4 @@
-// Types TypeScript correspondant exactement au schéma Pydantic
-// DocumentDetailOut (backend/app/schemas/document_detail.py).
-// Toute écriture liée à un document peut être absente (null) si le
-// document n'a pas encore été traité par le pipeline OCR/IA.
+import type { MouvementBancaire } from "./mouvementBancaire";
 
 export interface EcritureResume {
   id: string;
@@ -9,9 +6,9 @@ export interface EcritureResume {
   numero_piece: string | null;
   date_piece: string | null;
   tiers: string | null;
-  montant_ht: string;
-  taux_tva: string;
-  montant_tva: string;
+  montant_ht: string | null;
+  taux_tva: string | null;
+  montant_tva: string | null;
   montant_ttc: string;
   statut_validation: string;
   anomalie_detectee: boolean;
@@ -36,4 +33,5 @@ export interface DocumentDetail {
   message_erreur: string | null;
 
   ecriture: EcritureResume | null;
+  mouvements_bancaires?: MouvementBancaire[] | null;
 }

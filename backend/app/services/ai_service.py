@@ -56,6 +56,23 @@ _SCHEMA_JSON_REDUIT = """{{
   "categorie": "clients" | "fournisseurs" | "banque" | "cnss" | "tva" | "impots" | "achats" | "ventes" | "divers"
 }}"""
 
+# NOUVEAU SCHEMA : Spécifique pour les relevés bancaires
+_SCHEMA_JSON_BANQUE = """{{
+  "nom_entreprise": string,
+  "tiers": null,
+  "categorie": "banque",
+  "lignes_bancaires": [
+    {{
+      "date_operation": "YYYY-MM-DD",
+      "libelle": string,
+      "reference": string,
+      "type_mouvement": "CREDIT" | "DEBIT",
+      "montant": float,
+      "solde_apres_operation": float
+    }}
+  ]
+}}"""
+
 EXTRACTION_PROMPTS = {
     "facture": """Voici le début d'une FACTURE marocaine (texte OCR).
 Identifie le nom de l'entreprise émettrice (nom_entreprise), le nom du
@@ -70,8 +87,8 @@ Texte :
 """,
     "releve_bancaire": """Voici le début d'un RELEVÉ BANCAIRE (texte OCR).
 nom_entreprise = le titulaire du compte si visible, tiers = null,
-categorie = "banque". Réponds UNIQUEMENT ce JSON :
-""" + _SCHEMA_JSON_REDUIT + """
+categorie = "banque". Tu dois également extraire les lignes de transactions (lignes_bancaires). Réponds UNIQUEMENT ce JSON :
+""" + _SCHEMA_JSON_BANQUE + """
 
 Texte :
 ---

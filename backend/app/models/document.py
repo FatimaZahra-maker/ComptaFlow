@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.chrono import Chrono
     from app.models.user import User
     from app.models.ecriture import EcritureComptable
+    from app.models.mouvement_bancaire import MouvementBancaire
 
 
 class Document(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin):
@@ -63,6 +64,9 @@ class Document(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin):
     chrono: Mapped[Optional["Chrono"]] = relationship(back_populates="documents")
     uploaded_by_user: Mapped["User"] = relationship()
     ecritures: Mapped[List["EcritureComptable"]] = relationship(back_populates="document")
+    
+    # --- NOUVEAU : Relation avec les mouvements bancaires ---
+    mouvements_bancaires: Mapped[List["MouvementBancaire"]] = relationship(back_populates="document")
 
     def __repr__(self) -> str:
         return f"<Document {self.nom_fichier_original} ({self.statut})>"

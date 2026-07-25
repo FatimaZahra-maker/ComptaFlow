@@ -34,6 +34,7 @@ from app.core.config import settings
 from app.models.user import User
 from app.models.document import Document
 from app.models.ecriture import EcritureComptable
+from app.models.mouvement_bancaire import MouvementBancaire
 from app.models.enums import StatutDocumentEnum
 from app.schemas.document import DocumentOut
 from app.schemas.document_detail import DocumentDetailOut
@@ -142,6 +143,10 @@ def get_document_detail(
     ecriture = db.execute(
         select(EcritureComptable).where(EcritureComptable.document_id == document.id)
     ).scalars().first()
+    
+    mouvements = db.execute(
+        select(MouvementBancaire).where(MouvementBancaire.document_id == document.id)
+    ).scalars().all()
 
     return DocumentDetailOut(
         id=document.id,
@@ -160,6 +165,7 @@ def get_document_detail(
         type_erreur=document.type_erreur.value if document.type_erreur else None,
         error_code=document.error_code,
         ecriture=ecriture,
+        mouvements_bancaires=mouvements,
     )
 
 
@@ -247,6 +253,7 @@ def retraiter_document(
         )
 
     db.query(EcritureComptable).filter(EcritureComptable.document_id == document.id).delete()
+    db.query(MouvementBancaire).filter(MouvementBancaire.document_id == document.id).delete()
 
     document.statut = StatutDocumentEnum.EN_ATTENTE
     document.texte_ocr = None
