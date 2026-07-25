@@ -147,3 +147,49 @@ def generer_export_topaze(ecriture: EcritureComptable) -> bytes:
         writer.writerow([date_str, "4411", f"Fournisseur {tiers}", "", f"{ecriture.montant_ttc:.2f}"])
 
     return ("\ufeff" + tampon.getvalue()).encode("utf-8")
+
+# Ajoute cet import en haut si absent :
+# from app.schemas.rapport import RapportOut
+
+# Génère un PDF de synthèse à partir d'un RapportOut déjà calculé --
+# un seul tableau clé/valeur, pensé pour être imprimé ou joint à un
+# email, contrairement au registre (Phase 5) qui liste chaque écriture.
+def generer_rapport_pdf(rapport) -> bytes:
+    tampon = io.BytesIO()
+    document = SimpleDocTemplate(tampon, pagesize=A4, topMargin=1.5 * cm, bottomMargin=1.5 * cm)
+    styles = getSampleStyleSheet()
+
+    periode = f"{rapport.mois}/{rapport.annee}" if rapport.mois else f"Année {rapport.annee}"
+    elements = [
+        Paragraph(f"Rapport de synthèse — {rapport.entreprise_nom}", styles["Title"]),
+        Paragraph(f"Période : {periode}", styles["Normal"]),
+        Spacer(1, 16),
+    ]
+
+    lignes = [
+        ["Indicateur", "Valeur"],
+        ["Documents traités", str(rapport.nombre_documents)],
+        ["Documents en erreur", str(rapport.nombre_documents_erreur)],
+        ["Écritures validées", str(rapport.nombre_ecritures_validees)],
+        ["Écritures à vérifier", str(rapport.nombre_ecritures_a_verifier)],
+        ["Anomalies détectées", str(rapport.nombre_anomalies)],
+        ["Total achats HT", f"{rapport.total_achats_ht:.2f} MAD"],
+        ["Total ventes HT", f"{rapport.total_ventes_ht:.2f} MAD"],
+        ["TVA collectée", f"{rapport.tva_collectee:.2f} MAD"],
+        ["TVA déductible", f"{rapport.tva_deductible:.2f} MAD"],
+        ["TVA nette", f"{rapport.tva_nette:.2f} MAD"],
+    ]
+
+    tableau = Table(lignes, colWidths=[9 * cm, 6 * cm])
+    tableau.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e7a3e")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+    ]))
+    elements.append(tableau)
+    document.build(elements)
+
+    tampon.seek(0)
+    return tampon.read()

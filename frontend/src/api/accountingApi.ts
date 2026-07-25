@@ -52,3 +52,14 @@ export async function updateEntry(
   const response = await apiClient.patch<Ecriture>(`/accounting/entries/${id}`, payload);
   return response.data;
 }
+// Ajoute cet import en haut si absent :
+import type { TvaAnnuelle } from "../types/registre";
+
+// Ajoute cette fonction à la fin du fichier :
+export async function getTvaMensuelle(params: {
+  entreprise_id: string;
+  annee: number;
+}): Promise<TvaAnnuelle> {
+  const response = await apiClient.get<TvaAnnuelle>("/accounting/tva-mensuelle", { params });
+  return response.data;
+}

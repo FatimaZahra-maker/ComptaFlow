@@ -13,6 +13,10 @@ from app.api.dashboard import router as dashboard_router
 from app.api.search import router as search_router
 from app.api.notifications import router as notifications_router
 from app.api.export import router as export_router
+from app.api.taches import router as taches_router
+# --- Nouveaux imports ajoutés ici ---
+from app.api.cabinet import router as cabinet_router
+from app.api.system import router as system_router
 
 configurer_logging()
 
@@ -36,6 +40,10 @@ app.include_router(dashboard_router)
 app.include_router(search_router)
 app.include_router(notifications_router)
 app.include_router(export_router)
+app.include_router(taches_router)
+# --- Nouveaux routeurs enregistrés ici ---
+app.include_router(cabinet_router)
+app.include_router(system_router)
 
 
 @app.get("/")

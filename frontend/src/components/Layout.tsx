@@ -9,18 +9,22 @@ import type { Entreprise } from "../types/entreprise";
 import { useAuth } from "../context/AuthContext";
 import { ResizableSidebar } from "./ResizableSidebar";
 
+// --- CONFIGURATION D'AFFICHAGE ---
+// Mapping pour l'affichage textuel des types de résultats de recherche
 const TYPE_LABELS: Record<string, string> = {
   entreprise: "Entreprise",
   document: "Document",
   ecriture: "Écriture",
 };
 
+// Mapping pour les couleurs des badges dans les résultats de recherche
 const TYPE_COLORS: Record<string, string> = {
   entreprise: "bg-purple-100 text-purple-700",
   document: "bg-blue-100 text-blue-700",
   ecriture: "bg-green-100 text-green-700",
 };
 
+// Mapping pour les couleurs des icônes de notifications selon leur type
 const NOTIF_TYPE_COLORS: Record<string, string> = {
   document_erreur: "bg-red-100 text-red-700",
   ecriture_anomalie: "bg-orange-100 text-orange-700",
@@ -28,6 +32,7 @@ const NOTIF_TYPE_COLORS: Record<string, string> = {
   document_nouveau: "bg-blue-100 text-blue-700",
 };
 
+// Mapping pour les icônes de notifications selon leur type
 const NOTIF_TYPE_ICONS: Record<string, string> = {
   document_erreur: "✕",
   ecriture_anomalie: "⚠",
@@ -35,6 +40,7 @@ const NOTIF_TYPE_ICONS: Record<string, string> = {
   document_nouveau: "●",
 };
 
+// Interface définissant la structure d'un élément de navigation de la sidebar
 interface NavItemExtended {
   label: string;
   icon: string;
@@ -44,48 +50,60 @@ interface NavItemExtended {
 
 // disponible: false -- section visible dans la sidebar (comme la
 // maquette) mais grisée et non cliquable : ce sont de vraies pages qui
-// n'ont pas encore de backend/UI derrière (Clients et Fournisseurs,
-// Rappels & Tâches, Rapports, Paramètres), à construire plus tard.
+// n'ont pas encore de backend/UI derrière (Clients et Fournisseurs), à construire plus tard.
 const NAV_ITEMS: NavItemExtended[] = [
   { label: "Tableau de bord", icon: "🏠", route: "/dashboard" },
   { label: "Documents", icon: "📄", route: "/upload" },
   { label: "Chronos", icon: "🕐", route: "/chronos" },
   { label: "Écritures", icon: "📑", route: "/registers" },
   { label: "Registres", icon: "📊", route: "/registres" },
+  // Route pour la TVA mensuelle
+  { label: "TVA mensuelle", icon: "💰", route: "/tva-mensuelle" },
   { label: "Clients et Fournisseurs", icon: "👥", route: "/tiers", disponible: false },
-  { label: "Rappels & Tâches", icon: "🗓️", route: "/rappels", disponible: false },
+  // AJOUT : La route Rappels & Tâches est maintenant cliquable (retrait de disponible: false)
+  { label: "Rappels & Tâches", icon: "🗓️", route: "/rappels" },
   { label: "Notifications", icon: "🔔", route: "/notifications" },
-  { label: "Rapports", icon: "📈", route: "/rapports", disponible: false },
+  { label: "Rapports", icon: "📈", route: "/rapports" }, // Rendue cliquable
   { label: "Utilisateurs", icon: "👤", route: "/admin/utilisateurs" },
-  { label: "Paramètres", icon: "⚙️", route: "/parametres", disponible: false },
+  { label: "Paramètres", icon: "⚙️", route: "/parametres" }, // Rendue cliquable
 ];
 
+// Clé utilisée pour stocker l'ID de l'entreprise actuellement sélectionnée dans le localStorage
 export const ACTIVE_ENTREPRISE_KEY = "comptaflow_active_entreprise_id";
 
-const DEBOUNCE_MS = 300;
-const NOTIF_POLL_MS = 15000;
+// Constantes de temporisation
+const DEBOUNCE_MS = 300; // Délai d'attente pour déclencher la recherche après la frappe
+const NOTIF_POLL_MS = 15000; // Intervalle de rafraîchissement des notifications (15s)
 
 export function Layout({ children }: { children: ReactNode }) {
+  // --- HOOKS DE NAVIGATION ET D'AUTHENTIFICATION ---
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
 
+  // --- ÉTAT ET GESTION DES ENTREPRISES ---
   const [entreprises, setEntreprises] = useState<Entreprise[]>([]);
+  // Initialise l'entreprise active depuis le localStorage s'il y en a une
   const [activeEntrepriseId, setActiveEntrepriseId] = useState<string | null>(
     () => localStorage.getItem(ACTIVE_ENTREPRISE_KEY)
   );
 
+  // Charge la liste des entreprises au montage du composant
   useEffect(() => {
     listEntreprises().then(setEntreprises);
   }, []);
 
+  // Fonction pour changer l'entreprise active
   function selectEntreprise(id: string | null) {
     setActiveEntrepriseId(id);
     if (id) localStorage.setItem(ACTIVE_ENTREPRISE_KEY, id);
     else localStorage.removeItem(ACTIVE_ENTREPRISE_KEY);
+    
+    // Déclenche un événement global pour que les autres composants puissent réagir au changement
     window.dispatchEvent(new CustomEvent("entreprise-active-changed", { detail: id }));
   }
 
+  // --- ÉTAT ET GESTION DE LA RECHERCHE GLOBALE ---
   const [query, setQuery] = useState("");
   const [resultats, setResultats] = useState<SearchResultItem[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -93,13 +111,18 @@ export function Layout({ children }: { children: ReactNode }) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
+  // Effet pour déclencher la recherche avec un mécanisme de "debounce" pour éviter d'inonder le backend
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    
+    // Si la recherche est trop courte, on vide les résultats
     if (query.trim().length < 2) {
       setResultats([]);
       setIsSearchOpen(false);
       return;
     }
+    
+    // Planifie la recherche après le délai de debounce
     debounceRef.current = setTimeout(async () => {
       setIsSearching(true);
       try {
@@ -110,36 +133,44 @@ export function Layout({ children }: { children: ReactNode }) {
         setIsSearching(false);
       }
     }, DEBOUNCE_MS);
+    
+    // Nettoyage du timeout si la requête change avant la fin du délai
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [query]);
 
+  // Redirige vers la page de l'élément sélectionné depuis les résultats de recherche
   function handleSelectResult(item: SearchResultItem) {
     setIsSearchOpen(false);
     setQuery("");
     navigate(item.route);
   }
 
+  // --- ÉTAT ET GESTION DES NOTIFICATIONS ---
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const notifContainerRef = useRef<HTMLDivElement>(null);
 
+  // Fonction pour récupérer les dernières notifications du backend
   const refreshNotifications = async () => {
     try {
       const data = await getNotifications();
       setNotifications(data.notifications);
     } catch {
-      // silencieux -- le prochain polling réessaiera
+      // silencieux -- le prochain polling réessaiera en cas d'erreur réseau
     }
   };
 
+  // Effet pour mettre en place le "polling" (rafraîchissement périodique) des notifications
   useEffect(() => {
-    refreshNotifications();
+    refreshNotifications(); // Premier appel immédiat
     const interval = setInterval(refreshNotifications, NOTIF_POLL_MS);
-    return () => clearInterval(interval);
+    return () => clearInterval(interval); // Nettoyage au démontage
   }, []);
 
+  // --- GESTION DES CLICS À L'EXTÉRIEUR (Dropdowns) ---
+  // Ferme la recherche ou les notifications si l'utilisateur clique en dehors de ces zones
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
@@ -153,6 +184,7 @@ export function Layout({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Redirige l'utilisateur vers le lien lié à la notification cliquée
   function handleSelectNotification(notification: Notification) {
     setIsNotifOpen(false);
     navigate(notification.route);
@@ -160,6 +192,8 @@ export function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex bg-gray-50">
+      
+      {/* --- BARRE LATÉRALE (SIDEBAR) --- */}
       <ResizableSidebar
         storageKey="main-nav"
         defaultWidth={240}
@@ -168,11 +202,13 @@ export function Layout({ children }: { children: ReactNode }) {
         className="bg-[#0f1a3c] text-gray-300"
       >
         <div className="flex flex-col h-full">
+          {/* Logo et Nom de l'app */}
           <div className="px-4 py-4 flex items-center gap-2 border-b border-white/10">
             <span className="text-xl">☁️</span>
             <span className="text-white font-semibold">ComptaFlow</span>
           </div>
 
+          {/* Navigation principale */}
           <nav className="px-3 py-4 space-y-0.5">
             <p className="px-2 text-[10px] uppercase tracking-wide text-gray-500 mb-1">Vue d'ensemble</p>
             {NAV_ITEMS.map((item) => {
@@ -186,14 +222,15 @@ export function Layout({ children }: { children: ReactNode }) {
                   title={!disponible ? "Bientôt disponible" : undefined}
                   className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded text-sm transition ${
                     !disponible
-                      ? "text-gray-500 opacity-50 cursor-not-allowed"
+                      ? "text-gray-500 opacity-50 cursor-not-allowed" // Style pour éléments non cliquables
                       : active
-                      ? "bg-green-600/90 text-white"
-                      : "text-gray-300 hover:bg-white/5 hover:text-white"
+                      ? "bg-green-600/90 text-white" // Style actif
+                      : "text-gray-300 hover:bg-white/5 hover:text-white" // Style inactif
                   }`}
                 >
                   <span className="w-4 text-center">{item.icon}</span>
                   {item.label}
+                  {/* Affiche un badge de compteur pour l'onglet Notifications s'il y en a */}
                   {item.route === "/notifications" && notifications.length > 0 && (
                     <span className="ml-auto bg-red-500 text-white text-[10px] rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
                       {notifications.length > 9 ? "9+" : notifications.length}
@@ -204,8 +241,11 @@ export function Layout({ children }: { children: ReactNode }) {
             })}
           </nav>
 
+          {/* Liste et sélection des Entreprises (en bas de la sidebar) */}
           <div className="px-3 pt-2 pb-4 mt-auto border-t border-white/10">
             <p className="px-2 text-[10px] uppercase tracking-wide text-gray-500 mb-1">Entreprises</p>
+            
+            {/* Bouton pour réinitialiser le filtre ("Toutes") */}
             <button
               onClick={() => selectEntreprise(null)}
               className={`w-full text-left px-2.5 py-1.5 rounded text-sm mb-0.5 ${
@@ -214,6 +254,8 @@ export function Layout({ children }: { children: ReactNode }) {
             >
               Toutes
             </button>
+            
+            {/* Liste dynamique des entreprises chargées */}
             {entreprises.map((e) => (
               <button
                 key={e.id}
@@ -223,11 +265,13 @@ export function Layout({ children }: { children: ReactNode }) {
                 }`}
               >
                 <span className="truncate">{e.nom}</span>
+                {/* Indicateur si l'entreprise a été générée automatiquement et nécessite une vérification */}
                 {e.creee_automatiquement && (
                   <span className="text-orange-400 text-xs shrink-0" title="Créée automatiquement, à vérifier">●</span>
                 )}
               </button>
             ))}
+            
             <button
               onClick={() => navigate("/upload")}
               className="w-full text-left px-2.5 py-1.5 rounded text-xs text-green-300 hover:bg-white/5 mt-1"
@@ -238,8 +282,13 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       </ResizableSidebar>
 
+      {/* --- CONTENU PRINCIPAL ET HEADER --- */}
       <div className="flex-1 flex flex-col min-w-0">
+        
+        {/* HEADER */}
         <header className="h-14 shrink-0 bg-white border-b flex items-center gap-4 px-6">
+          
+          {/* Barre de recherche globale */}
           <div ref={searchContainerRef} className="relative flex-1 max-w-md">
             <input
               type="text"
@@ -249,6 +298,7 @@ export function Layout({ children }: { children: ReactNode }) {
               placeholder="Rechercher (facture, ICE, tiers...)"
               className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
             />
+            {/* Menu déroulant des résultats de recherche */}
             {isSearchOpen && (
               <div className="absolute mt-1 w-full bg-white border rounded-lg shadow-lg max-h-96 overflow-auto z-20">
                 {isSearching && <p className="p-3 text-sm text-gray-400">Recherche...</p>}
@@ -275,6 +325,7 @@ export function Layout({ children }: { children: ReactNode }) {
             )}
           </div>
 
+          {/* Cloche de notifications */}
           <div ref={notifContainerRef} className="relative shrink-0 ml-auto">
             <button
               onClick={() => setIsNotifOpen((open) => !open)}
@@ -288,6 +339,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 </span>
               )}
             </button>
+            {/* Dropdown des notifications récentes */}
             {isNotifOpen && (
               <div className="absolute right-0 mt-2 w-80 bg-white border rounded-lg shadow-lg max-h-96 overflow-auto z-20">
                 <div className="px-3 py-2 border-b">
@@ -315,6 +367,7 @@ export function Layout({ children }: { children: ReactNode }) {
                     </span>
                   </button>
                 ))}
+                {/* Lien pour aller à la page complète des notifications */}
                 {notifications.length > 0 && (
                   <button
                     onClick={() => { setIsNotifOpen(false); navigate("/notifications"); }}
@@ -327,10 +380,12 @@ export function Layout({ children }: { children: ReactNode }) {
             )}
           </div>
 
+          {/* Informations Utilisateur / Cabinet (en haut à droite) */}
           <div className="text-right leading-tight shrink-0">
             <p className="text-sm font-medium">{user?.email ?? "Cabinet"}</p>
             <p className="text-xs text-gray-400">{user?.role ?? ""}</p>
           </div>
+          {/* Avatar Utilisateur et Bouton Déconnexion */}
           <button
             onClick={logout}
             className="w-8 h-8 rounded-full bg-green-100 text-green-700 text-xs font-semibold flex items-center justify-center shrink-0"
@@ -340,7 +395,9 @@ export function Layout({ children }: { children: ReactNode }) {
           </button>
         </header>
 
+        {/* --- ZONE D'AFFICHAGE DU COMPOSANT ENFANT (LA PAGE ACTUELLE) --- */}
         <main className="flex-1 min-w-0 overflow-auto">{children}</main>
+        
       </div>
     </div>
   );

@@ -31,3 +31,21 @@ class RegistreOut(BaseModel):
     total_ttc: Decimal
 
     lignes: list[EcritureOut]
+    
+# --- Ajout : TVA ventilée par mois (Phase suivante) ---
+class TvaMensuelle(BaseModel):
+    mois: int
+    annee: int
+    tva_collectee: str
+    tva_deductible: str
+    tva_nette: str
+    nombre_ecritures: int
+
+
+class TvaAnnuelleOut(BaseModel):
+    entreprise_id: uuid.UUID
+    annee: int
+    mensualites: list[TvaMensuelle]
+    total_tva_collectee: str
+    total_tva_deductible: str
+    total_tva_nette: str

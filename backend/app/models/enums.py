@@ -67,3 +67,21 @@ class StatutValidationEnum(str, enum.Enum):
     A_VERIFIER = "a_verifier"   # anomalie détectée automatiquement
     VALIDE = "valide"
     REJETE = "rejete"
+    
+class StatutTacheEnum(str, enum.Enum):
+    A_FAIRE = "a_faire"
+    EN_COURS = "en_cours"
+    TERMINEE = "terminee"
+
+
+class PrioriteTacheEnum(str, enum.Enum):
+    BASSE = "basse"
+    NORMALE = "normale"
+    HAUTE = "haute"
+
+
+class RecurrenceTacheEnum(str, enum.Enum):
+    AUCUNE = "aucune"
+    MENSUELLE = "mensuelle"
+    TRIMESTRIELLE = "trimestrielle"
+    ANNUELLE = "annuelle"
