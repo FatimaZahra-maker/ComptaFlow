@@ -1,28 +1,19 @@
 """
 app/services/ai_service.py
 
-Extraction en CASCADE, priorité vitesse + fiabilité :
+Service d'extraction d'informations par intelligence artificielle.
+Il utilise une stratégie en CASCADE pour privilégier la vitesse et la fiabilité :
 
-1. GROQ (cloud, rapide) -- si GROQ_API_KEY configurée. Extraction ET
-   classification complètes en un seul appel, DANS le chemin critique.
-
-2. OLLAMA LOCAL (léger) -- repli DIRECT et SYNCHRONE si Groq n'est pas
-   configuré ou échoue. Utilise regex (fiable à ~100% sur les champs
-   numériques/identifiants) + UN appel Ollama limité à 3 champs
-   sémantiques (nom_entreprise, tiers, categorie) -- pas une extraction
-   complète à 15 champs, qui serait trop lourde pour un modèle 1B sur
-   une machine à RAM limitée (cause historique des timeouts/lenteurs
-   de ce projet).
-
-3. REGEX SEULE -- si Ollama est lui aussi injoignable, les champs déjà
-   trouvés par regex/heuristique restent tels quels.
-
-Cette fonction est TOUJOURS garantie de retourner un dict exploitable.
+1. GROQ (Cloud, très rapide) : Extraction complète si configuré.
+2. OLLAMA LOCAL (Léger) : Repli synchrone si Groq échoue. 
+   On se limite à 3 champs sémantiques (nom, tiers, categorie) car un modèle 
+   local est trop lourd pour une extraction exhaustive.
+3. REGEX SEULE : Repli ultime si l'IA est totalement indisponible. 
+   Les données sont basées sur des heuristiques.
 """
 import json
 import logging
 import re
-
 import requests
 
 from app.core.config import settings
@@ -36,10 +27,12 @@ from app.services import ml_classifier_service
 
 logger = logging.getLogger("comptaflow.ai_service")
 
+# Paramètres de configuration pour limiter la charge locale
 OLLAMA_TIMEOUT_SECONDS = 20
 MAX_CHARS_PROMPT_IA = 1500
 OLLAMA_KEEP_ALIVE = "30m"
 
+# Vocabulaire strict autorisé pour la classification
 _CATEGORIES_VALIDES = {
     "clients", "fournisseurs", "banque", "cnss", "tva", "impots",
     "achats", "ventes", "divers",
@@ -50,13 +43,16 @@ _MOTS_A_IGNORER_HEURISTIQUE = {
     "relevé", "avis", "déclaration",
 }
 
+# --- SCHÉMAS JSON STRICTS POUR BRIDER L'IA ---
+
+# Schéma réduit utilisé pour l'extraction locale (Ollama)
 _SCHEMA_JSON_REDUIT = """{{
   "nom_entreprise": string,
   "tiers": string,
   "categorie": "clients" | "fournisseurs" | "banque" | "cnss" | "tva" | "impots" | "achats" | "ventes" | "divers"
 }}"""
 
-# NOUVEAU SCHEMA : Spécifique pour les relevés bancaires
+# Schéma spécifique pour forcer l'IA à extraire des tableaux bancaires
 _SCHEMA_JSON_BANQUE = """{{
   "nom_entreprise": string,
   "tiers": null,
@@ -73,6 +69,7 @@ _SCHEMA_JSON_BANQUE = """{{
   ]
 }}"""
 
+# Dictionnaire des prompts injectés selon le type du document détecté
 EXTRACTION_PROMPTS = {
     "facture": """Voici le début d'une FACTURE marocaine (texte OCR).
 Identifie le nom de l'entreprise émettrice (nom_entreprise), le nom du
@@ -128,8 +125,10 @@ Texte :
 
 
 def _nettoyer_et_parser_json(texte_reponse: str) -> dict:
+    """Extrait proprement un dictionnaire JSON depuis la réponse brute de l'IA."""
     if not texte_reponse:
         return {}
+    # Nettoyage des balises Markdown (ex: ```json ... ```)
     nettoye = texte_reponse.replace("```json", "").replace("```", "").strip()
     debut, fin = nettoye.find("{"), nettoye.rfind("}")
     if debut == -1 or fin == -1 or fin < debut:
@@ -141,12 +140,14 @@ def _nettoyer_et_parser_json(texte_reponse: str) -> dict:
 
 
 def _extraire_nom_entreprise_heuristique(texte_ocr: str) -> str | None:
+    """Tente de deviner le nom de l'entreprise sans IA en lisant la 1ère ligne valide."""
     for ligne in texte_ocr.splitlines():
         ligne_propre = ligne.strip()
         if len(ligne_propre) < 3:
             continue
         if ligne_propre.lower() in _MOTS_A_IGNORER_HEURISTIQUE:
             continue
+        # Ignore les lignes contenant uniquement des nombres/caractères spéciaux (ex: tel, ICE)
         if re.fullmatch(r"[\d\s\-/.,#]+", ligne_propre):
             continue
         return ligne_propre
@@ -155,11 +156,12 @@ def _extraire_nom_entreprise_heuristique(texte_ocr: str) -> str | None:
 
 def extraire_donnees_rapide(texte_ocr: str) -> dict:
     """
-    Base regex + heuristique + ML (categorie, si modèle entraîné).
-    Aucun appel réseau. Ne lève jamais d'exception.
+    Méthode de repli ultra-rapide basée UNIQUEMENT sur les expressions régulières (Regex),
+    les heuristiques et le classifieur ML (si présent). Ne fait aucun appel réseau.
     """
     type_document = detecter_type_document(texte_ocr)
 
+    # Squelette de base des données
     donnees: dict = {
         "nom_entreprise": None,
         "ice": None,
@@ -178,14 +180,17 @@ def extraire_donnees_rapide(texte_ocr: str) -> dict:
         "enrichissement_ia_statut": "en_attente",
     }
 
+    # Remplissage via regex
     donnees = completer_champs_manquants(donnees, texte_ocr)
     conf = donnees["confiance_par_champ"]
 
+    # Remplissage sémantique basique sans IA
     fallback = _extraire_nom_entreprise_heuristique(texte_ocr)
     donnees["nom_entreprise"] = fallback
     conf["nom_entreprise"] = 0.35 if fallback else 0.0
     conf["tiers"] = 0.0
 
+    # Classification via un modèle ML classique (non-LLM)
     categorie_ml, confiance_ml = ml_classifier_service.predire_categorie(texte_ocr)
     if categorie_ml:
         donnees["categorie"] = categorie_ml
@@ -200,11 +205,10 @@ def extraire_donnees_rapide(texte_ocr: str) -> dict:
 
 def enrichir_avec_ia(texte_ocr: str, type_document: str) -> dict:
     """
-    Appel Ollama LÉGER : uniquement les 3 champs sémantiques que la
-    regex ne peut pas deviner. Utilisée en repli synchrone quand Groq
-    est indisponible -- jamais d'extraction complète via ce petit
-    modèle local, trop lourde/peu fiable pour cette tâche.
+    Appelle Ollama en local. Demande volontairement très peu de choses (3 champs) 
+    pour éviter de surcharger un modèle 1B ou 8B sur une petite machine.
     """
+    # Troncature pour limiter le contexte et accélérer l'inférence
     texte_court = texte_ocr[:MAX_CHARS_PROMPT_IA]
     prompt = EXTRACTION_PROMPTS[type_document].format(texte=texte_court)
     texte_lower = texte_ocr.lower()
@@ -233,6 +237,7 @@ def enrichir_avec_ia(texte_ocr: str, type_document: str) -> dict:
 
     resultat: dict = {}
 
+    # Validation et ajout d'un score de confiance artificiel (selon si le mot existe dans le texte)
     if champs_ia.get("nom_entreprise"):
         val = str(champs_ia["nom_entreprise"]).strip()
         resultat["nom_entreprise"] = val
@@ -255,10 +260,8 @@ def enrichir_avec_ia(texte_ocr: str, type_document: str) -> dict:
 
 def _extraire_donnees_locale_synchrone(texte_ocr: str) -> dict:
     """
-    Repli LOCAL DIRECT (synchrone) : regex (rapide, fiable) fusionnée
-    avec un appel Ollama BLOQUANT léger pour 3 champs sémantiques
-    seulement. Si Ollama échoue aussi, le résultat regex/heuristique
-    est retourné tel quel -- jamais d'exception.
+    Processus de repli complet : On effectue d'abord une passe rapide (Regex),
+    puis on tente d'enrichir les champs difficiles (nom, catégorie) avec l'IA locale.
     """
     donnees = extraire_donnees_rapide(texte_ocr)
     type_document = donnees.get("type_document", "autre")
@@ -270,6 +273,7 @@ def _extraire_donnees_locale_synchrone(texte_ocr: str) -> dict:
 
     conf = donnees["confiance_par_champ"]
 
+    # Écrasement des champs devinés par la regex avec ceux de l'IA (meilleurs)
     if "nom_entreprise" in resultat_ia:
         donnees["nom_entreprise"] = resultat_ia["nom_entreprise"]
         conf["nom_entreprise"] = resultat_ia["conf_nom_entreprise"]
@@ -287,7 +291,10 @@ def _extraire_donnees_locale_synchrone(texte_ocr: str) -> dict:
 
 
 def prechauffer_modele() -> None:
-    """Préchauffage Ollama -- SAUTÉ si la RAM disponible est trop basse."""
+    """
+    Préchauffe Ollama en mémoire au démarrage.
+    Sécurité vitale : Annulé si la machine a moins de 1.8 Go de RAM libre.
+    """
     try:
         import psutil
         ram_disponible_mb = psutil.virtual_memory().available / (1024 * 1024)
@@ -321,13 +328,14 @@ def prechauffer_modele() -> None:
 def extraire_donnees(texte_ocr: str) -> dict:
     """
     Point d'entrée UNIQUE utilisé par document_processing.py.
-
-    Cascade EXACTE demandée : Groq -> Ollama local (léger) -> regex seule.
+    Définit l'ordre strict de la cascade de secours.
     """
+    # 1. Tentative avec l'API Cloud Rapide (Groq)
     if settings.GROQ_API_KEY:
         donnees_groq = groq_service.extraire_et_classifier(texte_ocr)
         if donnees_groq is not None:
             return donnees_groq
         logger.warning("Groq indisponible/échoué -- repli DIRECT sur Ollama local.")
 
+    # 2. Tentative Local Synchrone (Regex + Ollama partiel)
     return _extraire_donnees_locale_synchrone(texte_ocr)

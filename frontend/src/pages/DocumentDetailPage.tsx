@@ -9,6 +9,7 @@ import type { DocumentDetail } from "../types/documentDetail";
 import type { DocumentChrono } from "../types/chrono";
 import type { Entreprise } from "../types/entreprise";
 
+// --- CONSTANTES DE CONFIGURATION ---
 const STATUT_LABELS: Record<string, string> = {
   en_attente: "En attente",
   en_traitement: "En traitement",
@@ -56,11 +57,16 @@ const CHAMP_ORDRE = [
   "ht", "tva", "ttc", "categorie", "statut",
 ];
 
+// --- INTERFACES UTILES ---
 interface VerificationItem {
   label: string;
   ok: boolean | null;
 }
 
+// --- FONCTIONS UTILITAIRES ---
+/**
+ * Calcule les vérifications automatiques (ICE, montants, doublons) basées sur les données extraites.
+ */
 function calculerVerifications(detail: DocumentDetail): VerificationItem[] {
   const donnees = (detail.donnees_extraites ?? {}) as Record<string, unknown>;
   const iceFournisseur = donnees["ice_fournisseur"];
@@ -96,6 +102,9 @@ function calculerVerifications(detail: DocumentDetail): VerificationItem[] {
   ];
 }
 
+/**
+ * Construit les lignes d'écritures comptables (débit/crédit) selon qu'il s'agit d'une vente ou d'un achat.
+ */
 function construireLignesEcriture(detail: DocumentDetail) {
   const e = detail.ecriture;
   if (!e) return [];
@@ -120,10 +129,12 @@ function construireLignesEcriture(detail: DocumentDetail) {
   ];
 }
 
+// --- COMPOSANT PRINCIPAL ---
 export function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
+  // --- ÉTATS ---
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [entreprises, setEntreprises] = useState<Entreprise[]>([]);
   const [chronoSiblings, setChronoSiblings] = useState<DocumentChrono[]>([]);
@@ -140,8 +151,10 @@ export function DocumentDetailPage() {
     tiers: "", numero_piece: "", date_piece: "", montant_ht: "", montant_tva: "", montant_ttc: "",
   });
 
+  // --- EFFETS ET RÉCUPÉRATION DE DONNÉES ---
   const refresh = useCallback(async () => {
     if (!id) return;
+    setIsLoading(true);
     try {
       const data = await getDocumentDetail(id);
       setDetail(data);
@@ -174,6 +187,7 @@ export function DocumentDetailPage() {
     }).then(setChronoSiblings);
   }, [detail?.entreprise_id, detail?.annee, detail?.mois, detail?.categorie]);
 
+  // --- MÉMOÏSATIONS ---
   const entrepriseNom = useMemo(
     () => entreprises.find((e) => e.id === detail?.entreprise_id)?.nom ?? null,
     [entreprises, detail?.entreprise_id]
@@ -190,6 +204,7 @@ export function DocumentDetailPage() {
     return Math.round((remplis / valeurs.length) * 100);
   }, [detail?.donnees_extraites]);
 
+  // --- ACTIONS (ÉDITION, VALIDATION, REJET) ---
   function ouvrirCorrection() {
     if (!detail?.ecriture) return;
     setEditForm({
@@ -243,13 +258,14 @@ export function DocumentDetailPage() {
     return true;
   });
 
-  if (isLoading) return <div className="p-8 text-gray-500">Chargement...</div>;
+  // --- RENDUS CONDITIONNELS ---
+  if (isLoading) return <div className="p-8 text-gray-500 animate-pulse">Chargement en cours...</div>;
 
   if (error || !detail) {
     return (
-      <div className="p-8">
-        <p className="text-red-600 mb-4">{error ?? "Document introuvable."}</p>
-        <button onClick={() => navigate("/chronos")} className="text-green-700 text-sm">
+      <div className="p-8 flex flex-col items-start gap-4">
+        <p className="text-red-600 font-medium">{error ?? "Document introuvable."}</p>
+        <button onClick={() => navigate("/chronos")} className="px-4 py-2 bg-green-50 text-green-700 rounded hover:bg-green-100 text-sm font-medium transition-colors">
           ← Retour aux chronos
         </button>
       </div>
@@ -263,82 +279,86 @@ export function DocumentDetailPage() {
   const estNouveau = heuresDepuisImport < 48;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-6 font-sans">
       <div className="max-w-[1600px] mx-auto">
+        
+        {/* FIL D'ARIANE */}
         <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-2">
-          <button onClick={() => navigate("/chronos")} className="hover:text-green-700 hover:underline">
+          <button onClick={() => navigate("/chronos")} className="hover:text-green-700 hover:underline transition-colors">
             Documents
           </button>
           <span>›</span>
-          <span className="text-gray-600">{detail.nom_fichier_original}</span>
+          <span className="text-gray-600 truncate max-w-xs">{detail.nom_fichier_original}</span>
         </div>
 
-        <div className="flex items-center gap-3 mb-4">
-          <h1 className="text-lg font-semibold">{detail.nom_fichier_original}</h1>
-          <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUT_COLORS[detail.statut]}`}>
+        {/* EN-TÊTE DU DOCUMENT */}
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <h1 className="text-xl font-bold text-slate-800">{detail.nom_fichier_original}</h1>
+          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${STATUT_COLORS[detail.statut]}`}>
             {STATUT_LABELS[detail.statut]}
           </span>
           {estNouveau && (
-            <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-600">
+            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100">
               Nouveau
             </span>
           )}
-          {entrepriseNom && <span className="text-sm text-gray-400">· {entrepriseNom}</span>}
+          {entrepriseNom && <span className="text-sm font-medium text-gray-500 bg-white px-3 py-1 rounded-full border border-gray-200">· {entrepriseNom}</span>}
         </div>
 
-        <div className="grid grid-cols-12 gap-4 mb-4">
-          <div className="col-span-12 lg:col-span-5 bg-white rounded-lg shadow-sm overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-3 py-2 border-b bg-gray-50 text-xs text-gray-500">
-              <span>{detail.mime_type ?? "—"}</span>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setZoom((z) => Math.max(40, z - 20))} className="px-1.5 hover:bg-gray-200 rounded" title="Zoom arrière">
-                  −
-                </button>
-                <span className="w-10 text-center">{zoom}%</span>
-                <button onClick={() => setZoom((z) => Math.min(300, z + 20))} className="px-1.5 hover:bg-gray-200 rounded" title="Zoom avant">
-                  +
-                </button>
-                <a href={fileUrl} target="_blank" rel="noreferrer" className="text-green-700 hover:underline ml-2">
+        <div className="grid grid-cols-12 gap-6 mb-6">
+          
+          {/* VISIONNEUSE DE DOCUMENT (GAUCHE) */}
+          <div className="col-span-12 lg:col-span-5 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50/80 text-xs text-gray-500">
+              <span className="font-medium text-gray-600">{detail.mime_type ?? "Type inconnu"}</span>
+              <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-md p-1 shadow-sm">
+                <button onClick={() => setZoom((z) => Math.max(40, z - 20))} className="w-6 h-6 flex items-center justify-center hover:bg-gray-100 rounded text-gray-600 font-bold transition-colors" title="Zoom arrière">−</button>
+                <span className="w-12 text-center font-medium">{zoom}%</span>
+                <button onClick={() => setZoom((z) => Math.min(300, z + 20))} className="w-6 h-6 flex items-center justify-center hover:bg-gray-100 rounded text-gray-600 font-bold transition-colors" title="Zoom avant">+</button>
+                <div className="w-px h-4 bg-gray-200 mx-1"></div>
+                <a href={fileUrl} target="_blank" rel="noreferrer" className="px-2 text-green-600 hover:text-green-700 font-medium transition-colors">
                   Ouvrir ↗
                 </a>
               </div>
             </div>
-            <div className="flex-1 min-h-[520px] bg-gray-100 overflow-auto flex items-start justify-center p-3">
+            
+            <div className="flex-1 min-h-[520px] bg-slate-100 overflow-auto flex items-start justify-center p-4">
               {isImage && (
-                <img src={fileUrl} alt={detail.nom_fichier_original} style={{ width: `${zoom}%` }} className="max-w-none shadow" />
+                <img src={fileUrl} alt={detail.nom_fichier_original} style={{ width: `${zoom}%` }} className="max-w-none shadow-md rounded transition-all duration-200" />
               )}
               {isPdf && (
-                <iframe src={`${fileUrl}#toolbar=0`} title={detail.nom_fichier_original} className="w-full h-[520px] border-0" />
+                <iframe src={`${fileUrl}#toolbar=0`} title={detail.nom_fichier_original} className="w-full h-[600px] border-0 rounded shadow-sm bg-white" />
               )}
               {!isImage && !isPdf && (
-                <div className="text-sm text-gray-400 p-8 text-center">
-                  Aperçu non disponible pour ce type de fichier.
-                  <br />
-                  <a href={fileUrl} target="_blank" rel="noreferrer" className="text-green-700 hover:underline">
-                    Ouvrir le fichier original ↗
+                <div className="text-sm text-gray-500 p-8 text-center flex flex-col items-center justify-center h-full gap-4">
+                  <span className="text-4xl">📄</span>
+                  <p>Aperçu non disponible pour ce type de fichier.</p>
+                  <a href={fileUrl} target="_blank" rel="noreferrer" className="px-4 py-2 bg-white border border-gray-200 rounded-md text-green-700 font-medium hover:bg-gray-50 transition-colors shadow-sm">
+                    Télécharger / Ouvrir le fichier original ↗
                   </a>
                 </div>
               )}
             </div>
           </div>
 
+          {/* INFORMATIONS EXTRAITES (CENTRE) */}
           <div className="col-span-12 lg:col-span-3 space-y-4">
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-medium">Informations extraites (IA)</h2>
-              </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+              <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span>🤖</span> Informations extraites (IA)
+              </h2>
               {scoreCompletude !== null && (
-                <div className="mb-3">
-                  <div className="flex justify-between text-xs text-gray-400 mb-1">
-                    <span>Score global</span>
-                    <span className="font-medium text-gray-600">{scoreCompletude}%</span>
+                <div className="mb-5 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                  <div className="flex justify-between text-xs font-medium text-gray-500 mb-2">
+                    <span>Score de complétude</span>
+                    <span className="text-gray-800">{scoreCompletude}%</span>
                   </div>
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-green-500 rounded-full" style={{ width: `${scoreCompletude}%` }} />
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: `${scoreCompletude}%` }} />
                   </div>
                 </div>
               )}
-              <div className="space-y-2 text-sm">
+              <div className="space-y-3 text-sm divide-y divide-gray-50">
                 {detail.donnees_extraites ? (
                   <>
                     {CHAMP_ORDRE.filter((k) => k in (detail.donnees_extraites as object)).map((cle) => {
@@ -350,12 +370,13 @@ export function DocumentDetailPage() {
                           ? JSON.stringify(valeur)
                           : String(valeur);
                       return (
-                        <div key={cle} className="flex justify-between gap-2">
-                          <span className="text-gray-400">{CHAMP_LABELS[cle] ?? cle}</span>
-                          <span className="font-medium text-right break-all">{affichage}</span>
+                        <div key={cle} className="flex justify-between gap-4 pt-2 first:pt-0">
+                          <span className="text-gray-500 text-xs">{CHAMP_LABELS[cle] ?? cle}</span>
+                          <span className="font-semibold text-gray-800 text-right break-all">{affichage}</span>
                         </div>
                       );
                     })}
+                    {/* Champs additionnels non prévus dans CHAMP_ORDRE */}
                     {Object.entries(detail.donnees_extraites)
                       .filter(([k]) => !CHAMP_ORDRE.includes(k))
                       .map(([cle, valeur]) => {
@@ -366,71 +387,78 @@ export function DocumentDetailPage() {
                             ? JSON.stringify(valeur)
                             : String(valeur);
                         return (
-                          <div key={cle} className="flex justify-between gap-2">
-                            <span className="text-gray-400">{cle}</span>
-                            <span className="font-medium text-right break-all">{affichage}</span>
+                          <div key={cle} className="flex justify-between gap-4 pt-2">
+                            <span className="text-gray-500 text-xs capitalize">{cle.replace(/_/g, " ")}</span>
+                            <span className="font-semibold text-gray-800 text-right break-all">{affichage}</span>
                           </div>
                         );
                       })}
                   </>
                 ) : (
-                  <p className="text-gray-400">Pas encore de données extraites.</p>
+                  <p className="text-gray-400 text-center py-4 italic">Pas encore de données extraites.</p>
                 )}
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <h2 className="text-sm font-medium mb-3">Vérifications</h2>
-              <div className="space-y-2 text-sm">
+            {/* VÉRIFICATIONS DE L'IA */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+              <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span>🛡️</span> Vérifications
+              </h2>
+              <div className="space-y-3 text-sm">
                 {verifications.map((v) => (
-                  <div key={v.label} className="flex items-center justify-between">
-                    <span className={v.ok === false ? "text-red-600" : "text-gray-600"}>{v.label}</span>
+                  <div key={v.label} className="flex items-center justify-between p-2 rounded bg-gray-50 border border-gray-100">
+                    <span className={`text-xs font-medium ${v.ok === false ? "text-red-600" : "text-gray-600"}`}>{v.label}</span>
                     <span>
                       {v.ok === null ? (
-                        <span className="text-gray-300">—</span>
+                        <span className="text-gray-400 font-bold" title="Non vérifiable">—</span>
                       ) : v.ok ? (
-                        <span className="text-green-600">✓</span>
+                        <span className="text-green-500 font-bold text-lg leading-none" title="Vérification OK">✓</span>
                       ) : (
-                        <span className="text-red-600">✕</span>
+                        <span className="text-red-500 font-bold text-lg leading-none" title="Anomalie détectée">✕</span>
                       )}
                     </span>
                   </div>
                 ))}
               </div>
               {detail.ecriture?.anomalie_details && (
-                <p className="text-xs text-orange-600 mt-3 bg-orange-50 rounded p-2">{detail.ecriture.anomalie_details}</p>
+                <div className="mt-4 bg-orange-50 border border-orange-200 rounded-md p-3 flex gap-2 items-start">
+                  <span className="text-orange-500 text-lg leading-none">⚠️</span>
+                  <p className="text-xs text-orange-800 font-medium">{detail.ecriture.anomalie_details}</p>
+                </div>
               )}
             </div>
           </div>
 
+          {/* DÉTAILS BANQUE / COMPTABILITÉ (DROITE) */}
           <div className="col-span-12 lg:col-span-4 space-y-4">
             
             {/* ---- AFFICHAGE CONDITIONNEL : BANQUE OU ECRITURE CLASSIQUE ---- */}
             {detail.categorie === "banque" ? (
-              <div className="bg-white rounded-lg shadow-sm p-4">
-                <h2 className="text-sm font-medium mb-3">Mouvements du relevé bancaire</h2>
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <span>🏦</span> Mouvements du relevé bancaire
+                </h2>
                 {detail.mouvements_bancaires && detail.mouvements_bancaires.length > 0 ? (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto rounded-lg border border-gray-100">
                     <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-left text-gray-400 border-b">
-                          <th className="pb-1.5 font-medium">Date</th>
-                          <th className="pb-1.5 font-medium">Libellé</th>
-                          <th className="pb-1.5 font-medium">Réf.</th>
-                          <th className="pb-1.5 font-medium text-right">Débit</th>
-                          <th className="pb-1.5 font-medium text-right">Crédit</th>
+                      <thead className="bg-gray-50">
+                        <tr className="text-left text-gray-500 border-b border-gray-200">
+                          <th className="px-3 py-2 font-semibold">Date</th>
+                          <th className="px-3 py-2 font-semibold">Libellé</th>
+                          <th className="px-3 py-2 font-semibold text-right">Débit</th>
+                          <th className="px-3 py-2 font-semibold text-right">Crédit</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="divide-y divide-gray-100">
                         {detail.mouvements_bancaires.map((mvt) => (
-                          <tr key={mvt.id} className="border-b last:border-0 hover:bg-gray-50">
-                            <td className="py-2 whitespace-nowrap">{mvt.date_operation}</td>
-                            <td className="py-2 max-w-[120px] truncate" title={mvt.libelle}>{mvt.libelle}</td>
-                            <td className="py-2 text-gray-500">{mvt.reference || "-"}</td>
-                            <td className="py-2 text-right text-red-600 font-medium">
+                          <tr key={mvt.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-3 py-2.5 whitespace-nowrap text-gray-600">{mvt.date_operation}</td>
+                            <td className="px-3 py-2.5 max-w-[120px] truncate font-medium text-gray-800" title={mvt.libelle}>{mvt.libelle}</td>
+                            <td className="px-3 py-2.5 text-right text-red-600 font-semibold">
                               {mvt.type_mouvement === "DEBIT" ? Number(mvt.montant).toFixed(2) : ""}
                             </td>
-                            <td className="py-2 text-right text-green-600 font-medium">
+                            <td className="px-3 py-2.5 text-right text-green-600 font-semibold">
                               {mvt.type_mouvement === "CREDIT" ? Number(mvt.montant).toFixed(2) : ""}
                             </td>
                           </tr>
@@ -439,138 +467,158 @@ export function DocumentDetailPage() {
                     </table>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-400">Aucun mouvement n'a encore été extrait pour ce relevé.</p>
+                  <p className="text-sm text-gray-400 bg-gray-50 p-4 rounded-lg text-center border border-dashed border-gray-200">Aucun mouvement n'a encore été extrait pour ce relevé.</p>
                 )}
               </div>
             ) : (
-              <div className="bg-white rounded-lg shadow-sm p-4">
-                <h2 className="text-sm font-medium mb-3">Écriture comptable proposée</h2>
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <span>🧮</span> Écriture comptable proposée
+                </h2>
                 {lignesEcriture.length > 0 ? (
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-left text-gray-400 border-b">
-                        <th className="pb-1.5">Compte</th>
-                        <th className="pb-1.5">Libellé</th>
-                        <th className="pb-1.5 text-right">Débit</th>
-                        <th className="pb-1.5 text-right">Crédit</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lignesEcriture.map((ligne) => (
-                        <tr key={ligne.compte} className="border-b last:border-0">
-                          <td className="py-1.5">{ligne.compte}</td>
-                          <td className="py-1.5">{ligne.libelle}</td>
-                          <td className="py-1.5 text-right">{ligne.debit ? parseFloat(ligne.debit).toFixed(2) : "-"}</td>
-                          <td className="py-1.5 text-right">{ligne.credit ? parseFloat(ligne.credit).toFixed(2) : "-"}</td>
+                  <div className="overflow-x-auto rounded-lg border border-gray-100">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50">
+                        <tr className="text-left text-gray-500 border-b border-gray-200">
+                          <th className="px-3 py-2 font-semibold">Compte</th>
+                          <th className="px-3 py-2 font-semibold">Libellé</th>
+                          <th className="px-3 py-2 font-semibold text-right">Débit</th>
+                          <th className="px-3 py-2 font-semibold text-right">Crédit</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {lignesEcriture.map((ligne, idx) => (
+                          <tr key={`${ligne.compte}-${idx}`} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-3 py-2.5 font-medium text-blue-600">{ligne.compte}</td>
+                            <td className="px-3 py-2.5 text-gray-700">{ligne.libelle}</td>
+                            <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{ligne.debit ? parseFloat(ligne.debit).toFixed(2) : "-"}</td>
+                            <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{ligne.credit ? parseFloat(ligne.credit).toFixed(2) : "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 ) : (
-                  <p className="text-sm text-gray-400">Pas encore d'écriture générée pour ce document.</p>
+                  <p className="text-sm text-gray-400 bg-gray-50 p-4 rounded-lg text-center border border-dashed border-gray-200">Pas encore d'écriture générée pour ce document.</p>
                 )}
               </div>
             )}
             {/* ----------------------------------------------------------- */}
 
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <h2 className="text-sm font-medium mb-2">Commentaires</h2>
-              <input
-                type="text"
+            {/* ZONE DE COMMENTAIRES */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+              <h2 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                <span>💬</span> Commentaires
+              </h2>
+              <textarea
                 value={commentaireDraft}
                 onChange={(e) => setCommentaireDraft(e.target.value)}
-                placeholder="Ajouter un commentaire..."
+                placeholder="Ajouter un commentaire (Bientôt disponible)..."
                 disabled
+                rows={2}
                 title="Bientôt disponible — nécessite une table de commentaires côté backend"
-                className="w-full border rounded px-3 py-2 text-sm bg-gray-50 text-gray-400 cursor-not-allowed"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400 cursor-not-allowed resize-none focus:outline-none"
               />
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <h2 className="text-sm font-medium mb-2">Historique</h2>
-              <ul className="text-sm space-y-1.5">
-                <li className="flex justify-between">
-                  <span className="text-gray-600">Document importé</span>
-                  <span className="text-gray-400 text-xs">{new Date(detail.created_at).toLocaleDateString("fr-FR")}</span>
+            {/* HISTORIQUE */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+              <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span>⏱️</span> Historique
+              </h2>
+              <ul className="text-sm space-y-3 relative before:absolute before:inset-y-0 before:left-1.5 before:w-0.5 before:bg-gray-100 pl-4">
+                <li className="flex justify-between items-start relative">
+                  <span className="absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_0_2px_#fff]"></span>
+                  <span className="text-gray-700 font-medium text-xs">Document importé</span>
+                  <span className="text-gray-400 text-[10px]">{new Date(detail.created_at).toLocaleDateString("fr-FR")}</span>
                 </li>
                 {detail.statut !== "en_attente" && (
-                  <li className="flex justify-between">
-                    <span className="text-gray-600">OCR / extraction IA effectués</span>
-                    <span className="text-gray-400 text-xs">—</span>
+                  <li className="flex justify-between items-start relative">
+                    <span className="absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_0_2px_#fff]"></span>
+                    <span className="text-gray-700 font-medium text-xs">Extraction IA terminée</span>
+                    <span className="text-gray-400 text-[10px]">—</span>
                   </li>
                 )}
                 {detail.ecriture && (
-                  <li className="flex justify-between">
-                    <span className="text-gray-600">Écriture {VALIDATION_LABELS[detail.ecriture.statut_validation]}</span>
-                    <span className="text-gray-400 text-xs">—</span>
+                  <li className="flex justify-between items-start relative">
+                    <span className={`absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full shadow-[0_0_0_2px_#fff] ${detail.ecriture.statut_validation === 'valide' ? 'bg-green-500' : 'bg-yellow-400'}`}></span>
+                    <span className="text-gray-700 font-medium text-xs">Écriture {VALIDATION_LABELS[detail.ecriture.statut_validation]}</span>
+                    <span className="text-gray-400 text-[10px]">—</span>
                   </li>
                 )}
               </ul>
             </div>
 
+            {/* ACTIONS SUR LE DOCUMENT */}
             {detail.ecriture && (
-              <div className="bg-white rounded-lg shadow-sm p-4 flex gap-2 flex-wrap">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex gap-3 flex-wrap">
                 <button
                   onClick={handleReject}
                   disabled={isProcessing || detail.ecriture.statut_validation === "rejete"}
-                  className="px-4 py-2 rounded text-sm font-medium bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-40"
+                  className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-100 hover:bg-red-100 hover:border-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   Rejeter
                 </button>
                 <button
                   onClick={ouvrirCorrection}
-                  className="px-4 py-2 rounded text-sm font-medium bg-yellow-50 text-yellow-700 hover:bg-yellow-100"
+                  className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-yellow-50 text-yellow-700 border border-yellow-100 hover:bg-yellow-100 hover:border-yellow-200 transition-all"
                 >
                   Corriger
                 </button>
                 <button
                   onClick={handleValidate}
                   disabled={isProcessing || detail.ecriture.statut_validation === "valide"}
-                  className="px-4 py-2 rounded text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-40"
+                  className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all"
                 >
                   Valider
                 </button>
                 <a
                   href={`http://localhost:8000/export/topaze/${detail.ecriture.id}?token=${localStorage.getItem("comptaflow_token")}`}
-                  className="px-4 py-2 rounded text-sm font-medium bg-green-50 text-green-700 hover:bg-green-100 ml-auto text-center"
+                  className="w-full mt-2 px-4 py-2 rounded-lg text-sm font-bold bg-slate-800 text-white hover:bg-slate-700 text-center shadow-sm transition-all flex items-center justify-center gap-2"
                 >
-                  Exporter Topaze
+                  <span>⬇️</span> Exporter vers Topaze
                 </a>
               </div>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-12 gap-4">
-          <div className="col-span-12 lg:col-span-8 bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
-              <span className="font-medium text-gray-600">Chronos</span>
-              {entrepriseNom && <span>· {entrepriseNom}</span>}
-              {detail.annee && <span>· {detail.annee}</span>}
-              {detail.categorie && <span className="capitalize">· {detail.categorie}</span>}
+        {/* DOCUMENTS SIMILAIRES / CHRONOS */}
+        <div className="grid grid-cols-12 gap-6">
+          <div className="col-span-12 lg:col-span-8 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mb-4">
+              <span className="font-bold text-gray-800 text-sm flex items-center gap-2"><span>📂</span> Chronos voisins</span>
+              {entrepriseNom && <span className="bg-gray-100 px-2 py-0.5 rounded-full">{entrepriseNom}</span>}
+              {detail.annee && <span className="bg-gray-100 px-2 py-0.5 rounded-full">{detail.annee}</span>}
+              {detail.categorie && <span className="capitalize bg-gray-100 px-2 py-0.5 rounded-full">{detail.categorie}</span>}
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-1">
+            
+            <div className="flex gap-4 overflow-x-auto pb-3 snap-x">
               {siblingsFiltres.length === 0 && (
-                <p className="text-sm text-gray-400 py-4">Aucun document voisin pour ce classement.</p>
+                <p className="text-sm text-gray-400 py-6 text-center w-full bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                  Aucun document trouvé pour ce classement.
+                </p>
               )}
               {siblingsFiltres.map((doc) => (
                 <button
                   key={doc.id}
                   onClick={() => navigate(`/documents/${doc.id}`)}
-                  className={`shrink-0 w-36 text-left border rounded-lg p-2.5 hover:border-green-300 transition ${
-                    doc.id === detail.id ? "border-green-400 bg-green-50" : "border-gray-200"
+                  className={`shrink-0 w-40 text-left border rounded-xl p-3 hover:border-green-400 hover:shadow-md transition-all snap-start ${
+                    doc.id === detail.id ? "border-green-500 bg-green-50/50 shadow-sm ring-1 ring-green-500" : "border-gray-200 bg-white"
                   }`}
                 >
-                  <p className="text-xs font-medium truncate">{doc.nom_fichier_original}</p>
-                  <p className="text-[11px] text-gray-400">
-                    {doc.date_piece ? new Date(doc.date_piece).toLocaleDateString("fr-FR") : "—"}
-                  </p>
-                  <p className="text-[11px] font-medium">
+                  <p className="text-xs font-bold text-gray-800 truncate mb-1" title={doc.nom_fichier_original}>{doc.nom_fichier_original}</p>
+                  <div className="flex justify-between items-center mb-1">
+                    <p className="text-[10px] text-gray-500 font-medium">
+                      {doc.date_piece ? new Date(doc.date_piece).toLocaleDateString("fr-FR") : "Date inc."}
+                    </p>
+                  </div>
+                  <p className="text-[11px] font-bold text-gray-900 mb-2">
                     {doc.montant_ttc ? `${parseFloat(doc.montant_ttc).toFixed(2)} DH` : "—"}
                   </p>
                   {doc.statut_validation && (
                     <span
-                      className={`inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded ${
+                      className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-medium ${
                         doc.statut_validation === "valide" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
                       }`}
                     >
@@ -582,99 +630,122 @@ export function DocumentDetailPage() {
             </div>
           </div>
 
-          <div className="col-span-12 lg:col-span-4 bg-white rounded-lg shadow-sm p-4">
-            <h2 className="text-sm font-medium mb-2">Recherche rapide</h2>
-            <input
-              type="text"
-              value={rechercheFooter}
-              onChange={(e) => setRechercheFooter(e.target.value)}
-              placeholder="Rechercher..."
-              className="w-full border rounded px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
-            />
-            <select
-              value={filtreStatutFooter}
-              onChange={(e) => setFiltreStatutFooter(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
-            >
-              <option value="">Tous les statuts</option>
-              <option value="brouillon">Brouillon</option>
-              <option value="a_verifier">À vérifier</option>
-              <option value="valide">Validé</option>
-              <option value="rejete">Rejeté</option>
-            </select>
+          <div className="col-span-12 lg:col-span-4 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <span>🔍</span> Recherche rapide
+            </h2>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Nom de fichier</label>
+                <input
+                  type="text"
+                  value={rechercheFooter}
+                  onChange={(e) => setRechercheFooter(e.target.value)}
+                  placeholder="Ex: Facture_01..."
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Statut</label>
+                <select
+                  value={filtreStatutFooter}
+                  onChange={(e) => setFiltreStatutFooter(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all cursor-pointer"
+                >
+                  <option value="">Tous les statuts</option>
+                  <option value="brouillon">Brouillon</option>
+                  <option value="a_verifier">À vérifier</option>
+                  <option value="valide">Validé</option>
+                  <option value="rejete">Rejeté</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* MODALE DE CORRECTION D'ÉCRITURE */}
         {isEditing && detail.ecriture && (
-          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-              <h2 className="font-medium mb-4">Corriger l'écriture</h2>
-              <div className="space-y-3">
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md animate-fade-in-up">
+              <h2 className="text-lg font-bold text-gray-800 mb-5 border-b border-gray-100 pb-3">Corriger l'écriture comptable</h2>
+              
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Tiers</label>
+                  <label htmlFor="edit-tiers" className="block text-xs font-bold text-gray-600 mb-1">Tiers (Client / Fournisseur)</label>
                   <input
+                    id="edit-tiers"
                     type="text"
                     value={editForm.tiers}
                     onChange={(e) => setEditForm({ ...editForm, tiers: e.target.value })}
-                    className="w-full border rounded px-3 py-2 text-sm"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">N° pièce</label>
-                  <input
-                    type="text"
-                    value={editForm.numero_piece}
-                    onChange={(e) => setEditForm({ ...editForm, numero_piece: e.target.value })}
-                    className="w-full border rounded px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Date pièce</label>
-                  <input
-                    type="date"
-                    value={editForm.date_piece}
-                    onChange={(e) => setEditForm({ ...editForm, date_piece: e.target.value })}
-                    className="w-full border rounded px-3 py-2 text-sm"
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-2">
+                
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">HT</label>
+                    <label htmlFor="edit-num" className="block text-xs font-bold text-gray-600 mb-1">N° pièce</label>
                     <input
+                      id="edit-num"
+                      type="text"
+                      value={editForm.numero_piece}
+                      onChange={(e) => setEditForm({ ...editForm, numero_piece: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="edit-date" className="block text-xs font-bold text-gray-600 mb-1">Date pièce</label>
+                    <input
+                      id="edit-date"
+                      type="date"
+                      value={editForm.date_piece}
+                      onChange={(e) => setEditForm({ ...editForm, date_piece: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-3 pt-2">
+                  <div>
+                    <label htmlFor="edit-ht" className="block text-xs font-bold text-gray-600 mb-1">HT</label>
+                    <input
+                      id="edit-ht"
                       type="number" step="0.01"
                       value={editForm.montant_ht}
                       onChange={(e) => setEditForm({ ...editForm, montant_ht: e.target.value })}
-                      className="w-full border rounded px-2 py-2 text-sm"
+                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">TVA</label>
+                    <label htmlFor="edit-tva" className="block text-xs font-bold text-gray-600 mb-1">TVA</label>
                     <input
+                      id="edit-tva"
                       type="number" step="0.01"
                       value={editForm.montant_tva}
                       onChange={(e) => setEditForm({ ...editForm, montant_tva: e.target.value })}
-                      className="w-full border rounded px-2 py-2 text-sm"
+                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">TTC</label>
+                    <label htmlFor="edit-ttc" className="block text-xs font-bold text-gray-600 mb-1">TTC</label>
                     <input
+                      id="edit-ttc"
                       type="number" step="0.01"
                       value={editForm.montant_ttc}
                       onChange={(e) => setEditForm({ ...editForm, montant_ttc: e.target.value })}
-                      className="w-full border rounded px-2 py-2 text-sm"
+                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm font-medium bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
                     />
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end gap-2 mt-5">
-                <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-sm text-gray-500">
+              
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
+                <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
                   Annuler
                 </button>
                 <button
                   onClick={enregistrerCorrection}
                   disabled={isProcessing}
-                  className="px-4 py-2 rounded text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                  className="px-5 py-2 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-700 shadow-sm disabled:opacity-50 transition-colors"
                 >
                   Enregistrer
                 </button>

@@ -2,26 +2,12 @@
 app/services/groq_service.py
 
 Extraction ET classification COMPLÈTES d'un document comptable en UN
-SEUL appel à l'API Groq (texte, pas image -- voir vision_service.py
-pour l'extraction directement depuis l'image). Réutilise
-_construire_donnees (gemini_service.py) pour garder le même contrat de
-sortie que les autres fournisseurs IA du pipeline.
+SEUL appel à l'API Groq (texte, pas image).
 
-Groq est le FOURNISSEUR CLOUD PRIORITAIRE de la cascade texte (voir
-ai_service.extraire_donnees) : si GROQ_API_KEY est configurée, chaque
-document (dans le chemin de repli OCR) passe d'abord par Groq. En cas
-d'échec définitif (après retry), la fonction retourne None -- c'est
-ai_service.extraire_donnees() qui bascule alors DIRECTEMENT sur Ollama
-en local.
-
-CORRECTIF (retry réseau) : même principe que vision_service.py -- un
-seul retry, uniquement sur erreur réseau/timeout, jamais sur un JSON
-invalide (qui ne se corrige pas en réessayant à l'identique).
-
-CORRECTIF PRÉEXISTANT (accolades du prompt) : _PROMPT contient le
-JSON du schéma en dur, truffé d'accolades littérales. On utilise donc
-.replace("{texte}", ...) plutôt que .format(texte=...), qui planterait
-sur les accolades non-placeholder du schéma.
+Ce script intègre :
+- Le remplacement sécurisé (.replace) pour injecter le texte OCR dans le prompt JSON.
+- Les règles d'extraction strictes.
+- La validation mathématique des montants post-extraction.
 """
 import json
 import logging
@@ -73,15 +59,16 @@ categorie_document (type physique du document, PAS la direction comptable) :
 - "avis_tva" : déclaration ou avis de TVA
 - "autre" : tout le reste
 
-RÈGLES D'EXTRACTION :
-- numero_piece : UNIQUEMENT le numéro de référence explicite du document (ex: après "Facture n°", "Facture #", "N°", "Invoice"). NE JAMAIS utiliser un nom de personne, d'entreprise ou de cabinet comme numéro de pièce.
-- montant_ht / montant_tva / montant_ttc : nombres décimaux (ex: 1234.50), jamais de texte, jamais de symbole monétaire.
-- Si le document affiche "Sous-total" (ou équivalent), traite-le comme montant_ht.
-- Si taux_tva = 0 (ou "TVA 0%"), alors montant_ht DOIT être égal à montant_ttc (déduis-le si besoin).
-- Si un seul montant total (TTC) est visible avec un taux de TVA non nul, tu PEUX déduire HT et TVA par le calcul (HT = TTC / (1 + taux/100)).
-- date_piece : uniquement au format YYYY-MM-DD. Si ambiguë ou absente, laisse null.
-- Ne JAMAIS inventer une valeur : si un champ n'est pas identifiable dans le texte, renvoie null.
-- ICE = 15 chiffres, IF = 6-8 chiffres, RC = 3-8 chiffres -- uniquement des identifiants marocains standards, jamais un numéro de téléphone ou de compte bancaire.
+RÈGLES D'EXTRACTION STRICTES :
+1. NUMÉRO DE PIÈCE : Cherche explicitement "Facture n°", "N°", ou "Invoice". Ignore totalement les numéros de devis (ex: "Devis n°") ou de bons de commande.
+2. DATES : S'il y a plusieurs dates, extrais UNIQUEMENT la date d'émission du document (ex: "Casablanca le..."). Ignore les dates de devis, de livraison, ou les dates manuscrites de paiement. Format obligatoire : YYYY-MM-DD.
+3. MONTANTS (HT / TVA / TTC) : nombres décimaux (ex: 1234.50), jamais de texte, jamais de symbole monétaire.
+   - Attention au vocabulaire : "Total net", "Total" ou "Sous-total" désignent souvent le montant HT si une ligne TVA suit.
+   - Si le document est une facture d'eau/électricité (ex: Lydec, REDAL, RADEEMA) et que seule la somme à payer est visible, place ce montant dans 'montant_ttc' et laisse HT et TVA à 'null'.
+   - Si taux_tva = 0 (ou "TVA 0%"), alors montant_ht DOIT être égal à montant_ttc.
+4. RELEVÉS BANCAIRES : Si categorie_document est "releve_bancaire", les champs montant_ht, taux_tva, montant_tva et montant_ttc DOIVENT TOUJOURS être "null". Ne tente jamais de calculer un total sur un relevé.
+5. PARASITES VISUELS : Ignore totalement les tampons comptables (ex: "SAISIE / PC") et les écritures manuscrites au stylo (ex: ratures, "payé le", "vir le", codes comptables gribouillés). Base-toi uniquement sur le texte imprimé d'origine.
+6. IDENTIFIANTS MAROCAINS : ICE = 15 chiffres, IF = 6 à 8 chiffres, RC = 1 à 8 chiffres, CNSS = 7 à 9 chiffres. Ne JAMAIS inventer une valeur.
 
 Réponds UNIQUEMENT avec un objet JSON valide suivant EXACTEMENT ce schéma,
 sans aucun texte avant ou après, sans balises markdown :
@@ -96,9 +83,6 @@ Texte OCR à analyser :
 _MAX_CHARS_PROMPT = 4000
 
 
-# Extrait et parse le JSON de la réponse -- tolère d'éventuelles
-# balises markdown résiduelles malgré la consigne "response_format:
-# json_object" qui devrait déjà garantir un JSON pur.
 def _nettoyer_et_parser_json(texte_reponse: str) -> dict | None:
     if not texte_reponse:
         return None
@@ -126,8 +110,6 @@ def _appeler_groq_texte_avec_retry(texte_court: str) -> str | None:
         "messages": [{"role": "user", "content": _PROMPT.replace("{texte}", texte_court)}],
         "response_format": {"type": "json_object"},
         "temperature": 0.1,
-        
-        # --- MODIFICATION ICI : 512 -> 2048 pour éviter de tronquer le JSON ---
         "max_tokens": 2048,
     }
     headers = {
@@ -163,11 +145,57 @@ def _appeler_groq_texte_avec_retry(texte_court: str) -> str | None:
     return None
 
 
-# Point d'entrée principal, appelé par ai_service.extraire_donnees()
-# EN PREMIER si settings.GROQ_API_KEY est configurée (chemin de repli
-# texte, après échec de la vision). Retourne None en cas d'échec
-# définitif (après retry) -- jamais d'exception, pour permettre un
-# repli propre et immédiat sur Ollama.
+def _valider_et_corriger_montants(donnees: dict) -> dict:
+    """
+    Vérifie et corrige la cohérence mathématique des montants (HT, TVA, TTC).
+    """
+    if not donnees:
+        return donnees
+
+    if donnees.get("categorie_document") == "releve_bancaire":
+        donnees["montant_ht"] = None
+        donnees["montant_tva"] = None
+        donnees["montant_ttc"] = None
+        donnees["taux_tva"] = None
+        return donnees
+
+    def vers_float(valeur):
+        if valeur is None:
+            return None
+        try:
+            return float(valeur)
+        except (ValueError, TypeError):
+            return None
+
+    ht = vers_float(donnees.get("montant_ht"))
+    tva = vers_float(donnees.get("montant_tva"))
+    ttc = vers_float(donnees.get("montant_ttc"))
+    taux = vers_float(donnees.get("taux_tva"))
+
+    if ht is not None and tva is not None and ttc is None:
+        ttc = round(ht + tva, 2)
+    elif ht is not None and ttc is not None and tva is None:
+        tva = round(ttc - ht, 2)
+    elif ttc is not None and taux is not None and ht is None:
+        ht = round(ttc / (1 + (taux / 100)), 2)
+        tva = round(ttc - ht, 2)
+    elif ht is not None and taux is not None and tva is None:
+        tva = round(ht * (taux / 100), 2)
+        ttc = round(ht + tva, 2)
+
+    if ht is not None and tva is not None and ttc is not None:
+        if abs((ht + tva) - ttc) > 0.5:
+            tva = round(ttc - ht, 2)
+
+    donnees["montant_ht"] = ht
+    donnees["montant_tva"] = tva
+    donnees["montant_ttc"] = ttc
+    if taux is not None:
+         donnees["taux_tva"] = taux
+
+    return donnees
+
+
 def extraire_et_classifier(texte_ocr: str) -> dict | None:
     if not settings.GROQ_API_KEY:
         return None
@@ -184,4 +212,9 @@ def extraire_et_classifier(texte_ocr: str) -> dict | None:
         logger.warning("Réponse Groq (texte) non-JSON exploitable -- repli direct sur Ollama.")
         return None
 
-    return _construire_donnees(champs)
+    donnees = _construire_donnees(champs)
+    
+    # Validation mathématique avant retour
+    donnees = _valider_et_corriger_montants(donnees)
+    
+    return donnees

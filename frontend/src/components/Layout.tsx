@@ -55,6 +55,14 @@ const NAV_ITEMS: NavItemExtended[] = [
   { label: "Tableau de bord", icon: "🏠", route: "/dashboard" },
   { label: "Documents", icon: "📄", route: "/upload" },
   { label: "Chronos", icon: "🕐", route: "/chronos" },
+  
+  // --- NOUVELLES PAGES AJOUTÉES ICI ---
+  { label: "Achats", icon: "🛒", route: "/achats" },
+  { label: "Ventes", icon: "📈", route: "/ventes" },
+  { label: "Banque", icon: "🏦", route: "/banque" },
+  { label: "CNSS", icon: "🛡️", route: "/cnss" },
+  // ------------------------------------
+
   { label: "Écritures", icon: "📑", route: "/registers" },
   { label: "Registres", icon: "📊", route: "/registres" },
   // Route pour la TVA mensuelle

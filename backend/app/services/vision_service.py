@@ -4,14 +4,11 @@ app/services/vision_service.py
 Extraction ET classification directement depuis l'IMAGE d'une page,
 via le modèle vision de Groq (qwen/qwen3.6-27b).
 
-CORRECTIF (retry intelligent) : la version précédente retentait sur
-TOUTE exception, y compris les erreurs 4xx (ex: 400 Bad Request) qui
-ne se corrigent jamais en réessayant à l'identique -- gaspillant du
-temps (30s+ perdues) avant d'abandonner. Le retry ne s'applique
-désormais qu'aux erreurs réellement transitoires : timeout, coupure de
-connexion, ou erreur serveur (5xx). Une erreur 4xx est journalisée
-avec le corps de la réponse (pour diagnostiquer précisément pourquoi
-Groq refuse la requête) et abandonnée immédiatement, sans retry inutile.
+Ce script intègre :
+- Le retry intelligent pour les erreurs réseau transitoires.
+- Des règles de prompt strictes pour gérer les cas réels (tampons SAISIE/PC, 
+  mots clés comme "Total net", dates multiples).
+- Un post-traitement mathématique pour sécuriser l'équation HT + TVA = TTC.
 """
 import base64
 import json
@@ -28,7 +25,7 @@ logger = logging.getLogger("comptaflow.vision_service")
 _URL = "https://api.groq.com/openai/v1/chat/completions"
 _MODELE_VISION = "qwen/qwen3.6-27b"
 
-_TIMEOUT_SECONDS = 45  # augmenté (30s trop court, timeout d'écriture observé en conditions réelles)
+_TIMEOUT_SECONDS = 45 
 _NOMBRE_TENTATIVES = 2
 _DELAI_ENTRE_TENTATIVES_SEC = 1.5
 
@@ -52,7 +49,7 @@ _SCHEMA_JSON = """{
 
 _PROMPT_TEXTE = """Tu es un assistant comptable marocain expert. Voici l'IMAGE
 d'un document comptable scanné par un cabinet comptable. Lis-la attentivement,
-même si la qualité est moyenne (photo, scan incliné, léger flou), et extrait
+même si la qualité est moyenne (photo, scan incliné, léger flou, tampons), et extrait
 TOUS les champs demandés, avec la plus grande précision.
 
 IMPORTANT -- une facture a DEUX parties distinctes, ne les confonds jamais :
@@ -67,15 +64,16 @@ categorie_document (type physique du document, PAS la direction comptable) :
 - "avis_tva" : déclaration ou avis de TVA
 - "autre" : tout le reste
 
-RÈGLES D'EXTRACTION :
-- numero_piece : UNIQUEMENT le numéro de référence explicite du document (ex: après "Facture n°", "Facture #", "N°", "Invoice"). NE JAMAIS utiliser un nom de personne, d'entreprise ou de cabinet comme numéro de pièce.
-- montant_ht / montant_tva / montant_ttc : nombres décimaux (ex: 1234.50), jamais de texte, jamais de symbole monétaire.
-- Si le document affiche "Sous-total" (ou équivalent), traite-le comme montant_ht.
-- Si taux_tva = 0 (ou "TVA 0%"), alors montant_ht DOIT être égal à montant_ttc (déduis-le si besoin).
-- Si un seul montant total (TTC) est visible avec un taux de TVA non nul, tu PEUX déduire HT et TVA par le calcul (HT = TTC / (1 + taux/100)).
-- date_piece : uniquement au format YYYY-MM-DD. Si ambiguë ou absente, laisse null.
-- Ne JAMAIS inventer une valeur : si un champ n'est pas identifiable dans l'image, renvoie null.
-- ICE = 15 chiffres, IF = 6-8 chiffres, RC = 3-8 chiffres -- uniquement des identifiants marocains standards, jamais un numéro de téléphone ou de compte bancaire.
+RÈGLES D'EXTRACTION STRICTES :
+1. NUMÉRO DE PIÈCE : Cherche explicitement "Facture n°", "N°", ou "Invoice". Ignore totalement les numéros de devis (ex: "Devis n°") ou de bons de commande.
+2. DATES : S'il y a plusieurs dates, extrais UNIQUEMENT la date d'émission du document (ex: "Casablanca le..."). Ignore les dates de devis, de livraison, ou les dates manuscrites de paiement. Format obligatoire : YYYY-MM-DD.
+3. MONTANTS (HT / TVA / TTC) : nombres décimaux (ex: 1234.50), jamais de texte, jamais de symbole monétaire.
+   - Attention au vocabulaire : "Total net", "Total" ou "Sous-total" désignent souvent le montant HT si une ligne TVA suit.
+   - Si le document est une facture d'eau/électricité (ex: Lydec, REDAL, RADEEMA) et que seule la somme à payer est visible, place ce montant dans 'montant_ttc' et laisse HT et TVA à 'null'.
+   - Si taux_tva = 0 (ou "TVA 0%"), alors montant_ht DOIT être égal à montant_ttc.
+4. RELEVÉS BANCAIRES : Si categorie_document est "releve_bancaire", les champs montant_ht, taux_tva, montant_tva et montant_ttc DOIVENT TOUJOURS être "null". Ne tente jamais de calculer un total sur un relevé.
+5. PARASITES VISUELS : Ignore totalement les tampons comptables (ex: "SAISIE / PC") et les écritures manuscrites au stylo (ex: ratures, "payé le", "vir le", codes comptables gribouillés). Base-toi uniquement sur le texte imprimé d'origine.
+6. IDENTIFIANTS MAROCAINS : ICE = 15 chiffres, IF = 6 à 8 chiffres, RC = 1 à 8 chiffres, CNSS = 7 à 9 chiffres. Ne JAMAIS inventer une valeur.
 
 Réponds UNIQUEMENT avec un objet JSON valide suivant EXACTEMENT ce schéma,
 sans aucun texte avant ou après, sans balises markdown :
@@ -100,11 +98,6 @@ def _nettoyer_et_parser_json(texte_reponse: str) -> dict | None:
         return None
 
 
-# Détermine si une exception justifie un nouvel essai : timeout et
-# coupure de connexion (réseau instable, se corrige souvent tout
-# seul), ou erreur serveur 5xx (Groq temporairement surchargé). Une
-# erreur 4xx (requête mal formée, clé invalide, modèle inconnu...) ne
-# se corrige JAMAIS en réessayant à l'identique -- inutile d'attendre.
 def _erreur_est_transitoire(exc: Exception) -> bool:
     if isinstance(exc, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)):
         return True
@@ -113,11 +106,6 @@ def _erreur_est_transitoire(exc: Exception) -> bool:
     return False
 
 
-# Effectue l'appel HTTP réel à l'API vision Groq pour UNE image, avec
-# retry limité aux erreurs transitoires (voir _erreur_est_transitoire).
-# Journalise le corps de la réponse en cas d'erreur HTTP, pour
-# diagnostiquer précisément la cause (modèle invalide, payload
-# rejeté...) plutôt que de deviner.
 def _appeler_groq_vision_avec_retry(image_b64: str) -> str | None:
     corps = {
         "model": _MODELE_VISION,
@@ -132,8 +120,6 @@ def _appeler_groq_vision_avec_retry(image_b64: str) -> str | None:
         ],
         "response_format": {"type": "json_object"},
         "temperature": 0.1,
-        
-        # --- MODIFICATION ICI : 1024 -> 2048 pour éviter de couper le JSON ---
         "max_completion_tokens": 2048, 
     }
     headers = {
@@ -169,9 +155,59 @@ def _appeler_groq_vision_avec_retry(image_b64: str) -> str | None:
     return None
 
 
-# Point d'entrée principal : lit UNE page, l'envoie au modèle vision
-# Groq, retourne le dict au format pipeline standard -- ou None en cas
-# d'échec définitif.
+def _valider_et_corriger_montants(donnees: dict) -> dict:
+    """
+    Vérifie et corrige la cohérence mathématique des montants (HT, TVA, TTC).
+    """
+    if not donnees:
+        return donnees
+
+    if donnees.get("categorie_document") == "releve_bancaire":
+        donnees["montant_ht"] = None
+        donnees["montant_tva"] = None
+        donnees["montant_ttc"] = None
+        donnees["taux_tva"] = None
+        return donnees
+
+    def vers_float(valeur):
+        if valeur is None:
+            return None
+        try:
+            return float(valeur)
+        except (ValueError, TypeError):
+            return None
+
+    ht = vers_float(donnees.get("montant_ht"))
+    tva = vers_float(donnees.get("montant_tva"))
+    ttc = vers_float(donnees.get("montant_ttc"))
+    taux = vers_float(donnees.get("taux_tva"))
+
+    # Déductions logiques des montants manquants
+    if ht is not None and tva is not None and ttc is None:
+        ttc = round(ht + tva, 2)
+    elif ht is not None and ttc is not None and tva is None:
+        tva = round(ttc - ht, 2)
+    elif ttc is not None and taux is not None and ht is None:
+        ht = round(ttc / (1 + (taux / 100)), 2)
+        tva = round(ttc - ht, 2)
+    elif ht is not None and taux is not None and tva is None:
+        tva = round(ht * (taux / 100), 2)
+        ttc = round(ht + tva, 2)
+
+    # Correction des erreurs d'arrondi ou d'hallucination (tolérance 0.5)
+    if ht is not None and tva is not None and ttc is not None:
+        if abs((ht + tva) - ttc) > 0.5:
+            tva = round(ttc - ht, 2)
+
+    donnees["montant_ht"] = ht
+    donnees["montant_tva"] = tva
+    donnees["montant_ttc"] = ttc
+    if taux is not None:
+         donnees["taux_tva"] = taux
+
+    return donnees
+
+
 def extraire_et_classifier_depuis_image(chemin_image: str) -> dict | None:
     if not settings.GROQ_API_KEY:
         return None
@@ -193,4 +229,8 @@ def extraire_et_classifier_depuis_image(chemin_image: str) -> dict | None:
 
     donnees = _construire_donnees(champs)
     donnees["source_extraction"] = "groq_vision"
+    
+    # Validation mathématique avant retour
+    donnees = _valider_et_corriger_montants(donnees)
+    
     return donnees

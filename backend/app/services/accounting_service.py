@@ -1,17 +1,14 @@
 """
 app/services/accounting_service.py
 
-Transforme les données extraites d'un Document (MVC2) en une écriture
-comptable structurée (EcritureComptable). Ne s'appelle jamais soi-même
-ni un autre service métier : c'est document_processing.py qui orchestre
-l'appel à ce service après le classement du document.
+Ce service s'occupe de transformer les données extraites d'un Document (MVC2) 
+en une écriture comptable structurée (EcritureComptable) ou en mouvements bancaires.
+Il est orchestré par document_processing.py après le classement du document.
 
 Résolution des montants manquants :
-- Si seul montant_ttc est connu et qu'un taux de TVA est identifié, on
-  calcule ht et tva par déduction (ht = ttc / (1 + taux/100)).
-- Si aucun montant n'est exploitable, on stocke 0.00 (la colonne est
-  NOT NULL) et on marque l'écriture anomalie_detectee=True avec un
-  message explicite, plutôt que de deviner une valeur.
+- Si seul montant_ttc est connu avec un taux de TVA, on calcule le HT et la TVA par déduction.
+- Si aucun montant n'est exploitable, la valeur 0.00 est stockée en base (colonne NOT NULL) 
+  et l'écriture est marquée avec une anomalie explicite pour forcer la vérification humaine.
 """
 import uuid
 from datetime import date as date_type
@@ -25,6 +22,7 @@ from app.models.ecriture import EcritureComptable
 from app.models.mouvement_bancaire import MouvementBancaire
 from app.models.enums import TypeEcritureEnum, TauxTVAEnum, StatutValidationEnum
 
+# Mapping pour lier les catégories extraites par l'IA aux types d'écritures officiels
 _MAPPING_CATEGORIE_TYPE = {
     "achats": TypeEcritureEnum.ACHAT,
     "fournisseurs": TypeEcritureEnum.ACHAT,
@@ -36,15 +34,18 @@ _MAPPING_CATEGORIE_TYPE = {
     "impots": TypeEcritureEnum.IMPOT,
 }
 
+# Dictionnaire des taux de TVA reconnus pour sécuriser l'affectation
 _TAUX_VALIDES = {20: TauxTVAEnum.TAUX_20, 14: TauxTVAEnum.TAUX_14,
                  10: TauxTVAEnum.TAUX_10, 7: TauxTVAEnum.TAUX_7, 0: TauxTVAEnum.TAUX_0}
 
 
 def _determiner_type_ecriture(categorie: str | None) -> TypeEcritureEnum:
+    """Détermine le type d'écriture comptable en fonction de la catégorie textuelle."""
     return _MAPPING_CATEGORIE_TYPE.get(categorie, TypeEcritureEnum.AUTRE)
 
 
 def _normaliser_taux_tva(valeur) -> TauxTVAEnum:
+    """Convertit une valeur de TVA brute en un Enum strict, par défaut à TAUX_0."""
     if valeur is None:
         return TauxTVAEnum.TAUX_0
     try:
@@ -55,6 +56,7 @@ def _normaliser_taux_tva(valeur) -> TauxTVAEnum:
 
 
 def _vers_decimal(valeur) -> Decimal | None:
+    """Convertit de manière sécurisée une valeur en Decimal arrondi à 2 décimales."""
     if valeur is None:
         return None
     try:
@@ -65,14 +67,15 @@ def _vers_decimal(valeur) -> Decimal | None:
 
 def _resoudre_montants(donnees: dict, taux_enum: TauxTVAEnum) -> tuple[Decimal | None, Decimal | None, Decimal, bool, str | None]:
     """
-    Retourne (montant_ht, montant_tva, montant_ttc, anomalie, message).
-    Tente de déduire les montants manquants. HT et TVA peuvent désormais rester None.
+    Tente de déduire les montants HT, TVA et TTC s'il en manque certains.
+    Retourne : (montant_ht, montant_tva, montant_ttc, anomalie_detectee, message_erreur)
     """
     ht = _vers_decimal(donnees.get("montant_ht"))
     tva = _vers_decimal(donnees.get("montant_tva"))
     ttc = _vers_decimal(donnees.get("montant_ttc"))
     taux_pct = Decimal(taux_enum.value) / Decimal(100)
 
+    # Scénario 1 : On a le TTC mais pas le HT ni la TVA (Déduction par le bas)
     if ttc is not None and ht is None and tva is None:
         if taux_pct > 0:
             ht = (ttc / (1 + taux_pct)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -80,15 +83,14 @@ def _resoudre_montants(donnees: dict, taux_enum: TauxTVAEnum) -> tuple[Decimal |
         else:
             ht, tva = ttc, Decimal("0.00")
 
+    # Scénario 2 : On a le HT, on calcule le reste (Déduction par le haut)
     if ttc is None and ht is not None:
         tva = tva if tva is not None else (ht * taux_pct).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         ttc = (ht + tva).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    # Note : HT et TVA ne sont plus forcés à 0.00 s'ils sont None (pour gérer CNSS etc.)
-
+    # Scénario 3 : Impossible de déterminer le TTC (Cas d'anomalie sévère)
     if ttc is None:
-        # Aucun montant exploitable trouvé dans le document -> anomalie
-        # explicite, on ne devine rien. Le TTC étant obligatoire en base, on met 0.00.
+        # Le TTC étant obligatoire en base, on force 0.00 et on lève une anomalie
         return ht, tva, Decimal("0.00"), True, "Aucun montant total TTC détecté dans le document."
 
     return ht, tva, ttc, False, None
@@ -96,9 +98,8 @@ def _resoudre_montants(donnees: dict, taux_enum: TauxTVAEnum) -> tuple[Decimal |
 
 def creer_ecriture_depuis_document(db: Session, document: Document) -> EcritureComptable:
     """
-    Crée et enregistre une EcritureComptable à partir de
-    document.donnees_extraites. Appelée une seule fois par document,
-    juste après son classement dans document_processing.py.
+    Génère l'écriture comptable finale après le classement d'un document.
+    Combine les données de base et les vérifications d'anomalies.
     """
     donnees = document.donnees_extraites or {}
 
@@ -106,17 +107,18 @@ def creer_ecriture_depuis_document(db: Session, document: Document) -> EcritureC
     taux_enum = _normaliser_taux_tva(donnees.get("taux_tva"))
     ht, tva, ttc, anomalie_montants, message_montants = _resoudre_montants(donnees, taux_enum)
 
-    # Reprend le garde-fou déjà calculé par regex_extraction_service en
-    # MVC2 (a_verifier / raison_verification), sans le recalculer.
+    # Récupération des drapeaux d'anomalies détectées par le service d'extraction (Regex/IA)
     anomalie_regex = bool(donnees.get("a_verifier"))
     raison_regex = donnees.get("raison_verification")
 
+    # Fusion des anomalies (montants + extraction)
     anomalie_detectee = anomalie_montants or anomalie_regex
     if anomalie_montants and anomalie_regex:
         anomalie_details = f"{message_montants} | {raison_regex}"
     else:
         anomalie_details = message_montants or raison_regex
 
+    # Formatage sécurisé de la date de la pièce comptable
     date_piece_str = donnees.get("date_piece")
     date_piece: date_type | None = None
     if date_piece_str:
@@ -125,6 +127,7 @@ def creer_ecriture_depuis_document(db: Session, document: Document) -> EcritureC
         except ValueError:
             date_piece = None
 
+    # Création de l'entité
     ecriture = EcritureComptable(
         cabinet_id=document.cabinet_id,
         document_id=document.id,
@@ -143,6 +146,7 @@ def creer_ecriture_depuis_document(db: Session, document: Document) -> EcritureC
         anomalie_detectee=anomalie_detectee,
         anomalie_details=anomalie_details,
     )
+    
     db.add(ecriture)
     db.commit()
     db.refresh(ecriture)
@@ -151,8 +155,8 @@ def creer_ecriture_depuis_document(db: Session, document: Document) -> EcritureC
 
 def creer_mouvements_bancaires(db: Session, document: Document) -> list[MouvementBancaire]:
     """
-    Crée une liste de mouvements bancaires à partir des données extraites
-    d'un relevé bancaire par l'IA.
+    Traite spécifiquement les relevés bancaires pour générer 
+    les lignes de mouvements individuelles à partir du tableau extrait.
     """
     donnees = document.donnees_extraites or {}
     lignes_extraites = donnees.get("lignes_bancaires", [])
@@ -160,14 +164,14 @@ def creer_mouvements_bancaires(db: Session, document: Document) -> list[Mouvemen
     mouvements_crees = []
     
     for ligne in lignes_extraites:
-        # Sécurisation de la date
+        # Sécurisation de la date (fallback sur la date d'upload si introuvable)
         date_str = ligne.get("date_operation")
         try:
             date_obj = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else document.created_at.date()
         except ValueError:
             date_obj = document.created_at.date()
             
-        # Sécurisation des décimales
+        # Sécurisation des montants et des soldes
         try:
             montant = Decimal(str(ligne.get("montant", "0.00")))
         except:
@@ -178,6 +182,7 @@ def creer_mouvements_bancaires(db: Session, document: Document) -> list[Mouvemen
         except:
             solde = None
 
+        # Création du mouvement individuel
         mouvement = MouvementBancaire(
             document_id=document.id,
             entreprise_id=document.entreprise_id,
