@@ -17,6 +17,8 @@ from app.api.taches import router as taches_router
 # --- Nouveaux imports ajoutés ici ---
 from app.api.cabinet import router as cabinet_router
 from app.api.system import router as system_router
+# AJOUTÉ : routeur des alertes automatiques (Rappels & Tâches)
+from app.api.rappels import router as rappels_router
 
 configurer_logging()
 
@@ -44,6 +46,8 @@ app.include_router(taches_router)
 # --- Nouveaux routeurs enregistrés ici ---
 app.include_router(cabinet_router)
 app.include_router(system_router)
+# AJOUTÉ : enregistrement du routeur /rappels/alertes
+app.include_router(rappels_router)
 
 
 @app.get("/")

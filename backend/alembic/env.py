@@ -7,6 +7,8 @@ from alembic import context
 
 # --- Ajouts ComptaFlow : doivent venir APRES la creation de `config` ---
 from app.core.config import settings
+# Ajoutez cette ligne là où vos autres modèles sont importés
+from app.models.tache import Tache
 from app.models import *  # noqa - charge tous les modeles pour Alembic
 
 # this is the Alembic Config object, which provides

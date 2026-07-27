@@ -1,8 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { listEntreprises } from "../api/entreprisesApi";
 import { listTaches, createTache, terminerTache, deleteTache } from "../api/tachesApi";
+// AJOUTÉ : appel des alertes automatiques (non-saisies + entreprises en retard)
+import { getAlertesRappels } from "../api/rappelsApi";
+// AJOUTÉ : pour marquer une écriture "saisie" directement depuis cette page
+import { toggleSaisieTopaze } from "../api/accountingApi";
 import type { Entreprise } from "../types/entreprise";
 import type { Tache, PrioriteTache, RecurrenceTache } from "../types/tache";
+import type { AlertesRappels } from "../types/rappel";
 
 const STATUT_LABELS: Record<string, string> = {
   a_faire: "À faire", en_cours: "En cours", terminee: "Terminée",
@@ -24,6 +30,8 @@ const FORMULAIRE_VIDE = {
 };
 
 export function RappelsPage() {
+  const navigate = useNavigate();
+
   const [entreprises, setEntreprises] = useState<Entreprise[]>([]);
   const [taches, setTaches] = useState<Tache[]>([]);
   const [filtreEntreprise, setFiltreEntreprise] = useState("");
@@ -32,6 +40,10 @@ export function RappelsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [formulaireOuvert, setFormulaireOuvert] = useState(false);
   const [formulaire, setFormulaire] = useState(FORMULAIRE_VIDE);
+
+  // --- AJOUTÉ : état des alertes automatiques ---
+  const [alertes, setAlertes] = useState<AlertesRappels | null>(null);
+  const [isLoadingAlertes, setIsLoadingAlertes] = useState(true);
 
   useEffect(() => {
     listEntreprises().then(setEntreprises);
@@ -54,6 +66,25 @@ export function RappelsPage() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // AJOUTÉ : chargement séparé des alertes automatiques (indépendant des
+  // filtres de tâches manuelles, donc effet séparé).
+  const refreshAlertes = useCallback(async () => {
+    setIsLoadingAlertes(true);
+    try {
+      const data = await getAlertesRappels();
+      setAlertes(data);
+    } catch (error) {
+      console.error("Erreur lors du chargement des alertes automatiques :", error);
+      setAlertes(null);
+    } finally {
+      setIsLoadingAlertes(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshAlertes();
+  }, [refreshAlertes]);
 
   async function handleCreer(e: React.FormEvent) {
     e.preventDefault();
@@ -79,6 +110,32 @@ export function RappelsPage() {
     if (!window.confirm("Supprimer cette tâche ?")) return;
     await deleteTache(id);
     await refresh();
+  }
+
+  // AJOUTÉ : marquer une écriture "saisie dans Topaze" directement depuis
+  // cette page, sans avoir à aller sur la page Écritures.
+  async function handleMarquerSaisie(id: string) {
+    await toggleSaisieTopaze(id);
+    await refreshAlertes();
+  }
+
+  // AJOUTÉ : pré-remplit le formulaire de tâche manuelle avec l'entreprise
+  // en retard, pour créer rapidement une relance ("Relancer X").
+  function handleCreerRelance(entrepriseId: string, entrepriseNom: string) {
+    const dansUneSemaine = new Date();
+    dansUneSemaine.setDate(dansUneSemaine.getDate() + 7);
+    setFormulaire({
+      ...FORMULAIRE_VIDE,
+      entreprise_id: entrepriseId,
+      titre: `Relancer ${entrepriseNom} — envoi de facture en retard`,
+      date_echeance: dansUneSemaine.toISOString().slice(0, 10),
+    });
+    setFormulaireOuvert(true);
+  }
+
+  function formatMontant(valeur: string): string {
+    const parsed = parseFloat(valeur);
+    return isNaN(parsed) ? "—" : `${parsed.toFixed(2)} MAD`;
   }
 
   return (
@@ -154,6 +211,81 @@ export function RappelsPage() {
             </button>
           </form>
         )}
+
+        {/* ============ AJOUTÉ : SECTION 1 — ENTREPRISES EN RETARD ============ */}
+        <div className="bg-white rounded-lg shadow-sm mb-6">
+          <div className="px-4 py-3 border-b">
+            <h2 className="text-sm font-semibold">
+              🏢 Entreprises en retard d'envoi
+              {alertes && ` (${alertes.entreprises_en_retard.length})`}
+            </h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Basé sur le délai habituel entre les 2 premiers documents reçus de chaque entreprise.
+            </p>
+          </div>
+          {isLoadingAlertes && <p className="p-4 text-sm text-gray-400">Chargement...</p>}
+          {!isLoadingAlertes && alertes?.entreprises_en_retard.length === 0 && (
+            <p className="p-4 text-sm text-gray-400">Aucune entreprise en retard actuellement.</p>
+          )}
+          {!isLoadingAlertes && alertes?.entreprises_en_retard.map((ent) => (
+            <div key={ent.entreprise_id} className="px-4 py-3 border-b last:border-0 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">{ent.entreprise_nom}</p>
+                <p className="text-xs text-gray-500">
+                  Dernier envoi il y a {Math.round(ent.jours_depuis_dernier_upload)} jour(s)
+                  {" "}(habituellement tous les {Math.round(ent.delai_reference_jours)} jour(s)
+                  {" "}· {Math.round(ent.jours_de_retard)} jour(s) de retard)
+                </p>
+              </div>
+              <button
+                onClick={() => handleCreerRelance(ent.entreprise_id, ent.entreprise_nom)}
+                className="text-xs shrink-0 px-3 py-1.5 rounded border border-orange-300 text-orange-700 hover:bg-orange-50 font-medium"
+              >
+                Créer une relance
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* ============ AJOUTÉ : SECTION 2 — DOCUMENTS NON SAISIS ============ */}
+        <div className="bg-white rounded-lg shadow-sm mb-6">
+          <div className="px-4 py-3 border-b">
+            <h2 className="text-sm font-semibold">
+              📄 Écritures validées non saisies dans Topaze
+              {alertes && ` (${alertes.non_saisies.length})`}
+            </h2>
+          </div>
+          {isLoadingAlertes && <p className="p-4 text-sm text-gray-400">Chargement...</p>}
+          {!isLoadingAlertes && alertes?.non_saisies.length === 0 && (
+            <p className="p-4 text-sm text-gray-400">Tout est à jour, rien à ressaisir.</p>
+          )}
+          {!isLoadingAlertes && alertes?.non_saisies.map((item) => (
+            <div key={item.id} className="px-4 py-3 border-b last:border-0 flex items-center justify-between gap-3">
+              <button
+                onClick={() => navigate(`/documents/${item.document_id}`)}
+                className="text-left flex-1 min-w-0"
+                title="Voir le document"
+              >
+                <p className="text-sm font-medium truncate">
+                  {item.tiers ?? "Tiers inconnu"}
+                  {item.numero_piece && ` · ${item.numero_piece}`}
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  {item.entreprise_nom} · {item.nom_fichier_document} · {formatMontant(item.montant_ttc)}
+                </p>
+              </button>
+              <button
+                onClick={() => handleMarquerSaisie(item.id)}
+                className="text-xs shrink-0 px-3 py-1.5 rounded border border-green-300 text-green-700 hover:bg-green-50 font-medium"
+              >
+                ✓ Marquer saisie
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* ============ SECTION EXISTANTE : TÂCHES MANUELLES ============ */}
+        <h2 className="text-sm font-semibold mb-2 px-1">📋 Tâches manuelles</h2>
 
         <div className="bg-white rounded-lg shadow-sm p-4 mb-4 flex flex-wrap gap-3">
           <select value={filtreEntreprise} onChange={(e) => setFiltreEntreprise(e.target.value)} className="border rounded px-3 py-2 text-sm">

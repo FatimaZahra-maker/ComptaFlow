@@ -16,13 +16,17 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { TvaMensuellePage } from "./pages/TvaMensuellePage";
 import { RappelsPage } from "./pages/RappelsPage";
-import { ParametresPage } from "./pages/ParametresPage";
 import { RapportsPage } from "./pages/RapportsPage";
+// SUPPRIMÉ : ParametresPage (déjà retiré précédemment)
 
 // --- NOUVELLES IMPORTATIONS AJOUTÉES ---
 import { AchatsPage } from "./pages/AchatsPage";
 import { VentesPage } from "./pages/VentesPage";
 import { RelevesBancairesPage } from "./pages/RelevesBancairesPage";
+
+// SUPPRIMÉ : import { CnssPage } from "./pages/CnssPage";
+// La page CNSS est retirée complètement du projet (menu + route),
+// à la demande de l'utilisateur.
 
 export default function App() {
   return (
@@ -122,14 +126,6 @@ export default function App() {
             }
           />
           <Route 
-            path="/parametres" 
-            element={
-              <ProtectedRoute>
-                <Layout><ParametresPage /></Layout>
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
             path="/rapports" 
             element={
               <ProtectedRoute>
@@ -163,6 +159,8 @@ export default function App() {
               </ProtectedRoute>
             } 
           />
+
+          {/* SUPPRIMÉ : route "/cnss" retirée avec la page */}
 
           {/* ---- ROUTE PAR DÉFAUT (CATCH-ALL) ---- */}
           <Route path="*" element={<Navigate to="/" replace />} />

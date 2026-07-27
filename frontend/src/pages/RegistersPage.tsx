@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
+import type { ElementType } from "react";
 import {
   Search,
   ChevronDown,
@@ -19,11 +20,16 @@ import {
   UserRound,
   UserCog,
   CircleCheckBig,
+  Check,
 } from "lucide-react";
 
 // ============================================================================
 // TYPES & DONNÉES DE DÉMO
-// À remplacer par un vrai appel API (ex: GET /entreprises?statut=en_attente)
+// TODO(API): remplacer ROWS_INITIAL par un fetch réel, ex:
+//   const data = await listEntreprises({ statut, type, source, page, pageSize })
+// et brancher les handlers (handleValidate, handleReject, handleDelete,
+// handleReprocess, handleSaveEdit) sur les endpoints correspondants au lieu
+// de muter l'état local `rows`.
 // ============================================================================
 
 type Statut = "a_verifier" | "a_completer" | "rejete" | "valide";
@@ -48,7 +54,7 @@ interface EntrepriseRow {
   email?: string;
 }
 
-const ROWS: EntrepriseRow[] = [
+const ROWS_INITIAL: EntrepriseRow[] = [
   {
     id: "1",
     initiales: "SE",
@@ -169,8 +175,80 @@ const STATUT_STYLES: Record<Statut, { label: string; className: string }> = {
 const money = (n: number) =>
   `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD`;
 
+function parseRowDate(row: EntrepriseRow): number {
+  const [d, m, y] = row.extraitLe.split("/").map(Number);
+  const [hh, mm] = row.extraitA.split(":").map(Number);
+  return new Date(y, (m || 1) - 1, d, hh, mm).getTime();
+}
+
+function escapeCsv(value: string): string {
+  if (/[;"\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
 // ============================================================================
-// CARTES DE STATISTIQUES
+// DROPDOWN GÉNÉRIQUE (utilisé pour les filtres et le tri)
+// ============================================================================
+
+function Dropdown({
+  label,
+  options,
+  selected,
+  onSelect,
+  align = "left",
+}: {
+  label?: string;
+  options: string[];
+  selected: string;
+  onSelect: (value: string) => void;
+  align?: "left" | "right";
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50"
+      >
+        {label ? `${label} : ${selected}` : selected} <ChevronDown size={14} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div
+            className={`absolute z-20 mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg py-1 max-h-64 overflow-y-auto ${
+              align === "right" ? "right-0" : "left-0"
+            }`}
+          >
+            {options.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => {
+                  onSelect(opt);
+                  setOpen(false);
+                }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between ${
+                  opt === selected ? "text-emerald-600 font-medium" : "text-slate-700"
+                }`}
+              >
+                {opt}
+                {opt === selected && <Check size={14} />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// CARTES DE STATISTIQUES (calculées dynamiquement à partir des lignes)
 // ============================================================================
 
 function StatCard({
@@ -181,7 +259,7 @@ function StatCard({
   label,
   caption,
 }: {
-  icon: React.ElementType;
+  icon: ElementType;
   iconBg: string;
   iconColor: string;
   value: string | number;
@@ -206,23 +284,110 @@ function StatCard({
 // PANNEAU LATÉRAL DE DÉTAIL
 // ============================================================================
 
-function Field({ label, value, required = false }: { label: string; value: string; required?: boolean }) {
+function EditableField({
+  label,
+  value,
+  onChange,
+  editing,
+  required = false,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  editing: boolean;
+  required?: boolean;
+  multiline?: boolean;
+}) {
   return (
     <div>
       <label className="block text-xs font-medium text-slate-500 mb-1">
         {label}
         {required && <span className="text-red-500"> *</span>}
       </label>
-      <div className="w-full text-sm text-slate-800 border border-slate-200 rounded-lg px-3 py-2 bg-white whitespace-pre-line">
-        {value || "—"}
-      </div>
+      {editing ? (
+        multiline ? (
+          <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            rows={2}
+            className="w-full text-sm text-slate-800 border border-emerald-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          />
+        ) : (
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full text-sm text-slate-800 border border-emerald-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          />
+        )
+      ) : (
+        <div className="w-full text-sm text-slate-800 border border-slate-200 rounded-lg px-3 py-2 bg-white whitespace-pre-line">
+          {value || "—"}
+        </div>
+      )}
     </div>
   );
 }
 
-function DetailPanel({ row, onClose }: { row: EntrepriseRow; onClose: () => void }) {
+function DetailPanel({
+  row,
+  onClose,
+  onValidate,
+  onReject,
+  onDelete,
+  onReprocess,
+  onSaveEdit,
+}: {
+  row: EntrepriseRow;
+  onClose: () => void;
+  onValidate: (id: string) => void;
+  onReject: (id: string) => void;
+  onDelete: (id: string) => void;
+  onReprocess: (id: string) => void;
+  onSaveEdit: (id: string, patch: Partial<EntrepriseRow>) => void;
+}) {
   const [tab, setTab] = useState<"info" | "docs" | "hist">("info");
+  const [editing, setEditing] = useState(false);
+  const [reprocessing, setReprocessing] = useState(false);
+  const [draft, setDraft] = useState(row);
+
+  // Resynchronise le brouillon quand on change de fiche sélectionnée
+  useEffect(() => {
+    setDraft(row);
+    setEditing(false);
+  }, [row]);
+
   const statut = STATUT_STYLES[row.statut];
+
+  function handleSave() {
+    onSaveEdit(row.id, {
+      nom: draft.nom,
+      type: draft.type,
+      ice: draft.ice,
+      ifNumber: draft.ifNumber,
+      rc: draft.rc,
+      adresse: draft.adresse,
+      telephone: draft.telephone,
+      email: draft.email,
+    });
+    setEditing(false);
+  }
+
+  function handleCancel() {
+    setDraft(row);
+    setEditing(false);
+  }
+
+  function handleReprocess() {
+    setReprocessing(true);
+    // TODO(API): remplacer par un vrai appel de retraitement OCR/LLM,
+    // ex: await reprocessDocument(row.id)
+    setTimeout(() => {
+      onReprocess(row.id);
+      setReprocessing(false);
+    }, 1200);
+  }
 
   return (
     <aside className="w-[380px] shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm h-fit">
@@ -273,49 +438,128 @@ function DetailPanel({ row, onClose }: { row: EntrepriseRow; onClose: () => void
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-slate-800">Informations extraites</p>
-            <button type="button" className="text-slate-400 hover:text-slate-600">
-              <Pencil size={15} />
-            </button>
+            {!editing ? (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="text-slate-400 hover:text-slate-600"
+                title="Modifier les informations"
+              >
+                <Pencil size={15} />
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="text-xs font-medium text-slate-500 hover:text-slate-700"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="text-xs font-medium text-emerald-600 hover:text-emerald-700"
+                >
+                  Enregistrer
+                </button>
+              </div>
+            )}
           </div>
 
-          <Field label="Nom de l'entreprise" value={row.nom} required />
-          <Field label="Type" value={row.type} required />
-          <Field label="ICE" value={row.ice ?? ""} />
-          <Field label="IF" value={row.ifNumber ?? ""} />
-          <Field label="RC" value={row.rc ?? ""} />
-          <Field label="Adresse" value={row.adresse ?? ""} />
-          <Field label="Téléphone" value={row.telephone ?? ""} />
-          <Field label="Email" value={row.email ?? ""} />
-          <Field label="Montant TTC" value={money(row.montantTTC)} />
-          <Field label="Source" value={row.source} />
-          <Field label="Extrait le" value={`${row.extraitLe} à ${row.extraitA}`} />
+          <EditableField
+            label="Nom de l'entreprise"
+            value={draft.nom}
+            onChange={(v) => setDraft((d) => ({ ...d, nom: v }))}
+            editing={editing}
+            required
+          />
+          <EditableField
+            label="Type"
+            value={draft.type}
+            onChange={(v) => setDraft((d) => ({ ...d, type: v as TypeEntite }))}
+            editing={editing}
+            required
+          />
+          <EditableField
+            label="ICE"
+            value={draft.ice ?? ""}
+            onChange={(v) => setDraft((d) => ({ ...d, ice: v }))}
+            editing={editing}
+          />
+          <EditableField
+            label="IF"
+            value={draft.ifNumber ?? ""}
+            onChange={(v) => setDraft((d) => ({ ...d, ifNumber: v }))}
+            editing={editing}
+          />
+          <EditableField
+            label="RC"
+            value={draft.rc ?? ""}
+            onChange={(v) => setDraft((d) => ({ ...d, rc: v }))}
+            editing={editing}
+          />
+          <EditableField
+            label="Adresse"
+            value={draft.adresse ?? ""}
+            onChange={(v) => setDraft((d) => ({ ...d, adresse: v }))}
+            editing={editing}
+            multiline
+          />
+          <EditableField
+            label="Téléphone"
+            value={draft.telephone ?? ""}
+            onChange={(v) => setDraft((d) => ({ ...d, telephone: v }))}
+            editing={editing}
+          />
+          <EditableField
+            label="Email"
+            value={draft.email ?? ""}
+            onChange={(v) => setDraft((d) => ({ ...d, email: v }))}
+            editing={editing}
+          />
+          <EditableField label="Montant TTC" value={money(row.montantTTC)} onChange={() => {}} editing={false} />
+          <EditableField label="Source" value={row.source} onChange={() => {}} editing={false} />
+          <EditableField
+            label="Extrait le"
+            value={`${row.extraitLe} à ${row.extraitA}`}
+            onChange={() => {}}
+            editing={false}
+          />
 
           <div>
             <p className="text-sm font-semibold text-slate-800 mb-3">Actions</p>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg py-2.5 transition-colors"
+                onClick={() => onValidate(row.id)}
+                disabled={row.statut === "valide"}
+                className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg py-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <CircleCheckBig size={16} />
                 Valider
               </button>
               <button
                 type="button"
-                className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg py-2.5 transition-colors"
+                onClick={() => onReject(row.id)}
+                disabled={row.statut === "rejete"}
+                className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg py-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <XCircle size={16} />
                 Rejeter
               </button>
               <button
                 type="button"
-                className="flex items-center justify-center gap-2 border border-amber-300 text-amber-700 hover:bg-amber-50 text-sm font-medium rounded-lg py-2.5 transition-colors"
+                onClick={handleReprocess}
+                disabled={reprocessing}
+                className="flex items-center justify-center gap-2 border border-amber-300 text-amber-700 hover:bg-amber-50 text-sm font-medium rounded-lg py-2.5 transition-colors disabled:opacity-50"
               >
-                <Sparkles size={16} />
-                Retraiter avec l'IA
+                <Sparkles size={16} className={reprocessing ? "animate-spin" : ""} />
+                {reprocessing ? "Retraitement…" : "Retraiter avec l'IA"}
               </button>
               <button
                 type="button"
+                onClick={() => onDelete(row.id)}
                 className="flex items-center justify-center gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg py-2.5 transition-colors"
               >
                 <Trash2 size={16} />
@@ -362,20 +606,222 @@ function IdRow({ label, value }: { label: string; value: string | null }) {
   );
 }
 
+function RowActionsMenu({
+  onViewDetails,
+  onDelete,
+}: {
+  onViewDetails: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:bg-slate-100"
+      >
+        <MoreHorizontal size={15} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-20 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-lg py-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDetails();
+                setOpen(false);
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              Voir détails
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+                setOpen(false);
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+            >
+              Supprimer
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ============================================================================
 // PAGE PRINCIPALE
-// Ne contient plus que le contenu propre à la page. Sidebar + Header vivent
-// désormais dans Layout.tsx et enveloppent cette page via <Outlet />.
 // Nom EXACT attendu par : import { RegistersPage } from "./pages/RegistersPage";
 // ============================================================================
 
+const TYPE_OPTIONS = ["Tous les types", "Fournisseur", "Client"];
+const SORT_OPTIONS = ["Plus récent", "Plus ancien", "Montant décroissant", "Montant croissant"];
+const PAGE_SIZE_OPTIONS = [5, 10, 25, 50];
+
 export function RegistersPage() {
-  const [selectedId, setSelectedId] = useState<string | null>(ROWS[0].id);
-  const [checked, setChecked] = useState<Record<string, boolean>>({ "1": true });
+  const [rows, setRows] = useState<EntrepriseRow[]>(ROWS_INITIAL);
+  const [selectedId, setSelectedId] = useState<string | null>(ROWS_INITIAL[0]?.id ?? null);
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
 
-  const selectedRow = ROWS.find((r) => r.id === selectedId) ?? null;
+  const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("Tous les types");
+  const [sourceFilter, setSourceFilter] = useState<string>("Toutes les sources");
+  const [sortBy, setSortBy] = useState<string>("Plus récent");
+  const [showFiltersPanel, setShowFiltersPanel] = useState(false);
+  const [statutFilter, setStatutFilter] = useState<Record<Statut, boolean>>({
+    a_verifier: true,
+    a_completer: true,
+    rejete: true,
+    valide: true,
+  });
 
-  const toggleCheck = (id: string) => setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const sourceOptions = useMemo(
+    () => ["Toutes les sources", ...Array.from(new Set(rows.map((r) => r.source)))],
+    [rows]
+  );
+
+  const filteredRows = useMemo(() => {
+    let result = [...rows];
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.trim().toLowerCase();
+      result = result.filter((r) =>
+        [r.nom, r.ice, r.ifNumber, r.rc].some((v) => v?.toLowerCase().includes(q))
+      );
+    }
+
+    if (typeFilter !== "Tous les types") {
+      result = result.filter((r) => r.type === typeFilter);
+    }
+
+    if (sourceFilter !== "Toutes les sources") {
+      result = result.filter((r) => r.source === sourceFilter);
+    }
+
+    result = result.filter((r) => statutFilter[r.statut]);
+
+    result.sort((a, b) => {
+      if (sortBy === "Plus récent") return parseRowDate(b) - parseRowDate(a);
+      if (sortBy === "Plus ancien") return parseRowDate(a) - parseRowDate(b);
+      if (sortBy === "Montant décroissant") return b.montantTTC - a.montantTTC;
+      if (sortBy === "Montant croissant") return a.montantTTC - b.montantTTC;
+      return 0;
+    });
+
+    return result;
+  }, [rows, searchTerm, typeFilter, sourceFilter, statutFilter, sortBy]);
+
+  // Revenir à la page 1 dès qu'un filtre change, pour éviter une page vide
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, typeFilter, sourceFilter, statutFilter, sortBy, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedRows = filteredRows.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const selectedRow = rows.find((r) => r.id === selectedId) ?? null;
+
+  const allPagedChecked = pagedRows.length > 0 && pagedRows.every((r) => checked[r.id]);
+
+  function toggleCheck(id: string) {
+    setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function toggleCheckAllOnPage() {
+    const next = !allPagedChecked;
+    setChecked((prev) => {
+      const updated = { ...prev };
+      pagedRows.forEach((r) => {
+        updated[r.id] = next;
+      });
+      return updated;
+    });
+  }
+
+  function handleUpdateStatut(id: string, statut: Statut) {
+    // TODO(API): remplacer par validateEntry(id) / rejectEntry(id) puis refresh()
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, statut } : r)));
+  }
+
+  function handleDelete(id: string) {
+    const row = rows.find((r) => r.id === id);
+    if (!row) return;
+    const confirmed = window.confirm(`Supprimer définitivement "${row.nom}" ?`);
+    if (!confirmed) return;
+    // TODO(API): remplacer par un appel deleteEntreprise(id) puis refresh()
+    setRows((prev) => prev.filter((r) => r.id !== id));
+    setChecked((prev) => {
+      const { [id]: _removed, ...rest } = prev;
+      return rest;
+    });
+    if (selectedId === id) setSelectedId(null);
+  }
+
+  function handleReprocess(id: string) {
+    // TODO(API): déclencher le vrai pipeline OCR/LLM (Ollama → Groq → Gemini → regex)
+    // puis remplacer les champs extraits une fois le résultat reçu.
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, statut: "a_verifier" } : r)));
+  }
+
+  function handleSaveEdit(id: string, patch: Partial<EntrepriseRow>) {
+    // TODO(API): remplacer par un PATCH /entreprises/{id}
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+
+  function handleRefresh() {
+    setIsRefreshing(true);
+    // TODO(API): remplacer par un vrai refetch, ex: await listEntreprises(...)
+    setSearchTerm("");
+    setTypeFilter("Tous les types");
+    setSourceFilter("Toutes les sources");
+    setSortBy("Plus récent");
+    setStatutFilter({ a_verifier: true, a_completer: true, rejete: true, valide: true });
+    setTimeout(() => setIsRefreshing(false), 600);
+  }
+
+  function handleExport() {
+    const headers = ["Nom", "Type", "ICE", "IF", "RC", "Source", "Montant TTC", "Extrait le", "Statut"];
+    const csvRows = filteredRows.map((r) => [
+      r.nom,
+      r.type,
+      r.ice ?? "",
+      r.ifNumber ?? "",
+      r.rc ?? "",
+      r.source,
+      r.montantTTC.toFixed(2),
+      `${r.extraitLe} ${r.extraitA}`,
+      STATUT_STYLES[r.statut].label,
+    ]);
+    const csvContent = [headers, ...csvRows]
+      .map((line) => line.map((cell) => escapeCsv(String(cell))).join(";"))
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `entreprises_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  const countByStatut = (s: Statut) => rows.filter((r) => r.statut === s).length;
 
   return (
     <>
@@ -391,7 +837,7 @@ export function RegistersPage() {
           icon={UserRound}
           iconBg="bg-blue-100"
           iconColor="text-blue-600"
-          value={24}
+          value={countByStatut("a_verifier")}
           label="En attente"
           caption="À vérifier"
         />
@@ -399,7 +845,7 @@ export function RegistersPage() {
           icon={UserCog}
           iconBg="bg-orange-100"
           iconColor="text-orange-600"
-          value={3}
+          value={countByStatut("a_completer")}
           label="À compléter"
           caption="Informations manquantes"
         />
@@ -407,7 +853,7 @@ export function RegistersPage() {
           icon={XCircle}
           iconBg="bg-red-100"
           iconColor="text-red-600"
-          value={5}
+          value={countByStatut("rejete")}
           label="Rejetées"
           caption="À revoir si besoin"
         />
@@ -415,46 +861,70 @@ export function RegistersPage() {
           icon={Clock3}
           iconBg="bg-emerald-100"
           iconColor="text-emerald-600"
-          value={0}
+          value={countByStatut("valide")}
           label="Validées ce mois"
-          caption="Aucune validation"
+          caption={countByStatut("valide") === 0 ? "Aucune validation" : "Mis à jour"}
         />
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 flex items-center gap-3">
-        <div className="flex-1 relative max-w-xs">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Rechercher (nom, ICE, IF, RC...)"
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          />
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 space-y-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex-1 relative max-w-xs">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Rechercher (nom, ICE, IF, RC...)"
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            />
+          </div>
+
+          <Dropdown options={TYPE_OPTIONS} selected={typeFilter} onSelect={setTypeFilter} />
+          <Dropdown options={sourceOptions} selected={sourceFilter} onSelect={setSourceFilter} />
+          <Dropdown label="Trier par" options={SORT_OPTIONS} selected={sortBy} onSelect={setSortBy} />
+
+          <button
+            type="button"
+            onClick={() => setShowFiltersPanel((v) => !v)}
+            className={`flex items-center gap-1.5 text-sm font-medium border rounded-lg px-3 py-2 ml-auto ${
+              showFiltersPanel
+                ? "border-emerald-300 text-emerald-700 bg-emerald-50"
+                : "border-slate-200 text-slate-700"
+            }`}
+          >
+            <SlidersHorizontal size={14} />
+            Filtres
+          </button>
         </div>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-2"
-        >
-          Tous les types <ChevronDown size={14} />
-        </button>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-2"
-        >
-          Toutes les sources <ChevronDown size={14} />
-        </button>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-2"
-        >
-          Trier par : Plus récent <ChevronDown size={14} />
-        </button>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg px-3 py-2 ml-auto"
-        >
-          <SlidersHorizontal size={14} />
-          Filtres
-        </button>
+
+        {showFiltersPanel && (
+          <div className="flex items-center gap-4 flex-wrap border-t border-slate-100 pt-3">
+            <span className="text-xs font-medium text-slate-500">Statut :</span>
+            {(Object.keys(STATUT_STYLES) as Statut[]).map((s) => (
+              <label key={s} className="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={statutFilter[s]}
+                  onChange={() =>
+                    setStatutFilter((prev) => ({ ...prev, [s]: !prev[s] }))
+                  }
+                  className="rounded border-slate-300"
+                />
+                {STATUT_STYLES[s].label}
+              </label>
+            ))}
+            <button
+              type="button"
+              onClick={() =>
+                setStatutFilter({ a_verifier: true, a_completer: true, rejete: true, valide: true })
+              }
+              className="text-xs font-medium text-slate-400 hover:text-slate-600 ml-auto"
+            >
+              Réinitialiser
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex items-start gap-5">
@@ -464,7 +934,12 @@ export function RegistersPage() {
               <thead>
                 <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
                   <th className="p-3 w-10">
-                    <input type="checkbox" className="rounded border-slate-300" />
+                    <input
+                      type="checkbox"
+                      checked={allPagedChecked}
+                      onChange={toggleCheckAllOnPage}
+                      className="rounded border-slate-300"
+                    />
                   </th>
                   <th className="p-3">Entreprise</th>
                   <th className="p-3">ICE / IF / RC</th>
@@ -477,7 +952,7 @@ export function RegistersPage() {
                 </tr>
               </thead>
               <tbody>
-                {ROWS.map((row) => {
+                {pagedRows.map((row) => {
                   const isSelected = row.id === selectedId;
                   const statut = STATUT_STYLES[row.statut];
                   return (
@@ -541,72 +1016,116 @@ export function RegistersPage() {
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedId(row.id);
+                            }}
+                            title="Modifier"
                             className="w-7 h-7 flex items-center justify-center rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100"
                           >
                             <Pencil size={13} />
                           </button>
                           <button
                             type="button"
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-7 h-7 flex items-center justify-center rounded-md bg-red-50 text-red-600 hover:bg-red-100"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUpdateStatut(row.id, "rejete");
+                            }}
+                            title="Rejeter rapidement"
+                            disabled={row.statut === "rejete"}
+                            className="w-7 h-7 flex items-center justify-center rounded-md bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-40"
                           >
                             <X size={14} />
                           </button>
-                          <button
-                            type="button"
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:bg-slate-100"
-                          >
-                            <MoreHorizontal size={15} />
-                          </button>
+                          <RowActionsMenu
+                            onViewDetails={() => setSelectedId(row.id)}
+                            onDelete={() => handleDelete(row.id)}
+                          />
                         </div>
                       </td>
                     </tr>
                   );
                 })}
+                {pagedRows.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="p-8 text-center text-sm text-slate-400">
+                      Aucune entreprise ne correspond à ces filtres.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
 
           <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
-            <p className="text-xs text-slate-500">Affichage 1 à 7 sur 24 résultats</p>
+            <p className="text-xs text-slate-500">
+              {filteredRows.length === 0
+                ? "Aucun résultat"
+                : `Affichage ${(safePage - 1) * pageSize + 1} à ${Math.min(
+                    safePage * pageSize,
+                    filteredRows.length
+                  )} sur ${filteredRows.length} résultats`}
+            </p>
             <div className="flex items-center gap-1.5">
-              <button type="button" className="w-7 h-7 flex items-center justify-center rounded-md border border-slate-200 text-slate-400">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+                className="w-7 h-7 flex items-center justify-center rounded-md border border-slate-200 text-slate-400 disabled:opacity-40 enabled:hover:bg-slate-50 enabled:text-slate-600"
+              >
                 <ChevronLeft size={14} />
               </button>
-              {[1, 2, 3].map((n) => (
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
                 <button
                   key={n}
                   type="button"
+                  onClick={() => setCurrentPage(n)}
                   className={`w-7 h-7 flex items-center justify-center rounded-md text-sm ${
-                    n === 1
+                    n === safePage
                       ? "bg-emerald-600 text-white font-medium"
-                      : "border border-slate-200 text-slate-600"
+                      : "border border-slate-200 text-slate-600 hover:bg-slate-50"
                   }`}
                 >
                   {n}
                 </button>
               ))}
-              <button type="button" className="w-7 h-7 flex items-center justify-center rounded-md border border-slate-200 text-slate-600">
-                <ChevronRight size={14} />
-              </button>
               <button
                 type="button"
-                className="ml-2 flex items-center gap-1 text-xs text-slate-600 border border-slate-200 rounded-md px-2 py-1.5"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage === totalPages}
+                className="w-7 h-7 flex items-center justify-center rounded-md border border-slate-200 text-slate-600 disabled:opacity-40 enabled:hover:bg-slate-50"
               >
-                10 / page <ChevronDown size={12} />
+                <ChevronRight size={14} />
               </button>
+              <div className="ml-2">
+                <Dropdown
+                  options={PAGE_SIZE_OPTIONS.map((n) => `${n} / page`)}
+                  selected={`${pageSize} / page`}
+                  onSelect={(v) => setPageSize(Number(v.split(" ")[0]))}
+                  align="right"
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        {selectedRow && <DetailPanel row={selectedRow} onClose={() => setSelectedId(null)} />}
+        {selectedRow && (
+          <DetailPanel
+            row={selectedRow}
+            onClose={() => setSelectedId(null)}
+            onValidate={(id) => handleUpdateStatut(id, "valide")}
+            onReject={(id) => handleUpdateStatut(id, "rejete")}
+            onDelete={handleDelete}
+            onReprocess={handleReprocess}
+            onSaveEdit={handleSaveEdit}
+          />
+        )}
       </div>
 
       <div className="flex items-center gap-3">
         <button
           type="button"
+          onClick={handleExport}
           className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg px-4 py-2.5 transition-colors"
         >
           <Download size={15} />
@@ -614,9 +1133,11 @@ export function RegistersPage() {
         </button>
         <button
           type="button"
-          className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg px-4 py-2.5 transition-colors"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg px-4 py-2.5 transition-colors disabled:opacity-60"
         >
-          <RefreshCw size={15} />
+          <RefreshCw size={15} className={isRefreshing ? "animate-spin" : ""} />
           Actualiser
         </button>
       </div>

@@ -8,13 +8,17 @@ interface CarteNav {
   disponible: boolean;
 }
 
+// CORRIGÉ : la carte "Notifications" pointait vers "/tasks", une route
+// qui n'existe pas dans App.tsx (la vraie route est "/notifications").
+// C'était la cause du "Bientôt disponible" et du lien mort.
+// Elle est maintenant activée et pointe vers la bonne route.
 const CARTES: CarteNav[] = [
   { titre: "Tableau de bord", description: "Vue d'ensemble et indicateurs", route: "/dashboard", disponible: true },
   { titre: "Chronos", description: "Entreprise / Année / Mois / Catégorie", route: "/chronos", disponible: true },
   { titre: "Écritures", description: "HT, TVA, TTC par facture", route: "/registers", disponible: true },
   { titre: "Registre comptable", description: "Totaux HT/TVA/TTC par catégorie et période", route: "/registres", disponible: true },
-  { titre: "Notifications", description: "Alertes et tâches en attente", route: "/tasks", disponible: false },
-  { titre: "Importer un document", description: "Upload et traitement OCR / IA", route: "/upload", disponible: true },
+  { titre: "Notifications", description: "Alertes et tâches en attente", route: "/notifications", disponible: true },
+  { titre: "Importer un document", description: "Upload et traitement", route: "/upload", disponible: true },
 ];
 
 export function HomePage() {

@@ -23,6 +23,17 @@ dans le logiciel comptable externe", indépendant du statut_validation.
 
 AJOUT (correction manuelle) : route PATCH /entries/{entry_id} pour
 permettre au comptable de corriger manuellement les champs d'une écriture.
+
+CORRECTIF (filtre catégorie du registre) : 'categorie' était reçu comme
+un simple `str` puis comparé directement à la colonne Enum
+Document.categorie. SQLAlchemy attend une véritable instance de
+CategorieDocumentEnum pour comparer correctement une colonne Enum --
+une chaîne brute pouvait ne matcher aucune ligne en base, même quand
+des écritures validées existaient réellement pour ce filtre (c'est ce
+qui causait "Aucune écriture validée pour ces filtres" alors que les
+données existent). Le paramètre est maintenant typé directement avec
+l'enum : FastAPI/Pydantic valide et convertit automatiquement la
+valeur reçue en instance d'enum avant qu'elle n'atteigne la requête SQL.
 """
 import uuid
 from decimal import Decimal
@@ -35,7 +46,8 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.document import Document
 from app.models.ecriture import EcritureComptable
-from app.models.enums import RoleEnum, StatutValidationEnum
+# AJOUTÉ : CategorieDocumentEnum, pour typer correctement le filtre 'categorie'
+from app.models.enums import RoleEnum, StatutValidationEnum, CategorieDocumentEnum
 from app.models.user import User
 from app.schemas.ecriture import EcritureOut, EcritureUpdate
 from app.schemas.registre import RegistreOut, TvaAnnuelleOut, TvaMensuelle
@@ -60,25 +72,21 @@ def list_entries(
     (ex: VALIDE, REJETE, A_VERIFIER). Joint la table Document pour inclure 
     le nom du fichier d'origine lié à chaque écriture.
     """
-    # Construction de la requête de base
     query = (
         select(EcritureComptable, Document.nom_fichier_original)
         .join(Document, EcritureComptable.document_id == Document.id)
         .where(EcritureComptable.cabinet_id == current_user.cabinet_id)
     )
     
-    # Application des filtres optionnels
     if entreprise_id is not None:
         query = query.where(EcritureComptable.entreprise_id == entreprise_id)
     if statut_validation is not None:
         query = query.where(EcritureComptable.statut_validation == statut_validation)
         
-    # Tri par date de création, du plus récent au plus ancien
     query = query.order_by(EcritureComptable.created_at.desc())
 
     resultats = db.execute(query).all()
 
-    # Formatage des résultats pour correspondre au schéma de sortie
     sortie: list[EcritureOut] = []
     for ecriture, nom_fichier in resultats:
         item = EcritureOut.model_validate(ecriture)
@@ -194,7 +202,6 @@ def toggle_saisie_topaze(
     if entry is None:
         raise HTTPException(status_code=404, detail="Écriture introuvable.")
 
-    # Inverse la valeur booléenne actuelle (True devient False, False devient True)
     entry.saisie_topaze = not entry.saisie_topaze
     
     db.commit()
@@ -224,12 +231,10 @@ def update_entry(
     if entry is None:
         raise HTTPException(status_code=404, detail="Écriture introuvable.")
 
-    # exclude_unset=True garantit que seuls les champs explicitement envoyés sont modifiés
     donnees = payload.model_dump(exclude_unset=True)
     for champ, valeur in donnees.items():
         setattr(entry, champ, valeur)
 
-    # Réinitialise la validation après modification manuelle
     if entry.statut_validation == StatutValidationEnum.VALIDE:
         entry.statut_validation = StatutValidationEnum.A_VERIFIER
 
@@ -241,7 +246,15 @@ def update_entry(
 @router.get("/registers", response_model=RegistreOut)
 def get_registre(
     entreprise_id: uuid.UUID = Query(...),
-    categorie: str = Query(...),
+    # CORRIGÉ : 'categorie' est maintenant typé directement avec l'enum
+    # CategorieDocumentEnum au lieu de 'str'. FastAPI valide et convertit
+    # automatiquement la valeur reçue (ex: "achats") en une vraie instance
+    # d'enum AVANT qu'elle n'arrive dans la requête SQL. C'est ce qui
+    # corrige le filtre qui ne retrouvait aucune ligne malgré des données
+    # existantes. Bonus : une valeur invalide (faute de frappe, catégorie
+    # inconnue) renvoie désormais automatiquement une erreur 422 claire au
+    # lieu d'un résultat vide silencieux.
+    categorie: CategorieDocumentEnum = Query(...),
     annee: int = Query(...),
     mois: int | None = Query(default=None),
     trimestre: int | None = Query(default=None, ge=1, le=4),
@@ -256,20 +269,17 @@ def get_registre(
     - Par 'mois' (1-12) : retourne les données du mois ciblé.
     - Par 'trimestre' (1-4) : regroupe les données des 3 mois de ce trimestre.
     """
-    # Validation stricte : on ne peut pas fournir les deux filtres temporels à la fois, ni aucun des deux
     if (mois is None) == (trimestre is None):
         raise HTTPException(
             status_code=400,
             detail="Fournir soit 'mois' soit 'trimestre' (exclusif l'un de l'autre).",
         )
 
-    # Détermine la liste des mois à requêter selon qu'on demande un mois unique ou un trimestre
     if trimestre is not None:
         mois_cibles = [(trimestre - 1) * 3 + 1, (trimestre - 1) * 3 + 2, (trimestre - 1) * 3 + 3]
     else:
         mois_cibles = [mois]
 
-    # Construit la requête sur les écritures validées de la période ciblée
     query = (
         select(EcritureComptable, Document.nom_fichier_original)
         .join(Document, EcritureComptable.document_id == Document.id)
@@ -277,6 +287,8 @@ def get_registre(
             EcritureComptable.cabinet_id == current_user.cabinet_id,
             EcritureComptable.entreprise_id == entreprise_id,
             EcritureComptable.statut_validation == StatutValidationEnum.VALIDE,
+            # 'categorie' est désormais une vraie instance de CategorieDocumentEnum :
+            # cette comparaison matche correctement la colonne Enum de Document.
             Document.categorie == categorie,
             Document.annee == annee,
             Document.mois.in_(mois_cibles),
@@ -285,20 +297,18 @@ def get_registre(
     )
     resultats = db.execute(query).all()
 
-    # Formate les résultats
     lignes: list[EcritureOut] = []
     for ecriture, nom_fichier in resultats:
         item = EcritureOut.model_validate(ecriture)
         item.nom_fichier_document = nom_fichier
         lignes.append(item)
 
-    # Calcule les totaux globaux du registre avec protection contre les valeurs None
     total_ht = sum((l.montant_ht or Decimal("0.00") for l in lignes), Decimal("0.00"))
     total_tva = sum((l.montant_tva or Decimal("0.00") for l in lignes), Decimal("0.00"))
     total_ttc = sum((l.montant_ttc or Decimal("0.00") for l in lignes), Decimal("0.00"))
 
     return RegistreOut(
-        categorie=categorie,
+        categorie=categorie.value,
         entreprise_id=entreprise_id,
         annee=annee,
         mois=mois or mois_cibles[0],
@@ -326,7 +336,6 @@ def get_tva_mensuelle(
     - TVA déductible = Somme de la TVA sur les factures d'ACHAT.
     - TVA nette = Collectée - Déductible.
     """
-    # Extraction des données nécessaires regroupées et identifiées par mois
     lignes = db.execute(
         select(
             extract("month", EcritureComptable.date_piece).label("mois"),
@@ -343,13 +352,11 @@ def get_tva_mensuelle(
         )
     ).all()
 
-    # Initialisation d'un dictionnaire avec tous les mois (1 à 12) à zéro
     par_mois: dict[int, dict[str, Decimal]] = {
         m: {"collectee": Decimal("0.00"), "deductible": Decimal("0.00"), "nombre": 0}
         for m in range(1, 13)
     }
 
-    # Agrégation des montants par mois en fonction du type d'écriture (vente vs achat)
     for mois, type_ecriture, montant_tva in lignes:
         mois = int(mois)
         type_str = type_ecriture.value if hasattr(type_ecriture, "value") else str(type_ecriture)
@@ -363,7 +370,6 @@ def get_tva_mensuelle(
             
         par_mois[mois]["nombre"] += 1
 
-    # Formatage des totaux mensuels
     mensualites = [
         TvaMensuelle(
             mois=m,
@@ -376,7 +382,6 @@ def get_tva_mensuelle(
         for m in range(1, 13)
     ]
 
-    # Calcul des totaux annuels globaux
     total_collectee = sum((Decimal(m.tva_collectee) for m in mensualites), Decimal("0.00"))
     total_deductible = sum((Decimal(m.tva_deductible) for m in mensualites), Decimal("0.00"))
 
