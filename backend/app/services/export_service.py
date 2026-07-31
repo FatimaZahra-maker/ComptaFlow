@@ -31,14 +31,18 @@ from app.models.ecriture import EcritureComptable
 _ENTETES = ["Date", "Tiers", "N° pièce", "HT (MAD)", "TVA (MAD)", "TTC (MAD)"]
 
 
+def _format_decimal(value: Decimal | None) -> str:
+    return f"{(value or Decimal('0.00')):.2f}"
+
+
 def _ligne_registre(ecriture: EcritureComptable) -> list[str]:
     return [
         ecriture.date_piece.strftime("%d/%m/%Y") if ecriture.date_piece else "—",
         ecriture.tiers or "—",
         ecriture.numero_piece or "—",
-        f"{ecriture.montant_ht:.2f}",
-        f"{ecriture.montant_tva:.2f}",
-        f"{ecriture.montant_ttc:.2f}",
+        _format_decimal(ecriture.montant_ht),
+        _format_decimal(ecriture.montant_tva),
+        _format_decimal(ecriture.montant_ttc),
     ]
 
 
@@ -138,13 +142,13 @@ def generer_export_topaze(ecriture: EcritureComptable) -> bytes:
     est_vente = "vente" in type_str.lower()
 
     if est_vente:
-        writer.writerow([date_str, "3421", f"Client {tiers}", f"{ecriture.montant_ttc:.2f}", ""])
-        writer.writerow([date_str, "7111", "Ventes de marchandises", "", f"{ecriture.montant_ht:.2f}"])
-        writer.writerow([date_str, "4455", "État — TVA facturée", "", f"{ecriture.montant_tva:.2f}"])
+        writer.writerow([date_str, "3421", f"Client {tiers}", _format_decimal(ecriture.montant_ttc), ""])
+        writer.writerow([date_str, "7111", "Ventes de marchandises", "", _format_decimal(ecriture.montant_ht)])
+        writer.writerow([date_str, "4455", "État — TVA facturée", "", _format_decimal(ecriture.montant_tva)])
     else:
-        writer.writerow([date_str, "6111", "Achats marchandises", f"{ecriture.montant_ht:.2f}", ""])
-        writer.writerow([date_str, "34552", "TVA déductible sur achats", f"{ecriture.montant_tva:.2f}", ""])
-        writer.writerow([date_str, "4411", f"Fournisseur {tiers}", "", f"{ecriture.montant_ttc:.2f}"])
+        writer.writerow([date_str, "6111", "Achats marchandises", _format_decimal(ecriture.montant_ht), ""])
+        writer.writerow([date_str, "34552", "TVA déductible sur achats", _format_decimal(ecriture.montant_tva), ""])
+        writer.writerow([date_str, "4411", f"Fournisseur {tiers}", "", _format_decimal(ecriture.montant_ttc)])
 
     return ("\ufeff" + tampon.getvalue()).encode("utf-8")
 

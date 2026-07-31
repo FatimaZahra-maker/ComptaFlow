@@ -1,20 +1,21 @@
-"""
-app/schemas/registre.py
+"""Schémas de sortie du registre comptable et de la TVA mensuelle."""
 
-Schéma de sortie d'un "registre" (Phase 5 du projet) : un registre ne
-stocke rien en base, il CALCULE les totaux HT/TVA/TTC à partir des
-écritures comptables déjà validées, pour une entreprise, une catégorie,
-une année et un mois donnés.
-
-Réutilise EcritureOut (déjà existant dans app/schemas/ecriture.py) pour
-la liste des lignes, afin de ne pas dupliquer un schéma d'écriture.
-"""
 import uuid
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.ecriture import EcritureOut
+
+
+class RegistreOptionOut(BaseModel):
+    """Combinaison de filtres contenant au moins une écriture validée."""
+
+    entreprise_id: uuid.UUID
+    categorie: str
+    annee: int
+    mois: int
+    nombre: int
 
 
 class RegistreOut(BaseModel):
@@ -31,8 +32,8 @@ class RegistreOut(BaseModel):
     total_ttc: Decimal
 
     lignes: list[EcritureOut]
-    
-# --- Ajout : TVA ventilée par mois (Phase suivante) ---
+
+
 class TvaMensuelle(BaseModel):
     mois: int
     annee: int

@@ -1,32 +1,40 @@
+"""Point d'entrée FastAPI de ComptaFlow."""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import settings
-from app.core.logging_config import configurer_logging
-from app.api.auth import router as auth_router
-from app.api.users import router as users_router
-from app.api.documents import router as documents_router
 from app.api.accounting import router as accounting_router
-from app.api.entreprises import router as entreprises_router
+from app.api.auth import router as auth_router
+from app.api.cabinet import router as cabinet_router
 from app.api.chronos import router as chronos_router
 from app.api.dashboard import router as dashboard_router
-from app.api.search import router as search_router
-from app.api.notifications import router as notifications_router
+from app.api.documents import router as documents_router
+from app.api.entreprises import router as entreprises_router
 from app.api.export import router as export_router
-from app.api.taches import router as taches_router
-# --- Nouveaux imports ajoutés ici ---
-from app.api.cabinet import router as cabinet_router
-from app.api.system import router as system_router
-# AJOUTÉ : routeur des alertes automatiques (Rappels & Tâches)
+from app.api.notifications import router as notifications_router
 from app.api.rappels import router as rappels_router
+from app.api.rapports import router as rapports_router
+from app.api.search import router as search_router
+from app.api.system import router as system_router
+from app.api.taches import router as taches_router
+from app.api.users import router as users_router
+from app.core.config import settings
+from app.core.logging_config import configurer_logging
 
 configurer_logging()
 
 app = FastAPI(title=settings.APP_NAME)
 
+# Origines locales utilisées par Vite. Cette liste reste volontairement
+# restrictive et évite le blocage lorsque Vite démarre sur 5174.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,11 +51,10 @@ app.include_router(search_router)
 app.include_router(notifications_router)
 app.include_router(export_router)
 app.include_router(taches_router)
-# --- Nouveaux routeurs enregistrés ici ---
 app.include_router(cabinet_router)
 app.include_router(system_router)
-# AJOUTÉ : enregistrement du routeur /rappels/alertes
 app.include_router(rappels_router)
+app.include_router(rapports_router)
 
 
 @app.get("/")

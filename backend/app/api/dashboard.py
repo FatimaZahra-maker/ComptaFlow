@@ -1,129 +1,178 @@
-"""
-app/api/dashboard.py
+"""Indicateurs du tableau de bord, filtrables par mois (YYYY-MM)."""
 
-Route du tableau de bord (Phase 6). Un seul endpoint qui agrège tout ce
-qui est nécessaire à l'écran d'accueil décisionnel : compteurs de
-documents par statut, compteurs d'écritures par statut de validation,
-TVA collectée/déductible/nette, nombre d'entreprises.
-
-Tout est filtré sur cabinet_id de l'utilisateur connecté (même règle de
-sécurité que partout ailleurs dans le projet).
-"""
+from datetime import date
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.user import User
 from app.models.document import Document
 from app.models.ecriture import EcritureComptable
 from app.models.entreprise import Entreprise
-from app.models.enums import StatutDocumentEnum, StatutValidationEnum, TypeEcritureEnum
-from app.schemas.dashboard import DashboardOut, DocumentsParStatut, EcrituresParStatutValidation
+from app.models.enums import (
+    StatutDocumentEnum,
+    StatutValidationEnum,
+    TypeEcritureEnum,
+)
+from app.models.user import User
+from app.schemas.dashboard import (
+    DashboardOut,
+    DocumentsParStatut,
+    EcrituresParStatutValidation,
+)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
-def _compter_documents_par_statut(db: Session, cabinet_id) -> DocumentsParStatut:
-    """
-    Une seule requête groupée par statut, plutôt que 5 requêtes
-    séparées -- plus efficace pour Postgres.
-    """
-    resultats = db.execute(
-        select(Document.statut, func.count(Document.id))
-        .where(Document.cabinet_id == cabinet_id)
-        .group_by(Document.statut)
-    ).all()
+def _parse_period(period: str | None) -> tuple[int, int] | None:
+    if not period:
+        return None
+    try:
+        year_text, month_text = period.split("-", maxsplit=1)
+        year = int(year_text)
+        month = int(month_text)
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="La période doit respecter le format YYYY-MM.",
+        ) from exc
 
-    compteurs = {statut.value: 0 for statut in StatutDocumentEnum}
-    for statut, nombre in resultats:
-        compteurs[statut.value] = nombre
+    if month < 1 or month > 12:
+        raise HTTPException(status_code=422, detail="Mois invalide.")
+    return year, month
 
-    return DocumentsParStatut(
-        en_attente=compteurs[StatutDocumentEnum.EN_ATTENTE.value],
-        en_traitement=compteurs[StatutDocumentEnum.EN_TRAITEMENT.value],
-        traite=compteurs[StatutDocumentEnum.TRAITE.value],
-        valide=compteurs[StatutDocumentEnum.VALIDE.value],
-        erreur=compteurs[StatutDocumentEnum.ERREUR.value],
+
+def _document_period_clause(period: tuple[int, int] | None):
+    if period is None:
+        return None
+    year, month = period
+    return or_(
+        and_(Document.annee == year, Document.mois == month),
+        and_(
+            Document.annee.is_(None),
+            extract_year(Document.created_at) == year,
+            extract_month(Document.created_at) == month,
+        ),
     )
 
 
-def _compter_ecritures_par_statut(db: Session, cabinet_id) -> EcrituresParStatutValidation:
-    resultats = db.execute(
-        select(EcritureComptable.statut_validation, func.count(EcritureComptable.id))
-        .where(EcritureComptable.cabinet_id == cabinet_id)
-        .group_by(EcritureComptable.statut_validation)
-    ).all()
+def extract_year(column):
+    return func.extract("year", column)
 
-    compteurs = {statut.value: 0 for statut in StatutValidationEnum}
-    for statut, nombre in resultats:
-        compteurs[statut.value] = nombre
 
-    return EcrituresParStatutValidation(
-        brouillon=compteurs[StatutValidationEnum.BROUILLON.value],
-        a_verifier=compteurs[StatutValidationEnum.A_VERIFIER.value],
-        valide=compteurs[StatutValidationEnum.VALIDE.value],
-        rejete=compteurs[StatutValidationEnum.REJETE.value],
+def extract_month(column):
+    return func.extract("month", column)
+
+
+def _entry_period_clause(period: tuple[int, int] | None):
+    if period is None:
+        return None
+    year, month = period
+    return or_(
+        and_(
+            EcritureComptable.date_piece.is_not(None),
+            extract_year(EcritureComptable.date_piece) == year,
+            extract_month(EcritureComptable.date_piece) == month,
+        ),
+        and_(
+            EcritureComptable.date_piece.is_(None),
+            extract_year(EcritureComptable.created_at) == year,
+            extract_month(EcritureComptable.created_at) == month,
+        ),
     )
 
 
-def _calculer_tva(db: Session, cabinet_id) -> tuple[Decimal, Decimal, Decimal]:
-    """
-    TVA collectée = somme des montant_tva des écritures VALIDEES de
-    type VENTE. TVA déductible = idem pour type ACHAT. TVA nette =
-    collectée - déductible (peut être négative, c'est un cas normal
-    en comptabilité : crédit de TVA).
-    """
-    tva_collectee = db.execute(
-        select(func.coalesce(func.sum(EcritureComptable.montant_tva), 0)).where(
+def _count_documents(
+    db: Session,
+    cabinet_id,
+    period: tuple[int, int] | None,
+) -> DocumentsParStatut:
+    query = select(Document.statut, func.count(Document.id)).where(
+        Document.cabinet_id == cabinet_id
+    )
+    period_clause = _document_period_clause(period)
+    if period_clause is not None:
+        query = query.where(period_clause)
+
+    rows = db.execute(query.group_by(Document.statut)).all()
+    counters = {status.value: 0 for status in StatutDocumentEnum}
+    for status, count in rows:
+        counters[status.value] = int(count)
+
+    return DocumentsParStatut(**counters)
+
+
+def _count_entries(
+    db: Session,
+    cabinet_id,
+    period: tuple[int, int] | None,
+) -> EcrituresParStatutValidation:
+    query = select(
+        EcritureComptable.statut_validation,
+        func.count(EcritureComptable.id),
+    ).where(EcritureComptable.cabinet_id == cabinet_id)
+    period_clause = _entry_period_clause(period)
+    if period_clause is not None:
+        query = query.where(period_clause)
+
+    rows = db.execute(query.group_by(EcritureComptable.statut_validation)).all()
+    counters = {status.value: 0 for status in StatutValidationEnum}
+    for status, count in rows:
+        counters[status.value] = int(count)
+
+    return EcrituresParStatutValidation(**counters)
+
+
+def _calculate_tax(
+    db: Session,
+    cabinet_id,
+    period: tuple[int, int] | None,
+) -> tuple[Decimal, Decimal, Decimal]:
+    def total_for(entry_type: TypeEcritureEnum) -> Decimal:
+        query = select(
+            func.coalesce(func.sum(EcritureComptable.montant_tva), 0)
+        ).where(
             EcritureComptable.cabinet_id == cabinet_id,
             EcritureComptable.statut_validation == StatutValidationEnum.VALIDE,
-            EcritureComptable.type_ecriture == TypeEcritureEnum.VENTE,
+            EcritureComptable.type_ecriture == entry_type,
         )
-    ).scalar_one()
+        period_clause = _entry_period_clause(period)
+        if period_clause is not None:
+            query = query.where(period_clause)
+        return Decimal(db.execute(query).scalar_one())
 
-    tva_deductible = db.execute(
-        select(func.coalesce(func.sum(EcritureComptable.montant_tva), 0)).where(
-            EcritureComptable.cabinet_id == cabinet_id,
-            EcritureComptable.statut_validation == StatutValidationEnum.VALIDE,
-            EcritureComptable.type_ecriture == TypeEcritureEnum.ACHAT,
-        )
-    ).scalar_one()
-
-    tva_collectee = Decimal(tva_collectee)
-    tva_deductible = Decimal(tva_deductible)
-    return tva_collectee, tva_deductible, tva_collectee - tva_deductible
+    collected = total_for(TypeEcritureEnum.VENTE)
+    deductible = total_for(TypeEcritureEnum.ACHAT)
+    return collected, deductible, collected - deductible
 
 
 @router.get("", response_model=DashboardOut)
 def get_dashboard(
+    period: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    parsed_period = _parse_period(period)
     cabinet_id = current_user.cabinet_id
 
-    documents_par_statut = _compter_documents_par_statut(db, cabinet_id)
-    total_documents = sum(documents_par_statut.model_dump().values())
+    document_counts = _count_documents(db, cabinet_id, parsed_period)
+    entry_counts = _count_entries(db, cabinet_id, parsed_period)
+    collected, deductible, net = _calculate_tax(db, cabinet_id, parsed_period)
 
-    ecritures_par_statut = _compter_ecritures_par_statut(db, cabinet_id)
-    total_ecritures = sum(ecritures_par_statut.model_dump().values())
-
-    tva_collectee, tva_deductible, tva_nette = _calculer_tva(db, cabinet_id)
-
-    total_entreprises = db.execute(
+    company_count = db.execute(
         select(func.count(Entreprise.id)).where(Entreprise.cabinet_id == cabinet_id)
     ).scalar_one()
 
     return DashboardOut(
-        total_documents=total_documents,
-        documents_par_statut=documents_par_statut,
-        total_ecritures=total_ecritures,
-        ecritures_par_statut=ecritures_par_statut,
-        tva_collectee=tva_collectee,
-        tva_deductible=tva_deductible,
-        tva_nette=tva_nette,
-        total_entreprises=total_entreprises,
+        total_documents=sum(document_counts.model_dump().values()),
+        documents_par_statut=document_counts,
+        total_ecritures=sum(entry_counts.model_dump().values()),
+        ecritures_par_statut=entry_counts,
+        tva_collectee=collected,
+        tva_deductible=deductible,
+        tva_nette=net,
+        total_entreprises=int(company_count),
     )

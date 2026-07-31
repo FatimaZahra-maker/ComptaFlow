@@ -1,19 +1,10 @@
-"""
-app/schemas/document_detail.py
+"""Schémas de sortie de la page de détail d'un document."""
 
-Schéma de sortie pour la vue "Détail document". Agrège métadonnées,
-texte OCR, données extraites, et l'écriture comptable liée.
-
-SPRINT 1.1 : ajout de type_erreur et error_code, pour que le frontend
-puisse afficher un message adapté (ex: bouton "relancer" visible
-seulement si type_erreur == "definitive").
-"""
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import StatutDocumentEnum
 from app.schemas.mouvement_bancaire import MouvementBancaireOut
@@ -24,19 +15,16 @@ class EcritureResumeOut(BaseModel):
 
     id: uuid.UUID
     type_ecriture: str
-    numero_piece: str | None
-    date_piece: str | None
-    tiers: str | None
-    
-    # --- MODIFICATIONS ICI : HT, Taux TVA et TVA optionnels ---
+    numero_piece: str | None = None
+    date_piece: date | None = None
+    tiers: str | None = None
     montant_ht: Decimal | None = None
     taux_tva: str | None = None
     montant_tva: Decimal | None = None
     montant_ttc: Decimal
-    
     statut_validation: str
-    anomalie_detectee: bool
-    anomalie_details: str | None
+    anomalie_detectee: bool = False
+    anomalie_details: str | None = None
 
 
 class DocumentDetailOut(BaseModel):
@@ -44,23 +32,22 @@ class DocumentDetailOut(BaseModel):
 
     id: uuid.UUID
     nom_fichier_original: str
-    taille_octets: Optional[int]
-    mime_type: Optional[str]
+    taille_octets: int | None = None
+    mime_type: str | None = None
     statut: StatutDocumentEnum
     created_at: datetime
 
-    entreprise_id: Optional[uuid.UUID]
-    annee: Optional[int]
-    mois: Optional[int]
-    categorie: Optional[str]
+    entreprise_id: uuid.UUID | None = None
+    annee: int | None = None
+    mois: int | None = None
+    categorie: str | None = None
 
-    texte_ocr: Optional[str]
-    donnees_extraites: Optional[dict]
-    message_erreur: Optional[str]
-    type_erreur: Optional[str] = None
-    error_code: Optional[str] = None
+    texte_ocr: str | None = None
+    donnees_extraites: dict | None = None
+    message_erreur: str | None = None
+    type_erreur: str | None = None
+    error_code: str | None = None
+    saisie_topaze: bool = False
 
-    ecriture: Optional[EcritureResumeOut] = None
-    
-    # --- NOUVEAU : Le document renvoie aussi ses mouvements bancaires s'il y en a ---
-    mouvements_bancaires: list[MouvementBancaireOut] = []
+    ecriture: EcritureResumeOut | None = None
+    mouvements_bancaires: list[MouvementBancaireOut] = Field(default_factory=list)

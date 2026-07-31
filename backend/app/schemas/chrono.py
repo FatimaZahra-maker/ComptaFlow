@@ -1,13 +1,9 @@
-"""
-app/schemas/chrono.py
+"""Schéma de la vue Chronos : document + écriture associée."""
 
-Schéma de sortie pour la vue Chrono — un vrai tableau comptable :
-document + écriture liée (si elle existe) dans une seule ligne, pour
-que le comptable voie tout d'un coup d'œil sans naviguer.
-"""
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -17,14 +13,13 @@ class DocumentChronoOut(BaseModel):
     id: uuid.UUID
     nom_fichier_original: str
     statut: str
-    categorie: str | None
-    annee: int | None
-    mois: int | None
-    entreprise_id: uuid.UUID | None
+    categorie: str | None = None
+    annee: int | None = None
+    mois: int | None = None
+    entreprise_id: uuid.UUID | None = None
     entreprise_nom: str | None = None
     created_at: datetime
 
-    # --- Écriture comptable liée (None si pas encore traité) ---
     ecriture_id: uuid.UUID | None = None
     numero_piece: str | None = None
     date_piece: date | None = None
@@ -36,4 +31,6 @@ class DocumentChronoOut(BaseModel):
     statut_validation: str | None = None
     anomalie_detectee: bool = False
     anomalie_details: str | None = None
+
+    # Désormais porté par Document pour fonctionner aussi avec Banque.
     saisie_topaze: bool = False

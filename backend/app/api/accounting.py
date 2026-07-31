@@ -1,98 +1,196 @@
+"""API de consultation et de validation des données comptables.
+
+Cette API alimente les pages Écritures, Achats, Ventes, Banque, Registres
+et TVA mensuelle. Elle ne modifie pas le pipeline OCR/IA.
 """
-app/api/accounting.py
 
-Routes de consultation et validation des écritures comptables.
-Validate/reject/saisie/update : voir rôles autorisés ci-dessous.
-
-CORRECTIF (rôle) : ADMIN_CABINET ajouté aux rôles autorisés sur
-validate/reject -- absent avant, ce qui causait un 403 silencieux pour
-tout compte admin (le compte de test créé par create_first_user.py a
-précisément ce rôle).
-
-AJOUT (tableau comptable complet) : list_entries/get_entry joignent
-désormais Document (pour nom_fichier_document) -- alimente le lien de
-consultation du fichier source à côté de chaque ligne.
-
-AJOUT (registre trimestriel) : get_registre accepte soit 'mois' (un
-mois unique, comportement historique) soit 'trimestre' (1-4, somme des
-3 mois correspondants) -- utile pour les déclarations TVA trimestrielles
-marocaines.
-
-AJOUT (saisie Topaze) : route dédiée pour basculer le statut "saisi
-dans le logiciel comptable externe", indépendant du statut_validation.
-
-AJOUT (correction manuelle) : route PATCH /entries/{entry_id} pour
-permettre au comptable de corriger manuellement les champs d'une écriture.
-
-CORRECTIF (filtre catégorie du registre) : 'categorie' était reçu comme
-un simple `str` puis comparé directement à la colonne Enum
-Document.categorie. SQLAlchemy attend une véritable instance de
-CategorieDocumentEnum pour comparer correctement une colonne Enum --
-une chaîne brute pouvait ne matcher aucune ligne en base, même quand
-des écritures validées existaient réellement pour ce filtre (c'est ce
-qui causait "Aucune écriture validée pour ces filtres" alors que les
-données existent). Le paramètre est maintenant typé directement avec
-l'enum : FastAPI/Pydantic valide et convertit automatiquement la
-valeur reçue en instance d'enum avant qu'elle n'atteigne la requête SQL.
-"""
 import uuid
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, extract
+from sqlalchemy import Integer, cast, extract, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.document import Document
 from app.models.ecriture import EcritureComptable
-# AJOUTÉ : CategorieDocumentEnum, pour typer correctement le filtre 'categorie'
-from app.models.enums import RoleEnum, StatutValidationEnum, CategorieDocumentEnum
+from app.models.entreprise import Entreprise
+from app.models.enums import (
+    CategorieDocumentEnum,
+    RoleEnum,
+    StatutDocumentEnum,
+    StatutValidationEnum,
+    TypeEcritureEnum,
+    TypeMouvementBancaireEnum,
+)
+from app.models.mouvement_bancaire import MouvementBancaire
 from app.models.user import User
 from app.schemas.ecriture import EcritureOut, EcritureUpdate
-from app.schemas.registre import RegistreOut, TvaAnnuelleOut, TvaMensuelle
+from app.schemas.mouvement_bancaire import (
+    MouvementBancaireListeOut,
+    MouvementBancaireOut,
+)
+from app.schemas.registre import (
+    RegistreOptionOut,
+    RegistreOut,
+    TvaAnnuelleOut,
+    TvaMensuelle,
+)
 
 router = APIRouter(prefix="/accounting", tags=["accounting"])
 
-# Définition des rôles autorisés à valider, rejeter ou modifier les écritures comptables
-_ROLES_VALIDATION = (RoleEnum.ADMIN_CABINET, RoleEnum.EXPERT_COMPTABLE, RoleEnum.CHEF_MISSION)
+_ROLES_VALIDATION = (
+    RoleEnum.ADMIN_CABINET,
+    RoleEnum.EXPERT_COMPTABLE,
+    RoleEnum.CHEF_MISSION,
+)
+
+
+def _period_expressions():
+    """Utilise la période du document puis la date de pièce en secours."""
+    year_from_date = cast(extract("year", EcritureComptable.date_piece), Integer)
+    month_from_date = cast(extract("month", EcritureComptable.date_piece), Integer)
+    return (
+        func.coalesce(Document.annee, year_from_date),
+        func.coalesce(Document.mois, month_from_date),
+    )
+
+
+def _to_ecriture_out(
+    ecriture: EcritureComptable,
+    document: Document,
+    entreprise_nom: str | None,
+) -> EcritureOut:
+    item = EcritureOut.model_validate(ecriture)
+    item.nom_fichier_document = document.nom_fichier_original
+    item.entreprise_nom = entreprise_nom
+    item.categorie_document = (
+        document.categorie.value if document.categorie is not None else None
+    )
+    item.statut_document = (
+        document.statut.value if hasattr(document.statut, "value") else str(document.statut)
+    )
+    return item
+
+
+def _get_entry_or_404(
+    db: Session,
+    entry_id: uuid.UUID,
+    cabinet_id: uuid.UUID,
+) -> EcritureComptable:
+    entry = db.execute(
+        select(EcritureComptable).where(
+            EcritureComptable.id == entry_id,
+            EcritureComptable.cabinet_id == cabinet_id,
+        )
+    ).scalar_one_or_none()
+
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Écriture introuvable.")
+
+    return entry
+
+
+def _get_entry_output(
+    db: Session,
+    entry_id: uuid.UUID,
+    cabinet_id: uuid.UUID,
+) -> EcritureOut:
+    result = db.execute(
+        select(EcritureComptable, Document, Entreprise.nom)
+        .join(Document, EcritureComptable.document_id == Document.id)
+        .join(Entreprise, EcritureComptable.entreprise_id == Entreprise.id, isouter=True)
+        .where(
+            EcritureComptable.id == entry_id,
+            EcritureComptable.cabinet_id == cabinet_id,
+        )
+    ).first()
+
+    if result is None:
+        raise HTTPException(status_code=404, detail="Écriture introuvable.")
+
+    entry, document, entreprise_nom = result
+    return _to_ecriture_out(entry, document, entreprise_nom)
 
 
 @router.get("/entries", response_model=list[EcritureOut])
 def list_entries(
     entreprise_id: uuid.UUID | None = Query(default=None),
-    statut_validation: str | None = Query(default=None),
+    statut_validation: StatutValidationEnum | None = Query(default=None),
+    type_ecriture: TypeEcritureEnum | None = Query(default=None),
+    categorie: CategorieDocumentEnum | None = Query(default=None),
+    recherche: str | None = Query(default=None, max_length=150),
+    annee: int | None = Query(default=None, ge=2000, le=2100),
+    periodicite: str | None = Query(default=None),
+    mois: int | None = Query(default=None, ge=1, le=12),
+    trimestre: int | None = Query(default=None, ge=1, le=4),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Récupère la liste des écritures comptables du cabinet de l'utilisateur connecté.
-    
-    Permet de filtrer par entreprise spécifique et/ou par statut de validation 
-    (ex: VALIDE, REJETE, A_VERIFIER). Joint la table Document pour inclure 
-    le nom du fichier d'origine lié à chaque écriture.
-    """
+    """Liste réelle des écritures avec les métadonnées du document source."""
     query = (
-        select(EcritureComptable, Document.nom_fichier_original)
+        select(EcritureComptable, Document, Entreprise.nom)
         .join(Document, EcritureComptable.document_id == Document.id)
+        .join(Entreprise, EcritureComptable.entreprise_id == Entreprise.id, isouter=True)
         .where(EcritureComptable.cabinet_id == current_user.cabinet_id)
     )
-    
+
     if entreprise_id is not None:
         query = query.where(EcritureComptable.entreprise_id == entreprise_id)
     if statut_validation is not None:
         query = query.where(EcritureComptable.statut_validation == statut_validation)
-        
-    query = query.order_by(EcritureComptable.created_at.desc())
+    if type_ecriture is not None:
+        query = query.where(EcritureComptable.type_ecriture == type_ecriture)
+    if categorie is not None:
+        query = query.where(Document.categorie == categorie)
 
-    resultats = db.execute(query).all()
+    # Filtre de période commun aux pages Écritures, Achats et Ventes.
+    # La période du document est prioritaire; la date de pièce sert de secours.
+    year_expression, month_expression = _period_expressions()
+    if annee is not None:
+        query = query.where(year_expression == annee)
 
-    sortie: list[EcritureOut] = []
-    for ecriture, nom_fichier in resultats:
-        item = EcritureOut.model_validate(ecriture)
-        item.nom_fichier_document = nom_fichier
-        sortie.append(item)
-    return sortie
+    normalized_periodicity = (periodicite or "").strip().lower()
+    if normalized_periodicity not in {"", "mensuelle", "trimestrielle", "annuelle"}:
+        raise HTTPException(
+            status_code=422,
+            detail="Périodicité invalide. Valeurs: mensuelle, trimestrielle, annuelle.",
+        )
+
+    if normalized_periodicity == "mensuelle":
+        if mois is None:
+            raise HTTPException(status_code=422, detail="Le mois est obligatoire.")
+        query = query.where(month_expression == mois)
+    elif normalized_periodicity == "trimestrielle":
+        if trimestre is None:
+            raise HTTPException(status_code=422, detail="Le trimestre est obligatoire.")
+        first_month = (trimestre - 1) * 3 + 1
+        query = query.where(month_expression.between(first_month, first_month + 2))
+
+    search_term = (recherche or "").strip()
+    if search_term:
+        pattern = f"%{search_term}%"
+        query = query.where(
+            or_(
+                EcritureComptable.tiers.ilike(pattern),
+                EcritureComptable.numero_piece.ilike(pattern),
+                Document.nom_fichier_original.ilike(pattern),
+                Entreprise.nom.ilike(pattern),
+            )
+        )
+
+    rows = db.execute(
+        query.order_by(
+            EcritureComptable.date_piece.desc().nullslast(),
+            EcritureComptable.created_at.desc(),
+        )
+    ).all()
+
+    return [
+        _to_ecriture_out(entry, document, entreprise_nom)
+        for entry, document, entreprise_nom in rows
+    ]
 
 
 @router.get("/entries/{entry_id}", response_model=EcritureOut)
@@ -101,28 +199,7 @@ def get_entry(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Récupère les détails d'une seule écriture comptable spécifique via son ID.
-    
-    Vérifie également que cette écriture appartient bien au cabinet de 
-    l'utilisateur connecté pour des raisons de sécurité.
-    """
-    resultat = db.execute(
-        select(EcritureComptable, Document.nom_fichier_original)
-        .join(Document, EcritureComptable.document_id == Document.id)
-        .where(
-            EcritureComptable.id == entry_id,
-            EcritureComptable.cabinet_id == current_user.cabinet_id,
-        )
-    ).first()
-    
-    if resultat is None:
-        raise HTTPException(status_code=404, detail="Écriture introuvable.")
-
-    ecriture, nom_fichier = resultat
-    item = EcritureOut.model_validate(ecriture)
-    item.nom_fichier_document = nom_fichier
-    return item
+    return _get_entry_output(db, entry_id, current_user.cabinet_id)
 
 
 @router.patch("/entries/{entry_id}/validate", response_model=EcritureOut)
@@ -131,26 +208,16 @@ def validate_entry(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(*_ROLES_VALIDATION)),
 ):
-    """
-    Valide une écriture comptable (passe son statut à VALIDE).
-    
-    L'accès est restreint aux rôles de supervision (Admin, Expert-comptable, Chef de mission).
-    Enregistre également l'ID de l'utilisateur ayant effectué la validation.
-    """
-    entry = db.query(EcritureComptable).filter(
-        EcritureComptable.id == entry_id,
-        EcritureComptable.cabinet_id == current_user.cabinet_id,
-    ).first()
-    
-    if entry is None:
-        raise HTTPException(status_code=404, detail="Écriture introuvable.")
+    entry = _get_entry_or_404(db, entry_id, current_user.cabinet_id)
+    document = db.get(Document, entry.document_id)
 
     entry.statut_validation = StatutValidationEnum.VALIDE
     entry.validated_by = current_user.id
-    
+    if document is not None:
+        document.statut = StatutDocumentEnum.VALIDE
+
     db.commit()
-    db.refresh(entry)
-    return entry
+    return _get_entry_output(db, entry_id, current_user.cabinet_id)
 
 
 @router.patch("/entries/{entry_id}/reject", response_model=EcritureOut)
@@ -159,26 +226,16 @@ def reject_entry(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(*_ROLES_VALIDATION)),
 ):
-    """
-    Rejette une écriture comptable (passe son statut à REJETE).
-    
-    L'accès est restreint aux rôles de supervision. Utilisé lorsqu'une 
-    anomalie est détectée sur l'écriture extraite.
-    """
-    entry = db.query(EcritureComptable).filter(
-        EcritureComptable.id == entry_id,
-        EcritureComptable.cabinet_id == current_user.cabinet_id,
-    ).first()
-    
-    if entry is None:
-        raise HTTPException(status_code=404, detail="Écriture introuvable.")
+    entry = _get_entry_or_404(db, entry_id, current_user.cabinet_id)
+    document = db.get(Document, entry.document_id)
 
     entry.statut_validation = StatutValidationEnum.REJETE
     entry.validated_by = current_user.id
-    
+    if document is not None:
+        document.statut = StatutDocumentEnum.TRAITE
+
     db.commit()
-    db.refresh(entry)
-    return entry
+    return _get_entry_output(db, entry_id, current_user.cabinet_id)
 
 
 @router.patch("/entries/{entry_id}/saisie", response_model=EcritureOut)
@@ -187,26 +244,15 @@ def toggle_saisie_topaze(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Bascule le statut 'saisi dans Topaze' (vrai/faux) d'une écriture.
-    
-    Accessible à tout utilisateur du cabinet car c'est une tâche 
-    opérationnelle courante (marquer l'écriture comme étant exportée 
-    ou re-saisie dans le logiciel comptable tiers).
-    """
-    entry = db.query(EcritureComptable).filter(
-        EcritureComptable.id == entry_id,
-        EcritureComptable.cabinet_id == current_user.cabinet_id,
-    ).first()
-    
-    if entry is None:
-        raise HTTPException(status_code=404, detail="Écriture introuvable.")
+    entry = _get_entry_or_404(db, entry_id, current_user.cabinet_id)
+    document = db.get(Document, entry.document_id)
 
     entry.saisie_topaze = not entry.saisie_topaze
-    
+    if document is not None:
+        document.saisie_topaze = entry.saisie_topaze
+
     db.commit()
-    db.refresh(entry)
-    return entry
+    return _get_entry_output(db, entry_id, current_user.cabinet_id)
 
 
 @router.patch("/entries/{entry_id}", response_model=EcritureOut)
@@ -216,107 +262,221 @@ def update_entry(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(*_ROLES_VALIDATION)),
 ):
-    """
-    Correction manuelle d'une écriture par un rôle autorisé.
-    
-    Ne met à jour que les champs fournis dans la requête. Si l'écriture 
-    avait déjà été validée, elle est automatiquement repassée au statut 
-    'A_VERIFIER' pour imposer un nouveau cycle de validation après modification.
-    """
-    entry = db.query(EcritureComptable).filter(
-        EcritureComptable.id == entry_id,
-        EcritureComptable.cabinet_id == current_user.cabinet_id,
-    ).first()
-    
-    if entry is None:
-        raise HTTPException(status_code=404, detail="Écriture introuvable.")
+    entry = _get_entry_or_404(db, entry_id, current_user.cabinet_id)
+    document = db.get(Document, entry.document_id)
 
-    donnees = payload.model_dump(exclude_unset=True)
-    for champ, valeur in donnees.items():
-        setattr(entry, champ, valeur)
+    data = payload.model_dump(exclude_unset=True)
+    if "montant_ttc" in data and data["montant_ttc"] is None:
+        raise HTTPException(status_code=422, detail="Le montant TTC est obligatoire.")
 
-    if entry.statut_validation == StatutValidationEnum.VALIDE:
-        entry.statut_validation = StatutValidationEnum.A_VERIFIER
+    for field_name, field_value in data.items():
+        setattr(entry, field_name, field_value)
+
+    # Une correction doit toujours être contrôlée une nouvelle fois.
+    entry.statut_validation = StatutValidationEnum.A_VERIFIER
+    entry.validated_by = None
+    if document is not None:
+        document.statut = StatutDocumentEnum.TRAITE
 
     db.commit()
-    db.refresh(entry)
-    return entry
+    return _get_entry_output(db, entry_id, current_user.cabinet_id)
+
+
+@router.get("/bank-movements", response_model=list[MouvementBancaireListeOut])
+def list_bank_movements(
+    entreprise_id: uuid.UUID | None = Query(default=None),
+    type_mouvement: TypeMouvementBancaireEnum | None = Query(default=None),
+    recherche: str | None = Query(default=None, max_length=150),
+    annee: int | None = Query(default=None, ge=2000, le=2100),
+    mois: int | None = Query(default=None, ge=1, le=12),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne les mouvements bancaires réellement extraits des relevés."""
+    query = (
+        select(MouvementBancaire, Document, Entreprise.nom)
+        .join(Document, MouvementBancaire.document_id == Document.id)
+        .join(Entreprise, MouvementBancaire.entreprise_id == Entreprise.id, isouter=True)
+        .where(MouvementBancaire.cabinet_id == current_user.cabinet_id)
+    )
+
+    if entreprise_id is not None:
+        query = query.where(MouvementBancaire.entreprise_id == entreprise_id)
+    if type_mouvement is not None:
+        query = query.where(MouvementBancaire.type_mouvement == type_mouvement)
+
+    bank_year = func.coalesce(
+        Document.annee,
+        cast(extract("year", MouvementBancaire.date_operation), Integer),
+    )
+    bank_month = func.coalesce(
+        Document.mois,
+        cast(extract("month", MouvementBancaire.date_operation), Integer),
+    )
+    if annee is not None:
+        query = query.where(bank_year == annee)
+    if mois is not None:
+        query = query.where(bank_month == mois)
+
+    search_term = (recherche or "").strip()
+    if search_term:
+        pattern = f"%{search_term}%"
+        query = query.where(
+            or_(
+                MouvementBancaire.libelle.ilike(pattern),
+                MouvementBancaire.reference.ilike(pattern),
+                Document.nom_fichier_original.ilike(pattern),
+                Entreprise.nom.ilike(pattern),
+            )
+        )
+
+    rows = db.execute(
+        query.order_by(
+            MouvementBancaire.date_operation.desc(),
+            MouvementBancaire.created_at.desc(),
+        )
+    ).all()
+
+    output: list[MouvementBancaireListeOut] = []
+    for movement, document, entreprise_nom in rows:
+        # MouvementBancaireListeOut contient aussi des champs qui proviennent
+        # du document joint (nom du fichier, statut, période, saisie Topaze).
+        # Ils doivent être fournis pendant la validation Pydantic et non après,
+        # sinon Pydantic considère les champs requis comme manquants et renvoie
+        # une erreur HTTP 500.
+        movement_data = MouvementBancaireOut.model_validate(movement).model_dump()
+
+        statut_document = (
+            document.statut.value
+            if hasattr(document.statut, "value")
+            else str(document.statut)
+        )
+
+        item = MouvementBancaireListeOut(
+            **movement_data,
+            entreprise_nom=entreprise_nom,
+            nom_fichier_document=document.nom_fichier_original,
+            statut_document=statut_document,
+            annee=document.annee or movement.date_operation.year,
+            mois=document.mois or movement.date_operation.month,
+            saisie_topaze=bool(document.saisie_topaze),
+        )
+        output.append(item)
+
+    return output
+
+
+@router.get("/registers/options", response_model=list[RegistreOptionOut])
+def get_registre_options(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Combinaisons entreprise/catégorie/période contenant des lignes validées."""
+    year_expression, month_expression = _period_expressions()
+
+    rows = db.execute(
+        select(
+            EcritureComptable.entreprise_id,
+            Document.categorie,
+            year_expression.label("annee"),
+            month_expression.label("mois"),
+            func.count(EcritureComptable.id).label("nombre"),
+        )
+        .join(Document, EcritureComptable.document_id == Document.id)
+        .where(
+            EcritureComptable.cabinet_id == current_user.cabinet_id,
+            EcritureComptable.statut_validation == StatutValidationEnum.VALIDE,
+            Document.categorie.is_not(None),
+            year_expression.is_not(None),
+            month_expression.is_not(None),
+        )
+        .group_by(
+            EcritureComptable.entreprise_id,
+            Document.categorie,
+            year_expression,
+            month_expression,
+        )
+        .order_by(year_expression.desc(), month_expression.desc())
+    ).all()
+
+    return [
+        RegistreOptionOut(
+            entreprise_id=entreprise_id,
+            categorie=categorie.value if hasattr(categorie, "value") else str(categorie),
+            annee=int(annee),
+            mois=int(mois),
+            nombre=int(nombre),
+        )
+        for entreprise_id, categorie, annee, mois, nombre in rows
+    ]
 
 
 @router.get("/registers", response_model=RegistreOut)
 def get_registre(
     entreprise_id: uuid.UUID = Query(...),
-    # CORRIGÉ : 'categorie' est maintenant typé directement avec l'enum
-    # CategorieDocumentEnum au lieu de 'str'. FastAPI valide et convertit
-    # automatiquement la valeur reçue (ex: "achats") en une vraie instance
-    # d'enum AVANT qu'elle n'arrive dans la requête SQL. C'est ce qui
-    # corrige le filtre qui ne retrouvait aucune ligne malgré des données
-    # existantes. Bonus : une valeur invalide (faute de frappe, catégorie
-    # inconnue) renvoie désormais automatiquement une erreur 422 claire au
-    # lieu d'un résultat vide silencieux.
     categorie: CategorieDocumentEnum = Query(...),
     annee: int = Query(...),
-    mois: int | None = Query(default=None),
+    mois: int | None = Query(default=None, ge=1, le=12),
     trimestre: int | None = Query(default=None, ge=1, le=4),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Calcule un registre dynamique (achats, ventes, etc.) en sommant 
-    les écritures VALIDÉES pour une période donnée.
-    
-    Fonctionnement au choix :
-    - Par 'mois' (1-12) : retourne les données du mois ciblé.
-    - Par 'trimestre' (1-4) : regroupe les données des 3 mois de ce trimestre.
-    """
     if (mois is None) == (trimestre is None):
         raise HTTPException(
             status_code=400,
-            detail="Fournir soit 'mois' soit 'trimestre' (exclusif l'un de l'autre).",
+            detail="Fournir soit 'mois' soit 'trimestre'.",
         )
 
     if trimestre is not None:
-        mois_cibles = [(trimestre - 1) * 3 + 1, (trimestre - 1) * 3 + 2, (trimestre - 1) * 3 + 3]
+        first_month = (trimestre - 1) * 3 + 1
+        target_months = [first_month, first_month + 1, first_month + 2]
     else:
-        mois_cibles = [mois]
+        target_months = [mois]
 
-    query = (
-        select(EcritureComptable, Document.nom_fichier_original)
+    year_expression, month_expression = _period_expressions()
+    rows = db.execute(
+        select(EcritureComptable, Document, Entreprise.nom)
         .join(Document, EcritureComptable.document_id == Document.id)
+        .join(Entreprise, EcritureComptable.entreprise_id == Entreprise.id, isouter=True)
         .where(
             EcritureComptable.cabinet_id == current_user.cabinet_id,
             EcritureComptable.entreprise_id == entreprise_id,
             EcritureComptable.statut_validation == StatutValidationEnum.VALIDE,
-            # 'categorie' est désormais une vraie instance de CategorieDocumentEnum :
-            # cette comparaison matche correctement la colonne Enum de Document.
             Document.categorie == categorie,
-            Document.annee == annee,
-            Document.mois.in_(mois_cibles),
+            year_expression == annee,
+            month_expression.in_(target_months),
         )
-        .order_by(EcritureComptable.date_piece)
+        .order_by(EcritureComptable.date_piece, EcritureComptable.created_at)
+    ).all()
+
+    lines = [
+        _to_ecriture_out(entry, document, entreprise_nom)
+        for entry, document, entreprise_nom in rows
+    ]
+
+    total_ht = sum(
+        (line.montant_ht or Decimal("0.00") for line in lines),
+        Decimal("0.00"),
     )
-    resultats = db.execute(query).all()
-
-    lignes: list[EcritureOut] = []
-    for ecriture, nom_fichier in resultats:
-        item = EcritureOut.model_validate(ecriture)
-        item.nom_fichier_document = nom_fichier
-        lignes.append(item)
-
-    total_ht = sum((l.montant_ht or Decimal("0.00") for l in lignes), Decimal("0.00"))
-    total_tva = sum((l.montant_tva or Decimal("0.00") for l in lignes), Decimal("0.00"))
-    total_ttc = sum((l.montant_ttc or Decimal("0.00") for l in lignes), Decimal("0.00"))
+    total_tva = sum(
+        (line.montant_tva or Decimal("0.00") for line in lines),
+        Decimal("0.00"),
+    )
+    total_ttc = sum(
+        (line.montant_ttc or Decimal("0.00") for line in lines),
+        Decimal("0.00"),
+    )
 
     return RegistreOut(
         categorie=categorie.value,
         entreprise_id=entreprise_id,
         annee=annee,
-        mois=mois or mois_cibles[0],
-        nombre=len(lignes),
+        mois=mois or target_months[0],
+        nombre=len(lines),
         total_ht=total_ht,
         total_tva=total_tva,
         total_ttc=total_ttc,
-        lignes=lignes,
+        lignes=lines,
     )
 
 
@@ -327,18 +487,11 @@ def get_tva_mensuelle(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Ventile la TVA collectée, déductible et nette mois par mois, sur 
-    l'ensemble d'une année donnée pour une entreprise.
-    
-    Règles de calcul basées uniquement sur les écritures VALIDÉES :
-    - TVA collectée = Somme de la TVA sur les factures de VENTE.
-    - TVA déductible = Somme de la TVA sur les factures d'ACHAT.
-    - TVA nette = Collectée - Déductible.
-    """
-    lignes = db.execute(
+    year_expression, month_expression = _period_expressions()
+
+    rows = db.execute(
         select(
-            extract("month", EcritureComptable.date_piece).label("mois"),
+            month_expression.label("mois"),
             EcritureComptable.type_ecriture,
             EcritureComptable.montant_tva,
         )
@@ -347,49 +500,60 @@ def get_tva_mensuelle(
             EcritureComptable.cabinet_id == current_user.cabinet_id,
             EcritureComptable.entreprise_id == entreprise_id,
             EcritureComptable.statut_validation == StatutValidationEnum.VALIDE,
-            Document.annee == annee,
-            EcritureComptable.date_piece.isnot(None),
+            year_expression == annee,
+            month_expression.is_not(None),
         )
     ).all()
 
-    par_mois: dict[int, dict[str, Decimal]] = {
-        m: {"collectee": Decimal("0.00"), "deductible": Decimal("0.00"), "nombre": 0}
-        for m in range(1, 13)
+    by_month: dict[int, dict[str, Decimal | int]] = {
+        number: {
+            "collectee": Decimal("0.00"),
+            "deductible": Decimal("0.00"),
+            "nombre": 0,
+        }
+        for number in range(1, 13)
     }
 
-    for mois, type_ecriture, montant_tva in lignes:
-        mois = int(mois)
-        type_str = type_ecriture.value if hasattr(type_ecriture, "value") else str(type_ecriture)
-        
-        valeur_tva = montant_tva or Decimal("0.00")
-        
-        if type_str.lower() == "vente":
-            par_mois[mois]["collectee"] += valeur_tva
-        elif type_str.lower() == "achat":
-            par_mois[mois]["deductible"] += valeur_tva
-            
-        par_mois[mois]["nombre"] += 1
+    for month_number, entry_type, tax_amount in rows:
+        month_int = int(month_number)
+        value = tax_amount or Decimal("0.00")
+        type_value = entry_type.value if hasattr(entry_type, "value") else str(entry_type)
 
-    mensualites = [
+        if type_value == TypeEcritureEnum.VENTE.value:
+            by_month[month_int]["collectee"] += value
+        elif type_value == TypeEcritureEnum.ACHAT.value:
+            by_month[month_int]["deductible"] += value
+
+        by_month[month_int]["nombre"] += 1
+
+    monthly = [
         TvaMensuelle(
-            mois=m,
+            mois=number,
             annee=annee,
-            tva_collectee=str(par_mois[m]["collectee"]),
-            tva_deductible=str(par_mois[m]["deductible"]),
-            tva_nette=str(par_mois[m]["collectee"] - par_mois[m]["deductible"]),
-            nombre_ecritures=par_mois[m]["nombre"],
+            tva_collectee=str(by_month[number]["collectee"]),
+            tva_deductible=str(by_month[number]["deductible"]),
+            tva_nette=str(
+                by_month[number]["collectee"] - by_month[number]["deductible"]
+            ),
+            nombre_ecritures=int(by_month[number]["nombre"]),
         )
-        for m in range(1, 13)
+        for number in range(1, 13)
     ]
 
-    total_collectee = sum((Decimal(m.tva_collectee) for m in mensualites), Decimal("0.00"))
-    total_deductible = sum((Decimal(m.tva_deductible) for m in mensualites), Decimal("0.00"))
+    total_collected = sum(
+        (Decimal(item.tva_collectee) for item in monthly),
+        Decimal("0.00"),
+    )
+    total_deductible = sum(
+        (Decimal(item.tva_deductible) for item in monthly),
+        Decimal("0.00"),
+    )
 
     return TvaAnnuelleOut(
         entreprise_id=entreprise_id,
         annee=annee,
-        mensualites=mensualites,
-        total_tva_collectee=str(total_collectee),
+        mensualites=monthly,
+        total_tva_collectee=str(total_collected),
         total_tva_deductible=str(total_deductible),
-        total_tva_nette=str(total_collectee - total_deductible),
+        total_tva_nette=str(total_collected - total_deductible),
     )

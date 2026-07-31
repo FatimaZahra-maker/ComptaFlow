@@ -11,6 +11,7 @@ Résolution des montants manquants :
   et l'écriture est marquée avec une anomalie explicite pour forcer la vérification humaine.
 """
 import uuid
+import unicodedata
 from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
@@ -39,9 +40,46 @@ _TAUX_VALIDES = {20: TauxTVAEnum.TAUX_20, 14: TauxTVAEnum.TAUX_14,
                  10: TauxTVAEnum.TAUX_10, 7: TauxTVAEnum.TAUX_7, 0: TauxTVAEnum.TAUX_0}
 
 
-def _determiner_type_ecriture(categorie: str | None) -> TypeEcritureEnum:
-    """Détermine le type d'écriture comptable en fonction de la catégorie textuelle."""
-    return _MAPPING_CATEGORIE_TYPE.get(categorie, TypeEcritureEnum.AUTRE)
+def _normaliser_categorie(categorie: object | None) -> str:
+    """Normalise les catégories IA, enum et libellés singulier/pluriel."""
+    if categorie is None:
+        return ""
+
+    raw_value = getattr(categorie, "value", categorie)
+    text = str(raw_value).strip().lower()
+    text = "".join(
+        char
+        for char in unicodedata.normalize("NFKD", text)
+        if not unicodedata.combining(char)
+    )
+    return text.replace("-", "_").replace(" ", "_")
+
+
+def _determiner_type_ecriture(categorie: object | None) -> TypeEcritureEnum:
+    """Détermine le type d'écriture depuis toutes les variantes connues."""
+    normalized = _normaliser_categorie(categorie)
+
+    mapping = {
+        "achat": TypeEcritureEnum.ACHAT,
+        "achats": TypeEcritureEnum.ACHAT,
+        "facture_achat": TypeEcritureEnum.ACHAT,
+        "factures_achat": TypeEcritureEnum.ACHAT,
+        "fournisseur": TypeEcritureEnum.ACHAT,
+        "fournisseurs": TypeEcritureEnum.ACHAT,
+        "vente": TypeEcritureEnum.VENTE,
+        "ventes": TypeEcritureEnum.VENTE,
+        "facture_vente": TypeEcritureEnum.VENTE,
+        "factures_vente": TypeEcritureEnum.VENTE,
+        "client": TypeEcritureEnum.VENTE,
+        "clients": TypeEcritureEnum.VENTE,
+        "banque": TypeEcritureEnum.BANQUE,
+        "releve_bancaire": TypeEcritureEnum.BANQUE,
+        "cnss": TypeEcritureEnum.CNSS,
+        "tva": TypeEcritureEnum.IMPOT,
+        "impot": TypeEcritureEnum.IMPOT,
+        "impots": TypeEcritureEnum.IMPOT,
+    }
+    return mapping.get(normalized, TypeEcritureEnum.AUTRE)
 
 
 def _normaliser_taux_tva(valeur) -> TauxTVAEnum:
@@ -97,104 +135,231 @@ def _resoudre_montants(donnees: dict, taux_enum: TauxTVAEnum) -> tuple[Decimal |
 
 
 def creer_ecriture_depuis_document(db: Session, document: Document) -> EcritureComptable:
-    """
-    Génère l'écriture comptable finale après le classement d'un document.
-    Combine les données de base et les vérifications d'anomalies.
+    """Crée ou met à jour l'écriture liée au document.
+
+    Le Chrono lit la table ``documents`` alors que les pages Achats/Ventes
+    lisent ``ecritures_comptables``. Cette fonction garantit qu'un document
+    traité possède exactement une écriture, correctement typée achat ou vente.
     """
     donnees = document.donnees_extraites or {}
 
-    type_ecriture = _determiner_type_ecriture(donnees.get("categorie"))
+    categorie_source = (
+        donnees.get("categorie")
+        or donnees.get("categorie_document")
+        or document.categorie
+    )
+    type_ecriture = _determiner_type_ecriture(categorie_source)
     taux_enum = _normaliser_taux_tva(donnees.get("taux_tva"))
-    ht, tva, ttc, anomalie_montants, message_montants = _resoudre_montants(donnees, taux_enum)
+    ht, tva, ttc, anomalie_montants, message_montants = _resoudre_montants(
+        donnees,
+        taux_enum,
+    )
 
-    # Récupération des drapeaux d'anomalies détectées par le service d'extraction (Regex/IA)
     anomalie_regex = bool(donnees.get("a_verifier"))
     raison_regex = donnees.get("raison_verification")
-
-    # Fusion des anomalies (montants + extraction)
     anomalie_detectee = anomalie_montants or anomalie_regex
     if anomalie_montants and anomalie_regex:
         anomalie_details = f"{message_montants} | {raison_regex}"
     else:
         anomalie_details = message_montants or raison_regex
 
-    # Formatage sécurisé de la date de la pièce comptable
     date_piece_str = donnees.get("date_piece")
     date_piece: date_type | None = None
     if date_piece_str:
         try:
-            date_piece = date_type.fromisoformat(date_piece_str)
+            date_piece = date_type.fromisoformat(str(date_piece_str))
         except ValueError:
             date_piece = None
 
-    # Création de l'entité
-    ecriture = EcritureComptable(
-        cabinet_id=document.cabinet_id,
-        document_id=document.id,
-        entreprise_id=document.entreprise_id,
-        type_ecriture=type_ecriture,
-        numero_piece=donnees.get("numero_piece"),
-        date_piece=date_piece,
-        tiers=donnees.get("tiers"),
-        montant_ht=ht,
-        taux_tva=taux_enum,
-        montant_tva=tva,
-        montant_ttc=ttc,
-        statut_validation=(
-            StatutValidationEnum.A_VERIFIER if anomalie_detectee else StatutValidationEnum.BROUILLON
-        ),
-        anomalie_detectee=anomalie_detectee,
-        anomalie_details=anomalie_details,
+    existing_entries = (
+        db.query(EcritureComptable)
+        .filter(EcritureComptable.document_id == document.id)
+        .order_by(EcritureComptable.created_at.asc())
+        .all()
     )
-    
-    db.add(ecriture)
+
+    if existing_entries:
+        ecriture = existing_entries[0]
+        for duplicate in existing_entries[1:]:
+            db.delete(duplicate)
+    else:
+        ecriture = EcritureComptable(
+            cabinet_id=document.cabinet_id,
+            document_id=document.id,
+            entreprise_id=document.entreprise_id,
+            type_ecriture=type_ecriture,
+            montant_ttc=ttc,
+        )
+        db.add(ecriture)
+
+    ecriture.cabinet_id = document.cabinet_id
+    ecriture.document_id = document.id
+    ecriture.entreprise_id = document.entreprise_id
+    ecriture.type_ecriture = type_ecriture
+    ecriture.numero_piece = donnees.get("numero_piece")
+    ecriture.date_piece = date_piece
+    ecriture.tiers = donnees.get("tiers")
+    ecriture.montant_ht = ht
+    ecriture.taux_tva = taux_enum
+    ecriture.montant_tva = tva
+    ecriture.montant_ttc = ttc
+    ecriture.statut_validation = (
+        StatutValidationEnum.A_VERIFIER
+        if anomalie_detectee
+        else StatutValidationEnum.BROUILLON
+    )
+    ecriture.validated_by = None
+    ecriture.anomalie_detectee = anomalie_detectee
+    ecriture.anomalie_details = anomalie_details
+
     db.commit()
     db.refresh(ecriture)
     return ecriture
 
 
 def creer_mouvements_bancaires(db: Session, document: Document) -> list[MouvementBancaire]:
-    """
-    Traite spécifiquement les relevés bancaires pour générer 
-    les lignes de mouvements individuelles à partir du tableau extrait.
-    """
-    donnees = document.donnees_extraites or {}
-    lignes_extraites = donnees.get("lignes_bancaires", [])
-    
-    mouvements_crees = []
-    
-    for ligne in lignes_extraites:
-        # Sécurisation de la date (fallback sur la date d'upload si introuvable)
-        date_str = ligne.get("date_operation")
-        try:
-            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else document.created_at.date()
-        except ValueError:
-            date_obj = document.created_at.date()
-            
-        # Sécurisation des montants et des soldes
-        try:
-            montant = Decimal(str(ligne.get("montant", "0.00")))
-        except:
-            montant = Decimal("0.00")
-            
-        try:
-            solde = Decimal(str(ligne.get("solde_apres_operation", "0.00"))) if ligne.get("solde_apres_operation") else None
-        except:
-            solde = None
+    """Crée une ligne SQL pour chaque ligne extraite du relevé bancaire.
 
-        # Création du mouvement individuel
+    Aucune ligne n'est supprimée parce qu'elle est incomplète. Quand une date,
+    un type ou un montant n'a pas pu être lu, une valeur technique est utilisée
+    uniquement pour respecter le schéma historique de la table et la ligne est
+    marquée ``a_verifier`` dans ``document.donnees_extraites``.
+
+    Le détail complet (date valeur, débit, crédit, texte brut, confiance et
+    raison de vérification) reste toujours conservé dans le JSON du document.
+    """
+    from app.models.enums import TypeMouvementBancaireEnum
+
+    if document.entreprise_id is None:
+        raise ValueError(
+            "Le relevé bancaire doit être rattaché à une entreprise avant "
+            "la création de ses mouvements."
+        )
+
+    donnees = dict(document.donnees_extraites or {})
+    raw_lines = donnees.get("lignes_bancaires")
+    lignes_extraites = raw_lines if isinstance(raw_lines, list) else []
+
+    # Sécurité anti-doublon : le retraitement d'un relevé remplace ses anciennes
+    # lignes au lieu de les ajouter une seconde fois.
+    db.query(MouvementBancaire).filter(
+        MouvementBancaire.document_id == document.id
+    ).delete(synchronize_session=False)
+
+    mouvements_crees: list[MouvementBancaire] = []
+    lignes_normalisees: list[dict] = []
+
+    for index, raw_line in enumerate(lignes_extraites, start=1):
+        ligne = dict(raw_line) if isinstance(raw_line, dict) else {
+            "texte_brut": str(raw_line)
+        }
+        raisons: list[str] = []
+
+        def add_reason(message: str) -> None:
+            if message and message not in raisons:
+                raisons.append(message)
+
+        # Date d'opération : on privilégie la date réellement extraite. Le
+        # fallback technique reste visible grâce au drapeau a_verifier.
+        date_obj: date_type
+        date_value = ligne.get("date_operation")
+        try:
+            date_obj = date_type.fromisoformat(str(date_value))
+        except (TypeError, ValueError):
+            date_obj = document.created_at.date()
+            add_reason("Date d'opération non détectée : date d'import utilisée provisoirement.")
+
+        debit = _vers_decimal(ligne.get("debit"))
+        credit = _vers_decimal(ligne.get("credit"))
+        montant = _vers_decimal(ligne.get("montant"))
+
+        raw_type = str(ligne.get("type_mouvement") or "").strip().lower()
+        if raw_type in {"credit", "crédit", "depot", "dépôt", "encaissement"}:
+            mouvement_type = TypeMouvementBancaireEnum.CREDIT
+        elif raw_type in {"debit", "débit", "retrait", "decaissement", "décaissement"}:
+            mouvement_type = TypeMouvementBancaireEnum.DEBIT
+        elif credit is not None and debit is None:
+            mouvement_type = TypeMouvementBancaireEnum.CREDIT
+        elif debit is not None and credit is None:
+            mouvement_type = TypeMouvementBancaireEnum.DEBIT
+        else:
+            # Valeur technique compatible avec l'ancien schéma NOT NULL.
+            mouvement_type = TypeMouvementBancaireEnum.DEBIT
+            add_reason("Type débit/crédit non déterminé : débit provisoire.")
+
+        if montant is None:
+            if mouvement_type == TypeMouvementBancaireEnum.CREDIT:
+                montant = credit
+            else:
+                montant = debit
+
+        if montant is None:
+            montant = Decimal("0.00")
+            add_reason("Montant non détecté : 0,00 MAD provisoire.")
+
+        solde = _vers_decimal(ligne.get("solde_apres_operation"))
+
+        libelle = str(
+            ligne.get("libelle_original")
+            or ligne.get("libelle")
+            or ligne.get("texte_brut")
+            or "Ligne bancaire à vérifier"
+        ).strip()
+        if not libelle:
+            libelle = "Ligne bancaire à vérifier"
+            add_reason("Libellé non détecté.")
+
+        reference = ligne.get("reference") or ligne.get("code_operation")
+        if reference is not None:
+            reference = str(reference).strip()[:100] or None
+
+        existing_reason = ligne.get("raison_verification")
+        if existing_reason:
+            add_reason(str(existing_reason))
+
+        ligne["ordre"] = int(ligne.get("ordre") or index)
+        ligne["date_operation"] = date_obj.isoformat()
+        ligne["libelle"] = libelle[:500]
+        ligne["reference"] = reference
+        ligne["type_mouvement"] = mouvement_type.name
+        ligne["montant"] = float(montant)
+        ligne["solde_apres_operation"] = float(solde) if solde is not None else None
+        ligne["a_verifier"] = bool(raisons) or bool(ligne.get("a_verifier"))
+        ligne["raison_verification"] = " | ".join(raisons) if raisons else None
+        lignes_normalisees.append(ligne)
+
         mouvement = MouvementBancaire(
+            cabinet_id=document.cabinet_id,
             document_id=document.id,
             entreprise_id=document.entreprise_id,
             date_operation=date_obj,
-            libelle=ligne.get("libelle", "Opération inconnue")[:255],
-            reference=ligne.get("reference"),
-            type_mouvement=ligne.get("type_mouvement", "DEBIT"),
+            libelle=libelle[:500],
+            reference=reference,
+            type_mouvement=mouvement_type,
             montant=montant,
-            solde_apres_operation=solde
+            solde_apres_operation=solde,
         )
         db.add(mouvement)
         mouvements_crees.append(mouvement)
-        
+
+    donnees["lignes_bancaires"] = lignes_normalisees
+    donnees["nombre_lignes_extraites"] = len(lignes_normalisees)
+
+    incomplete_count = sum(1 for line in lignes_normalisees if line.get("a_verifier"))
+    if incomplete_count:
+        donnees["a_verifier"] = True
+        message = f"{incomplete_count} ligne(s) bancaire(s) nécessitent une vérification."
+        previous = str(donnees.get("raison_verification") or "").strip()
+        donnees["raison_verification"] = (
+            f"{previous} | {message}" if previous and message not in previous else message
+        )
+        donnees["extraction_bancaire_statut"] = "a_verifier"
+
+    # Réaffectation complète obligatoire pour que SQLAlchemy détecte la
+    # modification du JSONB, y compris les changements dans les sous-listes.
+    document.donnees_extraites = donnees
+
     db.commit()
+    for mouvement in mouvements_crees:
+        db.refresh(mouvement)
     return mouvements_crees

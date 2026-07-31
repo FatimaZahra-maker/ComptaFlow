@@ -5,7 +5,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 from app.models.enums import StatutDocumentEnum
-from app.schemas.mouvement_bancaire import MouvementBancaireOut
+
 
 class DocumentOut(BaseModel):
     """Ce que l'API renvoie apres un upload ou une consultation."""

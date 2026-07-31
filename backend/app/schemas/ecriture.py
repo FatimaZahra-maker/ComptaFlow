@@ -1,14 +1,12 @@
-"""
-app/schemas/ecriture.py
+"""Schémas Pydantic des écritures comptables."""
 
-Schémas Pydantic pour les écritures comptables. EcritureOut est le
-format de sortie de toutes les routes /accounting/* et /registers.
-"""
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.models.enums import TauxTVAEnum
 
 
 class EcritureOut(BaseModel):
@@ -18,37 +16,34 @@ class EcritureOut(BaseModel):
     document_id: uuid.UUID
     entreprise_id: uuid.UUID
     type_ecriture: str
-    numero_piece: str | None
-    date_piece: date | None
-    tiers: str | None
-    
-    # --- MODIFICATIONS ICI : HT, Taux TVA et TVA deviennent optionnels ---
+    numero_piece: str | None = None
+    date_piece: date | None = None
+    tiers: str | None = None
     montant_ht: Decimal | None = None
     taux_tva: str | None = None
     montant_tva: Decimal | None = None
     montant_ttc: Decimal
-    
     statut_validation: str
-    anomalie_detectee: bool
-    anomalie_details: str | None
-    doublon_potentiel_id: uuid.UUID | None
-    validated_by: uuid.UUID | None
+    anomalie_detectee: bool = False
+    anomalie_details: str | None = None
+    doublon_potentiel_id: uuid.UUID | None = None
+    validated_by: uuid.UUID | None = None
     created_at: datetime
-
-    # --- Ajout : nom du fichier source, pour affichage/consultation ---
-    nom_fichier_document: str | None = None
-
-    # --- Ajout : suivi de saisie dans le logiciel externe (Topaze) ---
     saisie_topaze: bool = False
 
-# --- Ajout : payload de correction manuelle d'une écriture ---
-# Tous les champs sont optionnels (exclude_unset côté route) pour ne
-# modifier que ce que le comptable a réellement changé dans le formulaire.
+    # Métadonnées utiles aux tableaux frontend. Elles proviennent des jointures
+    # avec Document et Entreprise et ne sont pas stockées deux fois.
+    nom_fichier_document: str | None = None
+    entreprise_nom: str | None = None
+    categorie_document: str | None = None
+    statut_document: str | None = None
+
+
 class EcritureUpdate(BaseModel):
-    tiers: str | None = None
-    numero_piece: str | None = None
+    tiers: str | None = Field(default=None, max_length=255)
+    numero_piece: str | None = Field(default=None, max_length=100)
     date_piece: date | None = None
-    montant_ht: Decimal | None = None
-    taux_tva: str | None = None
-    montant_tva: Decimal | None = None
-    montant_ttc: Decimal | None = None
+    montant_ht: Decimal | None = Field(default=None, ge=0)
+    taux_tva: TauxTVAEnum | None = None
+    montant_tva: Decimal | None = Field(default=None, ge=0)
+    montant_ttc: Decimal | None = Field(default=None, ge=0)

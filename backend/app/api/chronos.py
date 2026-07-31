@@ -1,48 +1,35 @@
+"""API de la vue Chronos.
+
+Une seule requête renvoie le document, son entreprise et sa première écriture.
+Le statut de saisie est porté par Document afin de fonctionner également avec
+les relevés bancaires qui n'ont pas nécessairement d'écriture comptable.
 """
-app/api/chronos.py
 
-Vue "Chrono" — tableau comptable complet : joint Document + Entreprise
-+ EcritureComptable (LEFT OUTER, un document peut ne pas encore avoir
-d'écriture) pour que le frontend affiche tout en une seule requête :
-fichier, entreprise, catégorie, montants HT/TVA/TTC, statut de
-validation, suivi de saisie Topaze.
-
-CORRECTIF (normalisation des filtres) : traite "toutes"/""/"all" comme
-absence de filtre, quelle que soit la convention utilisée côté client.
-
-Route /annees : retourne les années RÉELLEMENT présentes dans les
-documents du cabinet -- évite qu'un filtre Année codé en dur côté
-frontend exclue silencieusement des documents (ex: un modèle de
-facture daté 2020 alors que seules 2024-2026 étaient proposées).
-"""
 import uuid
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.user import User
 from app.models.document import Document
-from app.models.entreprise import Entreprise
 from app.models.ecriture import EcritureComptable
+from app.models.entreprise import Entreprise
+from app.models.enums import CategorieDocumentEnum
+from app.models.user import User
 from app.schemas.chrono import DocumentChronoOut
 
 router = APIRouter(prefix="/chronos", tags=["chronos"])
 
-_VALEURS_VIDES = {"", "toutes", "tous", "all", "none", "null"}
+_EMPTY_FILTERS = {"", "toutes", "tous", "all", "none", "null"}
 
 
-def _normaliser_filtre(valeur: str | None) -> str | None:
-    """Traite 'toutes'/''/'all' (insensible à la casse) comme une
-    absence de filtre -- sécurise contre n'importe quelle convention
-    utilisée côté frontend pour représenter 'pas de filtre'."""
-    if valeur is None:
+def _normalize_text_filter(value: str | None) -> str | None:
+    if value is None:
         return None
-    if valeur.strip().lower() in _VALEURS_VIDES:
-        return None
-    return valeur
+    normalized = value.strip()
+    return None if normalized.lower() in _EMPTY_FILTERS else normalized
 
 
 @router.get("/documents", response_model=list[DocumentChronoOut])
@@ -50,62 +37,82 @@ def list_chrono_documents(
     entreprise_id: str | None = Query(default=None),
     categorie: str | None = Query(default=None),
     annee: int | None = Query(default=None),
-    mois: int | None = Query(default=None),
+    mois: int | None = Query(default=None, ge=1, le=12),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    entreprise_id_normalise = _normaliser_filtre(entreprise_id)
-    categorie_normalisee = _normaliser_filtre(categorie)
+    normalized_company = _normalize_text_filter(entreprise_id)
+    normalized_category = _normalize_text_filter(categorie)
 
     query = (
         select(Document, Entreprise.nom, EcritureComptable)
         .join(Entreprise, Document.entreprise_id == Entreprise.id, isouter=True)
-        .join(EcritureComptable, EcritureComptable.document_id == Document.id, isouter=True)
+        .join(
+            EcritureComptable,
+            EcritureComptable.document_id == Document.id,
+            isouter=True,
+        )
         .where(Document.cabinet_id == current_user.cabinet_id)
     )
 
-    if entreprise_id_normalise is not None:
+    if normalized_company is not None:
         try:
-            entreprise_uuid = uuid.UUID(entreprise_id_normalise)
-            query = query.where(Document.entreprise_id == entreprise_uuid)
+            query = query.where(Document.entreprise_id == uuid.UUID(normalized_company))
         except ValueError:
-            pass  # valeur non-UUID inattendue -- on ignore plutôt que de planter
+            return []
 
-    if categorie_normalisee is not None:
-        query = query.where(Document.categorie == categorie_normalisee.lower())
+    if normalized_category is not None:
+        try:
+            category_enum = CategorieDocumentEnum(normalized_category.lower())
+        except ValueError:
+            return []
+        query = query.where(Document.categorie == category_enum)
 
     if annee is not None:
         query = query.where(Document.annee == annee)
     if mois is not None:
         query = query.where(Document.mois == mois)
 
-    query = query.order_by(Document.created_at.desc())
+    rows = db.execute(
+        query.order_by(Document.created_at.desc(), EcritureComptable.created_at.asc())
+    ).all()
 
-    resultats = db.execute(query).all()
+    # Une ancienne base peut exceptionnellement contenir plusieurs écritures
+    # liées au même document. La vue Chronos affiche une ligne par document.
+    output_by_document: dict[uuid.UUID, DocumentChronoOut] = {}
 
-    sortie: list[DocumentChronoOut] = []
-    for document, entreprise_nom, ecriture in resultats:
+    for document, company_name, entry in rows:
+        if document.id in output_by_document:
+            continue
+
         item = DocumentChronoOut.model_validate(document)
-        item.entreprise_nom = entreprise_nom
-        if ecriture is not None:
-            item.ecriture_id = ecriture.id
-            item.numero_piece = ecriture.numero_piece
-            item.date_piece = ecriture.date_piece
-            item.tiers = ecriture.tiers
-            item.montant_ht = ecriture.montant_ht
-            item.taux_tva = ecriture.taux_tva.value if hasattr(ecriture.taux_tva, "value") else ecriture.taux_tva
-            item.montant_tva = ecriture.montant_tva
-            item.montant_ttc = ecriture.montant_ttc
-            item.statut_validation = (
-                ecriture.statut_validation.value
-                if hasattr(ecriture.statut_validation, "value")
-                else ecriture.statut_validation
+        item.entreprise_nom = company_name
+        item.saisie_topaze = document.saisie_topaze
+
+        if entry is not None:
+            item.ecriture_id = entry.id
+            item.numero_piece = entry.numero_piece
+            item.date_piece = entry.date_piece
+            item.tiers = entry.tiers
+            item.montant_ht = entry.montant_ht
+            item.taux_tva = (
+                entry.taux_tva.value
+                if entry.taux_tva is not None and hasattr(entry.taux_tva, "value")
+                else entry.taux_tva
             )
-            item.anomalie_detectee = ecriture.anomalie_detectee
-            item.anomalie_details = ecriture.anomalie_details
-            item.saisie_topaze = ecriture.saisie_topaze
-        sortie.append(item)
-    return sortie
+            item.montant_tva = entry.montant_tva
+            item.montant_ttc = entry.montant_ttc
+            item.statut_validation = (
+                entry.statut_validation.value
+                if hasattr(entry.statut_validation, "value")
+                else str(entry.statut_validation)
+            )
+            item.anomalie_detectee = entry.anomalie_detectee
+            item.anomalie_details = entry.anomalie_details
+
+        output_by_document[document.id] = item
+
+    return list(output_by_document.values())
 
 
 @router.get("/annees", response_model=list[int])
@@ -115,26 +122,26 @@ def list_annees_disponibles(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Retourne la liste des années RÉELLEMENT présentes dans les documents
-    du cabinet (triée décroissante) -- le filtre Année du frontend n'est
-    ainsi jamais figé sur une liste codée en dur.
-    """
-    entreprise_id_normalise = _normaliser_filtre(entreprise_id)
-    categorie_normalisee = _normaliser_filtre(categorie)
+    normalized_company = _normalize_text_filter(entreprise_id)
+    normalized_category = _normalize_text_filter(categorie)
 
-    query = (
-        select(Document.annee)
-        .where(Document.cabinet_id == current_user.cabinet_id, Document.annee.isnot(None))
-        .distinct()
+    query = select(Document.annee).where(
+        Document.cabinet_id == current_user.cabinet_id,
+        Document.annee.is_not(None),
     )
-    if entreprise_id_normalise is not None:
-        try:
-            query = query.where(Document.entreprise_id == uuid.UUID(entreprise_id_normalise))
-        except ValueError:
-            pass
-    if categorie_normalisee is not None:
-        query = query.where(Document.categorie == categorie_normalisee.lower())
 
-    annees = [row[0] for row in db.execute(query).all()]
-    return sorted(annees, reverse=True)
+    if normalized_company is not None:
+        try:
+            query = query.where(Document.entreprise_id == uuid.UUID(normalized_company))
+        except ValueError:
+            return []
+
+    if normalized_category is not None:
+        try:
+            category_enum = CategorieDocumentEnum(normalized_category.lower())
+        except ValueError:
+            return []
+        query = query.where(Document.categorie == category_enum)
+
+    years = [row[0] for row in db.execute(query.distinct()).all()]
+    return sorted(years, reverse=True)
