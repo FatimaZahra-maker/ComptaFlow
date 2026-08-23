@@ -1,496 +1,566 @@
-import { useState, useEffect, useRef, type ReactNode } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { search } from "../api/searchApi";
-import { getNotifications } from "../api/notificationsApi";
-import { listEntreprises } from "../api/entreprisesApi";
-import { listTaches } from "../api/tachesApi";
-import type { SearchResultItem } from "../types/search";
-import type { Notification } from "../types/notification";
-import type { Entreprise } from "../types/entreprise";
-import { useAuth } from "../context/AuthContext";
-import { ResizableSidebar } from "./ResizableSidebar";
 import {
-  Home,
-  FileText,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
+import {
+  BarChart3,
+  Bell,
+  Building2,
+  BookOpen,
+  BookOpenText,
+  CalendarClock,
+  CalendarCheck,
+  ClipboardCheck,
+  Cloud,
   Clock,
+  FileStack,
+  FileText,
+  Home,
+  Landmark,
+  LogOut,
+  Plus,
+  Receipt,
+  Scale,
+  Search,
   ShoppingCart,
   TrendingUp,
-  Landmark,
-  BookOpenText,
-  FileStack,
-  Receipt,
-  CalendarClock,
-  Bell,
-  BarChart3,
   UserCog,
-  Plus,
-  Cloud,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
-/* ============================================================
-   CONFIGURATION D'AFFICHAGE (labels, couleurs, icônes des badges)
-   ============================================================ */
-const TYPE_LABELS: Record<string, string> = {
+import { getNotifications } from "../api/notificationsApi";
+import { search } from "../api/searchApi";
+import { listEntreprises } from "../api/entreprisesApi";
+import { listTaches } from "../api/tachesApi";
+import { useAuth } from "../context/AuthContext";
+import { ResizableSidebar } from "./ResizableSidebar";
+
+import type { Entreprise } from "../types/entreprise";
+import type { Notification } from "../types/notification";
+import type { SearchResultItem } from "../types/search";
+
+export const ACTIVE_ENTREPRISE_KEY = "comptaflow_active_entreprise_id";
+
+const SEARCH_DELAY_MS = 300;
+const NOTIFICATIONS_REFRESH_MS = 15_000;
+const TASKS_REFRESH_MS = 30_000;
+
+interface NavigationItem {
+  label: string;
+  route: string;
+  icon: LucideIcon;
+}
+
+interface NavigationGroup {
+  title: string;
+  items: NavigationItem[];
+}
+
+const NAVIGATION_GROUPS: NavigationGroup[] = [
+  {
+    title: "Vue d'ensemble",
+    items: [
+      { label: "Tableau de bord", route: "/dashboard", icon: Home },
+      { label: "Documents", route: "/upload", icon: FileText },
+      { label: "Chronos", route: "/chronos", icon: Clock },
+    ],
+  },
+  {
+    title: "Gestion comptable",
+    items: [
+      { label: "Achats", route: "/achats", icon: ShoppingCart },
+      { label: "Ventes", route: "/ventes", icon: TrendingUp },
+      { label: "Banque", route: "/banque", icon: Landmark },
+      { label: "Comptes bancaires", route: "/comptes-bancaires", icon: Landmark },
+      { label: "Écritures", route: "/registers", icon: BookOpenText },
+      { label: "Registres", route: "/registres", icon: FileStack },
+      { label: "Grand Livre", route: "/grand-livre", icon: BookOpen },
+      { label: "Balance", route: "/balance", icon: Scale },
+      { label: "TVA mensuelle", route: "/tva-mensuelle", icon: Receipt },
+      { label: "CPC", route: "/cpc", icon: BarChart3 },
+      { label: "Bilan", route: "/bilan", icon: Building2 },
+      { label: "Cloture", route: "/cloture", icon: CalendarCheck },
+      { label: "Pré-clôture", route: "/controles", icon: ClipboardCheck },
+    ],
+  },
+  {
+    title: "Organisation",
+    items: [
+      { label: "Rappels & Tâches", route: "/rappels", icon: CalendarClock },
+      { label: "Notifications", route: "/notifications", icon: Bell },
+      { label: "Rapports", route: "/rapports", icon: BarChart3 },
+      { label: "Utilisateurs", route: "/admin/utilisateurs", icon: UserCog },
+    ],
+  },
+];
+
+const SEARCH_TYPE_LABELS: Record<string, string> = {
   entreprise: "Entreprise",
   document: "Document",
   ecriture: "Écriture",
 };
 
-const TYPE_COLORS: Record<string, string> = {
+const SEARCH_TYPE_CLASSES: Record<string, string> = {
   entreprise: "bg-purple-100 text-purple-700",
   document: "bg-blue-100 text-blue-700",
   ecriture: "bg-green-100 text-green-700",
 };
 
-const NOTIF_TYPE_COLORS: Record<string, string> = {
+const NOTIFICATION_CLASSES: Record<string, string> = {
   document_erreur: "bg-red-100 text-red-700",
   ecriture_anomalie: "bg-orange-100 text-orange-700",
   ecriture_a_verifier: "bg-orange-100 text-orange-700",
   document_nouveau: "bg-blue-100 text-blue-700",
 };
 
-const NOTIF_TYPE_ICONS: Record<string, string> = {
-  document_erreur: "✕",
-  ecriture_anomalie: "⚠",
-  ecriture_a_verifier: "⚠",
-  document_nouveau: "●",
-};
-
-/* ============================================================
-   MENU LATÉRAL — structure en groupes
-   ------------------------------------------------------------
-   AJOUTÉ : le menu est désormais un tableau de GROUPES (chacun
-   avec un titre de section) plutôt qu'une liste plate d'items.
-   Pour ajouter/retirer une page du menu, repérez le bon groupe
-   ci-dessous et modifiez uniquement son tableau `items`.
-   ============================================================ */
-interface NavItemExtended {
-  label: string;
-  icon: LucideIcon;
-  route: string;
-  disponible?: boolean;
+function getRequestError(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const detail = error.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (!error.response) return "Backend inaccessible. Vérifiez que Uvicorn est démarré.";
+    return `Erreur API ${error.response.status}.`;
+  }
+  return "Erreur inattendue.";
 }
 
-interface NavGroup {
-  titre: string;
-  items: NavItemExtended[];
+function isRouteActive(pathname: string, route: string): boolean {
+  if (route === "/upload") {
+    return pathname === "/upload" || pathname === "/documents";
+  }
+  return pathname === route || pathname.startsWith(`${route}/`);
 }
-
-const NAV_GROUPS: NavGroup[] = [
-  // --- GROUPE 1 : VUE D'ENSEMBLE ---
-  {
-    titre: "Vue d'ensemble",
-    items: [
-      { label: "Tableau de bord", icon: Home, route: "/dashboard" },
-      { label: "Documents", icon: FileText, route: "/upload" },
-      { label: "Chronos", icon: Clock, route: "/chronos" },
-    ],
-  },
-  // --- GROUPE 2 : GESTION COMPTABLE ---
-  {
-    titre: "Gestion comptable",
-    items: [
-      { label: "Achats", icon: ShoppingCart, route: "/achats" },
-      { label: "Ventes", icon: TrendingUp, route: "/ventes" },
-      { label: "Banque", icon: Landmark, route: "/banque" },
-      { label: "Écritures", icon: BookOpenText, route: "/registers" },
-      { label: "Registres", icon: FileStack, route: "/registres" },
-      { label: "TVA mensuelle", icon: Receipt, route: "/tva-mensuelle" },
-    ],
-  },
-  // --- GROUPE 3 : ORGANISATION ---
-  {
-    titre: "Organisation",
-    items: [
-      { label: "Rappels & Tâches", icon: CalendarClock, route: "/rappels" },
-      { label: "Notifications", icon: Bell, route: "/notifications" },
-      { label: "Rapports", icon: BarChart3, route: "/rapports" },
-      { label: "Utilisateurs", icon: UserCog, route: "/admin/utilisateurs" },
-    ],
-  },
-];
-
-export const ACTIVE_ENTREPRISE_KEY = "comptaflow_active_entreprise_id";
-
-const DEBOUNCE_MS = 300;
-const NOTIF_POLL_MS = 15000;
-const RAPPELS_POLL_MS = 30000;
 
 export function Layout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
 
-  /* ============================================================
-     ENTREPRISES (sélecteur en bas de la sidebar) — INCHANGÉ
-     ============================================================ */
-  const [entreprises, setEntreprises] = useState<Entreprise[]>([]);
-  const [activeEntrepriseId, setActiveEntrepriseId] = useState<string | null>(
-    () => localStorage.getItem(ACTIVE_ENTREPRISE_KEY)
-  );
+  const [companies, setCompanies] = useState<Entreprise[]>([]);
+  const [activeCompanyId, setActiveCompanyId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(ACTIVE_ENTREPRISE_KEY);
+    } catch {
+      return null;
+    }
+  });
+
+  const [query, setQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [tasksCount, setTasksCount] = useState(0);
+
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const notificationContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    listEntreprises().then(setEntreprises);
+    listEntreprises()
+      .then(setCompanies)
+      .catch(() => setCompanies([]));
   }, []);
 
-  function selectEntreprise(id: string | null) {
-    setActiveEntrepriseId(id);
-    if (id) localStorage.setItem(ACTIVE_ENTREPRISE_KEY, id);
-    else localStorage.removeItem(ACTIVE_ENTREPRISE_KEY);
-    window.dispatchEvent(new CustomEvent("entreprise-active-changed", { detail: id }));
-  }
-
-  /* ============================================================
-     BARRE DE RECHERCHE (header)
-     ============================================================ */
-  const [query, setQuery] = useState("");
-  const [resultats, setResultats] = useState<SearchResultItem[]>([]);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const searchContainerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.trim().length < 2) {
-      setResultats([]);
-      setIsSearchOpen(false);
-      setSearchError(null);
-      return;
-    }
-    debounceRef.current = setTimeout(async () => {
-      setIsSearching(true);
-      setSearchError(null);
-      try {
-        const data = await search(query.trim());
-        setResultats(data.resultats);
-        setIsSearchOpen(true);
-      } catch (error) {
-        console.error("Erreur lors de la recherche universelle :", error);
-        setResultats([]);
-        setSearchError("La recherche a échoué. Vérifiez votre connexion et réessayez.");
-        setIsSearchOpen(true);
-      } finally {
-        setIsSearching(false);
-      }
-    }, DEBOUNCE_MS);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [query]);
-
-  function handleSelectResult(item: SearchResultItem) {
-    setIsSearchOpen(false);
-    setQuery("");
-    navigate(item.route);
-  }
-
-  /* ============================================================
-     NOTIFICATIONS (cloche du header)
-     ============================================================ */
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const notifContainerRef = useRef<HTMLDivElement>(null);
-
-  const refreshNotifications = async () => {
+  const refreshNotifications = useCallback(async () => {
     try {
       const data = await getNotifications();
       setNotifications(data.notifications);
     } catch {
-      // silencieux -- le prochain polling réessaiera en cas d'erreur réseau
+      // Le polling réessaiera automatiquement.
     }
-  };
-
-  useEffect(() => {
-    refreshNotifications();
-    const interval = setInterval(refreshNotifications, NOTIF_POLL_MS);
-    return () => clearInterval(interval);
   }, []);
 
-  function handleSelectNotification(notification: Notification) {
-    setIsNotifOpen(false);
-    navigate(notification.route);
+  const refreshTasks = useCallback(async () => {
+    try {
+      const tasks = await listTaches();
+      setTasksCount(tasks.length);
+    } catch {
+      // Le polling réessaiera automatiquement.
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshNotifications();
+    const timer = window.setInterval(refreshNotifications, NOTIFICATIONS_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [refreshNotifications]);
+
+  useEffect(() => {
+    void refreshTasks();
+    const timer = window.setInterval(refreshTasks, TASKS_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [refreshTasks]);
+
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2) {
+      setSearchResults([]);
+      setSearchError(null);
+      setSearching(false);
+      setSearchOpen(false);
+      return;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setSearching(true);
+      setSearchError(null);
+      setSearchOpen(true);
+
+      try {
+        const data = await search(term);
+        if (!active) return;
+        setSearchResults(Array.isArray(data.resultats) ? data.resultats : []);
+      } catch (error) {
+        if (!active) return;
+        setSearchResults([]);
+        setSearchError(getRequestError(error));
+      } finally {
+        if (active) setSearching(false);
+      }
+    }, SEARCH_DELAY_MS);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [query]);
+
+  useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      const target = event.target as Node;
+      if (searchContainerRef.current && !searchContainerRef.current.contains(target)) {
+        setSearchOpen(false);
+      }
+      if (
+        notificationContainerRef.current &&
+        !notificationContainerRef.current.contains(target)
+      ) {
+        setNotificationsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    setSearchOpen(false);
+    setNotificationsOpen(false);
+  }, [location.pathname]);
+
+  function selectCompany(id: string | null) {
+    setActiveCompanyId(id);
+    try {
+      if (id) localStorage.setItem(ACTIVE_ENTREPRISE_KEY, id);
+      else localStorage.removeItem(ACTIVE_ENTREPRISE_KEY);
+    } catch {
+      // Le filtre reste actif pour la session même sans localStorage.
+    }
+    window.dispatchEvent(
+      new CustomEvent("entreprise-active-changed", { detail: id }),
+    );
   }
 
-  /* ============================================================
-     BADGE "Rappels & Tâches" (nombre de tâches dans le menu)
-     ============================================================ */
-  const [rappelsCount, setRappelsCount] = useState(0);
+  function selectSearchResult(item: SearchResultItem) {
+    setSearchOpen(false);
+    setQuery("");
+    navigate(item.route);
+  }
 
-  const refreshRappels = async () => {
-    try {
-      const taches = await listTaches();
-      setRappelsCount(taches.length);
-    } catch {
-      // silencieux -- comme pour les notifications, on retente au prochain polling
-    }
-  };
-
-  useEffect(() => {
-    refreshRappels();
-    const interval = setInterval(refreshRappels, RAPPELS_POLL_MS);
-    return () => clearInterval(interval);
-  }, []);
-
-  /* ============================================================
-     FERMETURE DES MENUS DÉROULANTS AU CLIC EXTÉRIEUR
-     ============================================================ */
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
-        setIsSearchOpen(false);
-      }
-      if (notifContainerRef.current && !notifContainerRef.current.contains(event.target as Node)) {
-        setIsNotifOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  /* ============================================================
-     RENDU
-     ============================================================ */
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="flex min-h-screen bg-slate-50">
       <ResizableSidebar
         storageKey="main-nav"
-        defaultWidth={240}
-        minWidth={180}
+        defaultWidth={260}
+        minWidth={210}
         maxWidth={360}
-        className="bg-gradient-to-b from-green-900 to-green-950 text-gray-300"
+        className="bg-gradient-to-b from-green-900 to-green-950 text-green-50"
       >
-        <div className="flex flex-col h-full">
-          {/* ---------- LOGO ComptaFlow ---------- */}
-          <div className="px-4 py-4 flex items-center gap-2 border-b border-white/10">
-            <div className="w-7 h-7 rounded-lg bg-green-500 flex items-center justify-center shrink-0">
-              <Cloud size={16} className="text-white" />
+        <div className="flex min-h-full flex-col">
+          <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-500 shadow-lg shadow-green-950/20">
+              <Cloud size={21} />
             </div>
-            <span className="text-white font-semibold">ComptaFlow</span>
+            <div className="min-w-0">
+              <p className="truncate text-lg font-bold text-white">ComptaFlow</p>
+              <p className="text-[11px] text-green-200/70">Gestion comptable intelligente</p>
+            </div>
           </div>
 
-          {/* ----------------------------------------------------
-              MENU DE NAVIGATION — 3 groupes avec séparateurs
-              Pour ajouter/enlever une page : modifier NAV_GROUPS
-              plus haut, pas cette boucle de rendu.
-              ---------------------------------------------------- */}
-          <nav className="px-3 py-4 space-y-3 overflow-y-auto">
-            {NAV_GROUPS.map((groupe) => (
-              <div key={groupe.titre}>
-                {/* Titre du groupe + ligne de séparation */}
-                <p className="px-2 text-[10px] uppercase tracking-wide text-gray-500 mb-1">
-                  {groupe.titre}
+          <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
+            {NAVIGATION_GROUPS.map((group) => (
+              <section key={group.title}>
+                <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-green-200/50">
+                  {group.title}
                 </p>
-                <div className="border-t border-white/10 mb-1.5" />
-
-                {groupe.items.map((item) => {
-                  const active = location.pathname === item.route;
-                  const disponible = item.disponible !== false;
-                  const Icon = item.icon;
-                  const badgeCount =
-                    item.route === "/notifications"
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isRouteActive(location.pathname, item.route);
+                    const badge = item.route === "/notifications"
                       ? notifications.length
                       : item.route === "/rappels"
-                      ? rappelsCount
-                      : 0;
+                        ? tasksCount
+                        : 0;
 
-                  return (
-                    <button
-                      key={item.route}
-                      onClick={() => disponible && navigate(item.route)}
-                      disabled={!disponible}
-                      title={!disponible ? "Bientôt disponible" : undefined}
-                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition ${
-                        !disponible
-                          ? "text-gray-500 opacity-50 cursor-not-allowed"
-                          : active
-                          ? "bg-green-600 text-white shadow-sm"
-                          : "text-gray-300 hover:bg-white/5 hover:text-white"
-                      }`}
-                    >
-                      <Icon size={16} className="shrink-0" />
-                      <span className="truncate">{item.label}</span>
-                      {badgeCount > 0 && (
-                        <span
-                          className={`ml-auto text-[10px] rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ${
-                            item.route === "/notifications"
-                              ? "bg-red-500 text-white"
-                              : "bg-white/15 text-white"
-                          }`}
-                        >
-                          {badgeCount > 9 ? "9+" : badgeCount}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                    return (
+                      <button
+                        key={item.route}
+                        type="button"
+                        onClick={() => navigate(item.route)}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
+                          active
+                            ? "bg-green-500 text-white shadow-lg shadow-green-950/20"
+                            : "text-green-50/85 hover:bg-white/10 hover:text-white"
+                        }`}
+                      >
+                        <Icon size={18} className="shrink-0" />
+                        <span className="truncate">{item.label}</span>
+                        {badge > 0 && (
+                          <span className="ml-auto flex min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] text-white">
+                            {badge > 99 ? "99+" : badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
             ))}
           </nav>
 
-          {/* ----------------------------------------------------
-              SECTION ENTREPRISES (bas de la sidebar) — INCHANGÉE
-              ---------------------------------------------------- */}
-          <div className="px-3 pt-2 pb-4 mt-auto border-t border-white/10">
-            <p className="px-2 text-[10px] uppercase tracking-wide text-gray-500 mb-1">Entreprises</p>
-
-            <button
-              onClick={() => selectEntreprise(null)}
-              className={`w-full text-left px-2.5 py-1.5 rounded text-sm mb-0.5 font-medium ${
-                activeEntrepriseId === null ? "text-green-400" : "text-gray-300 hover:bg-white/5"
-              }`}
-            >
-              Toutes les entreprises
-            </button>
-
-            {entreprises.map((e) => (
+          <div className="border-t border-white/10 p-3">
+            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-green-200/50">
+              Entreprises
+            </p>
+            <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
               <button
-                key={e.id}
-                onClick={() => selectEntreprise(e.id)}
-                className={`w-full text-left px-2.5 py-1.5 rounded text-sm mb-0.5 flex items-center justify-between gap-1.5 ${
-                  activeEntrepriseId === e.id ? "bg-white/10 text-white" : "text-gray-300 hover:bg-white/5"
+                type="button"
+                onClick={() => selectCompany(null)}
+                className={`w-full rounded-lg px-3 py-2 text-left text-sm ${
+                  activeCompanyId === null
+                    ? "bg-white/15 text-white"
+                    : "text-green-50/80 hover:bg-white/10"
                 }`}
               >
-                <span className="truncate">{e.nom}</span>
-                <span
-                  className={`w-2 h-2 rounded-full shrink-0 ${
-                    e.creee_automatiquement ? "bg-orange-400" : "bg-green-400"
-                  }`}
-                  title={e.creee_automatiquement ? "Créée automatiquement, à vérifier" : "Active"}
-                />
+                Toutes les entreprises
               </button>
-            ))}
-
+              {companies.map((company) => (
+                <button
+                  key={company.id}
+                  type="button"
+                  onClick={() => selectCompany(company.id)}
+                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${
+                    activeCompanyId === company.id
+                      ? "bg-white/15 text-white"
+                      : "text-green-50/80 hover:bg-white/10"
+                  }`}
+                >
+                  <span className="truncate">{company.nom}</span>
+                  <span
+                    className={`ml-auto h-2 w-2 shrink-0 rounded-full ${
+                      company.creee_automatiquement ? "bg-orange-400" : "bg-green-400"
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
             <button
+              type="button"
               onClick={() => navigate("/upload")}
-              className="w-full flex items-center justify-center gap-1.5 mt-3 border border-green-700/60 text-green-300 rounded-lg py-2 text-xs font-medium hover:bg-green-800/40 transition-colors"
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-green-600/70 px-3 py-2 text-xs font-semibold text-green-100 hover:bg-white/10"
             >
-              <Plus size={13} />
-              Ajouter une entreprise
+              <Plus size={14} /> Importer un document
             </button>
           </div>
         </div>
       </ResizableSidebar>
 
-      {/* ============================================================
-          COLONNE PRINCIPALE (header + contenu de la page)
-          ============================================================ */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 shrink-0 bg-white border-b flex items-center gap-4 px-6">
-          {/* ---------- Barre de recherche ---------- */}
-          <div ref={searchContainerRef} className="relative flex-1 max-w-md">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onFocus={() => (resultats.length > 0 || searchError) && setIsSearchOpen(true)}
-              placeholder="Rechercher (facture, ICE, tiers...)"
-              className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="relative z-50 flex h-16 shrink-0 items-center gap-4 overflow-visible border-b border-slate-200 bg-white px-5 lg:px-7">
+          <div
+            ref={searchContainerRef}
+            className="relative z-[100] w-full max-w-2xl"
+          >
+            <Search
+              size={18}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
             />
-            {isSearchOpen && (
-              <div className="absolute mt-1 w-full bg-white border rounded-lg shadow-lg max-h-96 overflow-auto z-20">
-                {isSearching && <p className="p-3 text-sm text-gray-400">Recherche...</p>}
-                {!isSearching && searchError && (
-                  <p className="p-3 text-sm text-red-500">{searchError}</p>
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onFocus={() => {
+                if (query.trim().length >= 2) setSearchOpen(true);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setSearchOpen(false);
+              }}
+              autoComplete="off"
+              placeholder="Rechercher une facture, un ICE, un tiers..."
+              className="w-full rounded-xl border border-slate-300 bg-slate-50 py-2.5 pl-10 pr-10 text-sm outline-none transition focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  setSearchOpen(false);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                title="Effacer"
+              >
+                <X size={16} />
+              </button>
+            )}
+
+            {searchOpen && query.trim().length >= 2 && (
+              <div className="absolute left-0 right-0 top-full z-[9999] mt-2 max-h-[420px] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl">
+                {searching && (
+                  <p className="p-4 text-sm text-slate-500">Recherche en cours...</p>
                 )}
-                {!isSearching && !searchError && resultats.length === 0 && (
-                  <p className="p-3 text-sm text-gray-400">Aucun résultat pour "{query}".</p>
+                {!searching && searchError && (
+                  <p className="border-l-4 border-red-500 bg-red-50 p-4 text-sm text-red-700">
+                    {searchError}
+                  </p>
                 )}
-                {!isSearching &&
-                  !searchError &&
-                  resultats.map((item) => (
-                    <button
-                      key={`${item.type}-${item.id}`}
-                      onClick={() => handleSelectResult(item)}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b last:border-0 flex items-center gap-2"
-                    >
-                      <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${TYPE_COLORS[item.type]}`}>
-                        {TYPE_LABELS[item.type]}
-                      </span>
-                      <span className="text-sm truncate">
-                        <span className="font-medium">{item.titre}</span>
-                        {item.sous_titre && <span className="text-gray-400"> · {item.sous_titre}</span>}
-                      </span>
-                    </button>
-                  ))}
+                {!searching && !searchError && searchResults.length === 0 && (
+                  <p className="p-4 text-sm text-slate-500">
+                    Aucun résultat pour « {query} ».
+                  </p>
+                )}
+                {!searching && !searchError && searchResults.length > 0 && (
+                  <>
+                    <div className="border-b border-slate-100 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      {searchResults.length} résultat(s)
+                    </div>
+                    {searchResults.map((item) => (
+                      <button
+                        key={`${item.type}-${item.id}`}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => selectSearchResult(item)}
+                        className="flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-green-50"
+                      >
+                        <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${
+                          SEARCH_TYPE_CLASSES[item.type] ?? "bg-slate-100 text-slate-700"
+                        }`}>
+                          {SEARCH_TYPE_LABELS[item.type] ?? item.type}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-slate-800">
+                            {item.titre}
+                          </span>
+                          {item.sous_titre && (
+                            <span className="mt-0.5 block truncate text-xs text-slate-500">
+                              {item.sous_titre}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </div>
 
-          {/* ---------- Cloche de notifications ---------- */}
-          <div ref={notifContainerRef} className="relative shrink-0 ml-auto">
+          <div ref={notificationContainerRef} className="relative ml-auto shrink-0">
             <button
-              onClick={() => setIsNotifOpen((open) => !open)}
-              className="relative text-gray-500 hover:text-gray-700 px-1"
+              type="button"
+              onClick={() => setNotificationsOpen((open) => !open)}
+              className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
               title="Notifications"
             >
-              <Bell size={19} />
+              <Bell size={20} />
               {notifications.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
-                  {notifications.length > 9 ? "9+" : notifications.length}
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                  {notifications.length > 99 ? "99+" : notifications.length}
                 </span>
               )}
             </button>
-            {isNotifOpen && (
-              <div className="absolute right-0 mt-2 w-80 bg-white border rounded-lg shadow-lg max-h-96 overflow-auto z-20">
-                <div className="px-3 py-2 border-b">
-                  <p className="text-sm font-medium">Notifications</p>
+
+            {notificationsOpen && (
+              <div className="absolute right-0 top-full z-[9999] mt-2 max-h-[420px] w-80 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl">
+                <div className="flex items-center justify-between border-b px-4 py-3">
+                  <p className="text-sm font-bold text-slate-800">Notifications</p>
+                  <span className="text-xs text-slate-400">{notifications.length}</span>
                 </div>
-                {notifications.length === 0 && <p className="p-3 text-sm text-gray-400">Aucune notification.</p>}
+                {notifications.length === 0 && (
+                  <p className="p-4 text-sm text-slate-500">Aucune notification.</p>
+                )}
                 {notifications.map((notification) => (
                   <button
                     key={notification.id}
-                    onClick={() => handleSelectNotification(notification)}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b last:border-0 flex items-start gap-2"
+                    type="button"
+                    onClick={() => {
+                      setNotificationsOpen(false);
+                      navigate(notification.route);
+                    }}
+                    className="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50"
                   >
-                    <span
-                      className={`text-xs px-1.5 py-0.5 rounded shrink-0 mt-0.5 ${
-                        NOTIF_TYPE_COLORS[notification.type] ?? "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {NOTIF_TYPE_ICONS[notification.type] ?? "•"}
+                    <span className={`mt-0.5 rounded-md px-2 py-1 text-[10px] font-bold ${
+                      NOTIFICATION_CLASSES[notification.type] ?? "bg-slate-100 text-slate-700"
+                    }`}>
+                      !
                     </span>
-                    <span className="text-sm">
+                    <span className="text-sm text-slate-700">
                       {notification.message}
                       {notification.entreprise_nom && (
-                        <span className="block text-xs text-gray-400">{notification.entreprise_nom}</span>
+                        <span className="mt-1 block text-xs text-slate-400">
+                          {notification.entreprise_nom}
+                        </span>
                       )}
                     </span>
                   </button>
                 ))}
                 {notifications.length > 0 && (
                   <button
-                    onClick={() => {
-                      setIsNotifOpen(false);
-                      navigate("/notifications");
-                    }}
-                    className="w-full text-center px-3 py-2 text-xs text-green-700 hover:bg-gray-50 font-medium border-t"
+                    type="button"
+                    onClick={() => navigate("/notifications")}
+                    className="w-full border-t px-4 py-3 text-center text-xs font-semibold text-green-700 hover:bg-green-50"
                   >
-                    Voir toutes les notifications →
+                    Voir toutes les notifications
                   </button>
                 )}
               </div>
             )}
           </div>
 
-          {/* ---------- Utilisateur connecté + déconnexion ---------- */}
-          <div className="text-right leading-tight shrink-0">
-            <p className="text-sm font-medium">{user?.email ?? "Cabinet"}</p>
-            <p className="text-xs text-gray-400">{user?.role ?? ""}</p>
+          <div className="hidden min-w-0 text-right leading-tight sm:block">
+            <p className="max-w-56 truncate text-sm font-semibold text-slate-800">
+              {user?.email ?? "Cabinet"}
+            </p>
+            <p className="text-xs text-slate-400">{user?.role ?? ""}</p>
           </div>
           <button
+            type="button"
             onClick={logout}
-            className="w-8 h-8 rounded-full bg-green-100 text-green-700 text-xs font-semibold flex items-center justify-center shrink-0"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-700 hover:bg-green-200"
             title="Déconnexion"
           >
-            {(user?.nom?.[0] ?? "U").toUpperCase()}
+            {(user?.nom?.[0] ?? user?.email?.[0] ?? "U").toUpperCase()}
+          </button>
+          <button
+            type="button"
+            onClick={logout}
+            className="hidden rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 lg:block"
+            title="Se déconnecter"
+          >
+            <LogOut size={18} />
           </button>
         </header>
 
-        {/* ---------- Contenu de la page active ---------- */}
-        <main className="flex-1 min-w-0 overflow-auto">{children}</main>
+        <main className="min-w-0 flex-1 overflow-auto">{children}</main>
       </div>
     </div>
   );

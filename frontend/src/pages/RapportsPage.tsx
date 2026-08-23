@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { listEntreprises } from "../api/entreprisesApi";
-import { getRapport, getRapportPdfUrl } from "../api/rapportsApi";
+import { downloadRapportPdf, getRapport } from "../api/rapportsApi";
 import type { Entreprise } from "../types/entreprise";
 import type { Rapport } from "../types/rapport";
 
@@ -78,12 +78,13 @@ export function RapportsPage() {
               <h2 className="font-medium">{rapport.entreprise_nom} — {mois ? `${MOIS[mois - 1]} ` : ""}{rapport.annee}</h2>
               
               {/* CORRECTION ICI : Ajout du "<a " devant href */}
-              <a
-                href={getRapportPdfUrl({ entreprise_id: entrepriseId, annee, mois: mois ?? undefined })}
+              <button
+                type="button"
+                onClick={() => void downloadRapportPdf({ entreprise_id: entrepriseId, annee, mois: mois ?? undefined })}
                 className="text-sm px-3 py-1.5 rounded border bg-white hover:bg-gray-50"
               >
                 🖨 Exporter PDF
-              </a>
+              </button>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-4">

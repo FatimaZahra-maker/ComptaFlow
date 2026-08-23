@@ -1,0 +1,14 @@
+COMPTAFLOW - ETAT DE LA CONSOLIDATION
+=====================================
+
+VERSION CONSOLIDEE : Banque V2
+ALEMBIC HEAD       : c8a1d2e3f470
+
+VALIDATION SANDBOX
+- compileall : OK
+- alembic heads : OK
+- pytest SQLite : 72 passed
+- TypeScript : OK
+
+Cette version est un snapshot propre et cohérent du code effectivement
+implémenté à ce stade. Voir README_FINAL_INSTALL.md pour les modules reportés.

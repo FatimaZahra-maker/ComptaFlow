@@ -1,16 +1,55 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { getDocumentDetail } from "../api/documentDetailApi";
-import { validateEntry, rejectEntry, updateEntry } from "../api/accountingApi";
-import { listChronoDocuments } from "../api/chronosApi";
-import { listEntreprises } from "../api/entreprisesApi";
-import { getDocumentFileUrl } from "../api/documentsApi";
-import type { DocumentDetail } from "../types/documentDetail";
-import type { DocumentChrono } from "../types/chrono";
-import type { Entreprise } from "../types/entreprise";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Check,
+  CheckCircle2,
+  ExternalLink,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
+  Pencil,
+  RefreshCw,
+  Save,
+  Trash2,
+  X,
+  XCircle,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 
-// --- CONSTANTES DE CONFIGURATION ---
-const STATUT_LABELS: Record<string, string> = {
+import { updateEntry } from "../api/accountingApi";
+import { getDocumentDetail } from "../api/documentDetailApi";
+import {
+  deleteDocument,
+  downloadDocumentData,
+  fetchDocumentFile,
+  rejectDocument,
+  retraiterDocument,
+  toggleDocumentSaisie,
+  updateBankMovement,
+  validateDocument,
+} from "../api/documentsApi";
+import { listEntreprises } from "../api/entreprisesApi";
+
+import type { DocumentDetail, EcritureResume } from "../types/documentDetail";
+import type { Entreprise } from "../types/entreprise";
+import type {
+  MouvementBancaire,
+  MouvementBancaireUpdate,
+  TypeMouvementBancaire,
+} from "../types/mouvementBancaire";
+
+const DOCUMENT_STATUS_LABELS: Record<string, string> = {
   en_attente: "En attente",
   en_traitement: "En traitement",
   traite: "Traité",
@@ -18,11 +57,11 @@ const STATUT_LABELS: Record<string, string> = {
   erreur: "Erreur",
 };
 
-const STATUT_COLORS: Record<string, string> = {
-  en_attente: "bg-gray-100 text-gray-700",
-  en_traitement: "bg-yellow-100 text-yellow-700",
+const DOCUMENT_STATUS_CLASSES: Record<string, string> = {
+  en_attente: "bg-slate-100 text-slate-700",
+  en_traitement: "bg-amber-100 text-amber-700",
   traite: "bg-blue-100 text-blue-700",
-  valide: "bg-green-100 text-green-700",
+  valide: "bg-emerald-100 text-emerald-700",
   erreur: "bg-red-100 text-red-700",
 };
 
@@ -33,133 +72,234 @@ const VALIDATION_LABELS: Record<string, string> = {
   rejete: "Rejeté",
 };
 
-const CHAMP_LABELS: Record<string, string> = {
-  date: "Date",
-  numero_facture: "Numéro facture",
-  ice_fournisseur: "ICE Fournisseur",
-  nom_fournisseur: "Nom fournisseur",
-  ice_client: "ICE Client",
-  nom_client: "Nom client",
-  if_client: "IF Client",
-  if_fournisseur: "IF Fournisseur",
-  rc_fournisseur: "RC Fournisseur",
-  rc_client: "RC Client",
-  ht: "HT",
-  tva: "TVA",
-  ttc: "TTC",
-  categorie: "Catégorie",
-  statut: "Statut",
+const VALIDATION_CLASSES: Record<string, string> = {
+  brouillon: "bg-slate-100 text-slate-700",
+  a_verifier: "bg-orange-100 text-orange-700",
+  valide: "bg-emerald-100 text-emerald-700",
+  rejete: "bg-red-100 text-red-700",
 };
 
-const CHAMP_ORDRE = [
-  "date", "numero_facture", "ice_fournisseur", "nom_fournisseur",
-  "ice_client", "nom_client", "if_client", "rc_fournisseur",
-  "ht", "tva", "ttc", "categorie", "statut",
-];
+const EXTRACTED_FIELD_LABELS: Record<string, string> = {
+  categorie: "Catégorie",
+  type_document: "Type de document",
+  numero_piece: "N° pièce / facture",
+  numero_facture: "N° facture",
+  date_piece: "Date de la pièce",
+  date: "Date",
+  tiers: "Tiers",
+  nom_fournisseur: "Fournisseur",
+  nom_client: "Client",
+  ice_fournisseur: "ICE fournisseur",
+  ice_client: "ICE client",
+  if_fournisseur: "IF fournisseur",
+  if_client: "IF client",
+  rc_fournisseur: "RC fournisseur",
+  rc_client: "RC client",
+  montant_ht: "Montant HT",
+  ht: "Montant HT",
+  taux_tva: "Taux TVA",
+  montant_tva: "Montant TVA",
+  tva: "Montant TVA",
+  montant_ttc: "Montant TTC",
+  ttc: "Montant TTC",
+  source_extraction: "Source d'extraction",
+  a_verifier: "À vérifier",
+  raison_verification: "Raison de vérification",
+};
 
-// --- INTERFACES UTILES ---
-interface VerificationItem {
+const INPUT_CLASS =
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10";
+
+interface EntryFormState {
+  tiers: string;
+  numero_piece: string;
+  date_piece: string;
+  montant_ht: string;
+  taux_tva: string;
+  montant_tva: string;
+  montant_ttc: string;
+}
+
+interface MovementFormState {
+  id: string;
+  date_operation: string;
+  libelle: string;
+  reference: string;
+  type_mouvement: TypeMouvementBancaire;
+  montant: string;
+  solde_apres_operation: string;
+}
+
+interface ExtractedRow {
+  key: string;
   label: string;
-  ok: boolean | null;
+  value: string;
 }
 
-// --- FONCTIONS UTILITAIRES ---
-/**
- * Calcule les vérifications automatiques (ICE, montants, doublons) basées sur les données extraites.
- */
-function calculerVerifications(detail: DocumentDetail): VerificationItem[] {
-  const donnees = (detail.donnees_extraites ?? {}) as Record<string, unknown>;
-  const iceFournisseur = donnees["ice_fournisseur"];
-  const iceClient = donnees["ice_client"];
-
-  return [
-    {
-      label: "ICE Fournisseur présent",
-      ok: iceFournisseur ? String(iceFournisseur).replace(/\s/g, "").length >= 9 : null,
-    },
-    {
-      label: "ICE Client présent",
-      ok: iceClient ? String(iceClient).replace(/\s/g, "").length >= 9 : null,
-    },
-    {
-      label: "Montants HT/TVA/TTC cohérents",
-      ok: detail.ecriture && detail.ecriture.montant_ttc
-        ? Math.abs(
-            parseFloat(detail.ecriture.montant_ht || "0") +
-              parseFloat(detail.ecriture.montant_tva || "0") -
-              parseFloat(detail.ecriture.montant_ttc || "0")
-          ) < 0.05
-        : null,
-    },
-    {
-      label: "Pas de doublon détecté",
-      ok: detail.ecriture ? !detail.ecriture.anomalie_detectee : null,
-    },
-    {
-      label: "Entreprise identifiée",
-      ok: detail.entreprise_id !== null,
-    },
-  ];
-}
-
-/**
- * Construit les lignes d'écritures comptables (débit/crédit) selon qu'il s'agit d'une vente ou d'un achat.
- */
-function construireLignesEcriture(detail: DocumentDetail) {
-  const e = detail.ecriture;
-  if (!e) return [];
-  const estVente = e.type_ecriture?.toLowerCase().includes("vente");
-  const tiers = e.tiers ?? "Tiers";
-  
-  const ht = e.montant_ht || null;
-  const tva = e.montant_tva || null;
-  const ttc = e.montant_ttc || null;
-
-  if (estVente) {
-    return [
-      { compte: "3421", libelle: `Client ${tiers}`, debit: ttc, credit: null },
-      { compte: "7111", libelle: "Ventes de marchandises", debit: null, credit: ht },
-      { compte: "4455", libelle: "État — TVA facturée", debit: null, credit: tva },
-    ];
+function formatMoney(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") {
+    return "—";
   }
-  return [
-    { compte: "6111", libelle: "Achats marchandises", debit: ht, credit: null },
-    { compte: "34552", libelle: "TVA déductible sur achats", debit: tva, credit: null },
-    { compte: "4411", libelle: `Fournisseur ${tiers}`, debit: null, credit: ttc },
-  ];
+
+  const amount = typeof value === "number" ? value : Number.parseFloat(value);
+
+  if (Number.isNaN(amount)) {
+    return "—";
+  }
+
+  return new Intl.NumberFormat("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount) + " MAD";
 }
 
-// --- COMPOSANT PRINCIPAL ---
+function formatDate(value: string | null | undefined): string {
+  if (!value) {
+    return "—";
+  }
+
+  const date = new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("fr-FR");
+}
+
+function formatExtractedValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Oui" : "Non";
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value, null, 2);
+  }
+
+  return String(value);
+}
+
+function humanizeFieldName(key: string): string {
+  return (
+    EXTRACTED_FIELD_LABELS[key] ??
+    key
+      .replaceAll("_", " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase())
+  );
+}
+
+function normalizeMovementType(value: string): TypeMouvementBancaire {
+  return value.toLowerCase() === "credit" ? "credit" : "debit";
+}
+
+function createEntryForm(entry: EcritureResume): EntryFormState {
+  return {
+    tiers: entry.tiers ?? "",
+    numero_piece: entry.numero_piece ?? "",
+    date_piece: entry.date_piece ?? "",
+    montant_ht: entry.montant_ht ?? "",
+    taux_tva: entry.taux_tva ?? "",
+    montant_tva: entry.montant_tva ?? "",
+    montant_ttc: entry.montant_ttc ?? "",
+  };
+}
+
+function createMovementForm(movement: MouvementBancaire): MovementFormState {
+  return {
+    id: movement.id,
+    date_operation: movement.date_operation,
+    libelle: movement.libelle,
+    reference: movement.reference ?? "",
+    type_mouvement: normalizeMovementType(movement.type_mouvement),
+    montant: String(movement.montant ?? ""),
+    solde_apres_operation:
+      movement.solde_apres_operation === null ||
+      movement.solde_apres_operation === undefined
+        ? ""
+        : String(movement.solde_apres_operation),
+  };
+}
+
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <span className="mb-1 block text-xs font-semibold text-slate-600">
+      {children}
+    </span>
+  );
+}
+
+function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} className={INPUT_CLASS} />;
+}
+
+function DataCard({
+  label,
+  value,
+  important = false,
+}: {
+  label: string;
+  value: string;
+  important?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50 p-3.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+      <p
+        className={`mt-1 break-words text-slate-900 ${
+          important ? "text-lg font-bold" : "text-sm font-semibold"
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
 export function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  // --- ÉTATS ---
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [entreprises, setEntreprises] = useState<Entreprise[]>([]);
-  const [chronoSiblings, setChronoSiblings] = useState<DocumentChrono[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentAction, setCurrentAction] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [zoom, setZoom] = useState(100);
-  const [rechercheFooter, setRechercheFooter] = useState("");
-  const [filtreStatutFooter, setFiltreStatutFooter] = useState<string>("");
-  const [commentaireDraft, setCommentaireDraft] = useState("");
-
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({
-    tiers: "", numero_piece: "", date_piece: "", montant_ht: "", montant_tva: "", montant_ttc: "",
+  const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
+  const [movementForm, setMovementForm] = useState<MovementFormState | null>(null);
+  const [entryForm, setEntryForm] = useState<EntryFormState>({
+    tiers: "",
+    numero_piece: "",
+    date_piece: "",
+    montant_ht: "",
+    taux_tva: "",
+    montant_tva: "",
+    montant_ttc: "",
   });
 
-  // --- EFFETS ET RÉCUPÉRATION DE DONNÉES ---
   const refresh = useCallback(async () => {
-    if (!id) return;
+    if (!id) {
+      setError("Identifiant du document manquant.");
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
+    setError(null);
+
     try {
       const data = await getDocumentDetail(id);
       setDetail(data);
-      setError(null);
     } catch {
+      setDetail(null);
       setError("Impossible de charger ce document.");
     } finally {
       setIsLoading(false);
@@ -167,593 +307,1095 @@ export function DocumentDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
 
+  const documentFileId = detail?.id;
+
   useEffect(() => {
-    listEntreprises().then(setEntreprises);
+    if (!documentFileId) return;
+    let active = true;
+    let objectUrl: string | null = null;
+    fetchDocumentFile(documentFileId)
+      .then((blob) => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setFileUrl(objectUrl);
+      })
+      .catch(() => {
+        if (active) setFileUrl(null);
+      });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setFileUrl(null);
+    };
+  }, [documentFileId]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    listEntreprises()
+      .then((data) => {
+        if (mounted) {
+          setEntreprises(data);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  useEffect(() => {
-    if (!detail || !detail.entreprise_id || !detail.annee || !detail.mois || !detail.categorie) {
-      setChronoSiblings([]);
-      return;
+  const entrepriseName = useMemo(() => {
+    if (!detail?.entreprise_id) {
+      return "Entreprise à identifier";
     }
-    listChronoDocuments({
-      entreprise_id: detail.entreprise_id,
-      categorie: detail.categorie,
-      annee: detail.annee,
-      mois: detail.mois,
-    }).then(setChronoSiblings);
-  }, [detail?.entreprise_id, detail?.annee, detail?.mois, detail?.categorie]);
 
-  // --- MÉMOÏSATIONS ---
-  const entrepriseNom = useMemo(
-    () => entreprises.find((e) => e.id === detail?.entreprise_id)?.nom ?? null,
-    [entreprises, detail?.entreprise_id]
-  );
+    return (
+      entreprises.find((item) => item.id === detail.entreprise_id)?.nom ??
+      "Entreprise inconnue"
+    );
+  }, [detail?.entreprise_id, entreprises]);
 
-  const verifications = useMemo(() => (detail ? calculerVerifications(detail) : []), [detail]);
-  const lignesEcriture = useMemo(() => (detail ? construireLignesEcriture(detail) : []), [detail]);
+  const extractedRows = useMemo<ExtractedRow[]>(() => {
+    if (!detail?.donnees_extraites) {
+      return [];
+    }
 
-  const scoreCompletude = useMemo(() => {
-    if (!detail?.donnees_extraites) return null;
-    const valeurs = Object.values(detail.donnees_extraites);
-    if (valeurs.length === 0) return null;
-    const remplis = valeurs.filter((v) => v !== null && v !== undefined && v !== "").length;
-    return Math.round((remplis / valeurs.length) * 100);
+    return Object.entries(detail.donnees_extraites)
+      .filter(([key]) => key !== "lignes_bancaires")
+      .map(([key, value]) => ({
+        key,
+        label: humanizeFieldName(key),
+        value: formatExtractedValue(value),
+      }));
   }, [detail?.donnees_extraites]);
 
-  // --- ACTIONS (ÉDITION, VALIDATION, REJET) ---
-  function ouvrirCorrection() {
-    if (!detail?.ecriture) return;
-    setEditForm({
-      tiers: detail.ecriture.tiers ?? "",
-      numero_piece: detail.ecriture.numero_piece ?? "",
-      date_piece: detail.ecriture.date_piece ?? "",
-      montant_ht: detail.ecriture.montant_ht ?? "",
-      montant_tva: detail.ecriture.montant_tva ?? "",
-      montant_ttc: detail.ecriture.montant_ttc,
-    });
-    setIsEditing(true);
+  const movements = detail?.mouvements_bancaires ?? [];
+  const isBankDocument = detail?.categorie === "banque" || movements.length > 0;
+
+  function showSuccess(message: string) {
+    setError(null);
+    setSuccess(message);
   }
 
-  async function enregistrerCorrection() {
-    if (!detail?.ecriture) return;
-    setIsProcessing(true);
+  function showError(message: string) {
+    setSuccess(null);
+    setError(message);
+  }
+
+  function openEntryEditor() {
+    if (!detail?.ecriture) {
+      return;
+    }
+
+    setEntryForm(createEntryForm(detail.ecriture));
+    setIsEntryModalOpen(true);
+  }
+
+  function openMovementEditor(movement: MouvementBancaire) {
+    setMovementForm(createMovementForm(movement));
+  }
+
+  async function saveEntry(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!detail?.ecriture) {
+      return;
+    }
+
+    setCurrentAction("save-entry");
+
     try {
-      await updateEntry(detail.ecriture.id, editForm);
-      setIsEditing(false);
+      await updateEntry(detail.ecriture.id, {
+        tiers: entryForm.tiers.trim(),
+        numero_piece: entryForm.numero_piece.trim(),
+        date_piece: entryForm.date_piece || undefined,
+        montant_ht: entryForm.montant_ht || undefined,
+        taux_tva: entryForm.taux_tva || undefined,
+        montant_tva: entryForm.montant_tva || undefined,
+        montant_ttc: entryForm.montant_ttc || undefined,
+      });
+
+      setIsEntryModalOpen(false);
       await refresh();
+      showSuccess("Les données comptables ont été modifiées.");
+    } catch {
+      showError("La modification des données comptables a échoué.");
     } finally {
-      setIsProcessing(false);
+      setCurrentAction(null);
+    }
+  }
+
+  async function saveMovement(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!detail || !movementForm) {
+      return;
+    }
+
+    const payload: MouvementBancaireUpdate = {
+      date_operation: movementForm.date_operation,
+      libelle: movementForm.libelle.trim(),
+      reference: movementForm.reference.trim() || null,
+      type_mouvement: movementForm.type_mouvement,
+      montant: movementForm.montant,
+      solde_apres_operation:
+        movementForm.solde_apres_operation === ""
+          ? null
+          : movementForm.solde_apres_operation,
+    };
+
+    setCurrentAction("save-movement");
+
+    try {
+      await updateBankMovement(detail.id, movementForm.id, payload);
+      setMovementForm(null);
+      await refresh();
+      showSuccess("Le mouvement bancaire a été modifié.");
+    } catch {
+      showError("La modification du mouvement bancaire a échoué.");
+    } finally {
+      setCurrentAction(null);
     }
   }
 
   async function handleValidate() {
-    if (!detail?.ecriture) return;
-    setIsProcessing(true);
+    if (!detail) {
+      return;
+    }
+
+    setCurrentAction("validate");
+
     try {
-      await validateEntry(detail.ecriture.id);
-      await refresh();
+      const updated = await validateDocument(detail.id);
+      setDetail(updated);
+      showSuccess("Le document a été validé.");
+    } catch {
+      showError("La validation a échoué. Vérifiez vos droits.");
     } finally {
-      setIsProcessing(false);
+      setCurrentAction(null);
     }
   }
 
   async function handleReject() {
-    if (!detail?.ecriture) return;
-    setIsProcessing(true);
+    if (!detail) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Rejeter ce document ? Il restera disponible pour correction.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setCurrentAction("reject");
+
     try {
-      await rejectEntry(detail.ecriture.id);
-      await refresh();
+      const updated = await rejectDocument(detail.id);
+      setDetail(updated);
+      showSuccess("Le document a été rejeté.");
+    } catch {
+      showError("Le rejet du document a échoué. Vérifiez vos droits.");
     } finally {
-      setIsProcessing(false);
+      setCurrentAction(null);
     }
   }
 
-  const siblingsFiltres = chronoSiblings.filter((s) => {
-    if (filtreStatutFooter && s.statut_validation !== filtreStatutFooter) return false;
-    if (rechercheFooter && !s.nom_fichier_original.toLowerCase().includes(rechercheFooter.toLowerCase())) return false;
-    return true;
-  });
+  async function handleToggleSaisie() {
+    if (!detail) {
+      return;
+    }
 
-  // --- RENDUS CONDITIONNELS ---
-  if (isLoading) return <div className="p-8 text-gray-500 animate-pulse">Chargement en cours...</div>;
+    setCurrentAction("saisie");
 
-  if (error || !detail) {
+    try {
+      const result = await toggleDocumentSaisie(detail.id);
+      setDetail((current) =>
+        current
+          ? {
+              ...current,
+              saisie_topaze: result.saisie_topaze,
+            }
+          : current,
+      );
+
+      showSuccess(
+        result.saisie_topaze
+          ? "Le document est maintenant marqué comme saisi."
+          : "Le document n'est plus marqué comme saisi.",
+      );
+    } catch {
+      showError("La mise à jour du statut de saisie a échoué.");
+    } finally {
+      setCurrentAction(null);
+    }
+  }
+
+  async function handleRetraiter() {
+    if (!detail) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Relancer l'OCR et l'extraction ?\n\nLes données extraites actuelles seront remplacées.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setCurrentAction("retraiter");
+
+    try {
+      await retraiterDocument(detail.id);
+      await refresh();
+      showSuccess("Le retraitement du document a été lancé.");
+    } catch {
+      showError("Le retraitement du document a échoué.");
+    } finally {
+      setCurrentAction(null);
+    }
+  }
+
+  async function handleDelete() {
+    if (!detail) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Supprimer définitivement « ${detail.nom_fichier_original} » ?\n\n` +
+        "Le fichier, les données extraites, l'écriture comptable et les mouvements bancaires seront supprimés. " +
+        "Vous pourrez ensuite réimporter le même fichier.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setCurrentAction("delete");
+
+    try {
+      await deleteDocument(detail.id);
+      navigate("/chronos", { replace: true });
+    } catch {
+      showError("La suppression définitive du document a échoué.");
+      setCurrentAction(null);
+    }
+  }
+
+  async function handleExport(format: "csv" | "xlsx") {
+    if (!detail) {
+      return;
+    }
+
+    setCurrentAction(`export-${format}`);
+
+    try {
+      await downloadDocumentData(detail.id, format, detail.nom_fichier_original);
+      showSuccess(
+        `Les données extraites ont été exportées en ${
+          format === "xlsx" ? "Excel" : "CSV"
+        }.`,
+      );
+    } catch {
+      showError("L'export des données extraites a échoué.");
+    } finally {
+      setCurrentAction(null);
+    }
+  }
+
+  if (isLoading) {
     return (
-      <div className="p-8 flex flex-col items-start gap-4">
-        <p className="text-red-600 font-medium">{error ?? "Document introuvable."}</p>
-        <button onClick={() => navigate("/chronos")} className="px-4 py-2 bg-green-50 text-green-700 rounded hover:bg-green-100 text-sm font-medium transition-colors">
-          ← Retour aux chronos
-        </button>
+      <div className="flex min-h-[55vh] items-center justify-center text-slate-500">
+        <RefreshCw className="mr-2 animate-spin" size={20} />
+        Chargement du document…
       </div>
     );
   }
 
-  const isImage = detail.mime_type?.startsWith("image/");
+  if (!detail) {
+    return (
+      <div className="p-6">
+        <div className="max-w-xl rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
+          <p className="font-semibold">{error ?? "Document introuvable."}</p>
+          <button
+            type="button"
+            onClick={() => navigate("/chronos")}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold shadow-sm"
+          >
+            <ArrowLeft size={16} />
+            Retour au Chronos
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const isImage = detail.mime_type?.startsWith("image/") ?? false;
   const isPdf = detail.mime_type === "application/pdf";
-  const fileUrl = getDocumentFileUrl(detail.id);
-  const heuresDepuisImport = (Date.now() - new Date(detail.created_at).getTime()) / 3_600_000;
-  const estNouveau = heuresDepuisImport < 48;
+  const validationStatus =
+    detail.ecriture?.statut_validation ??
+    (detail.statut === "valide" ? "valide" : "a_verifier");
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 font-sans">
-      <div className="max-w-[1600px] mx-auto">
-        
-        {/* FIL D'ARIANE */}
-        <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-2">
-          <button onClick={() => navigate("/chronos")} className="hover:text-green-700 hover:underline transition-colors">
-            Documents
-          </button>
-          <span>›</span>
-          <span className="text-gray-600 truncate max-w-xs">{detail.nom_fichier_original}</span>
-        </div>
+    <div className="min-h-screen bg-slate-50 p-4 lg:p-6">
+      <div className="mx-auto max-w-[1800px]">
+        <header className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+              <button
+                type="button"
+                onClick={() => navigate("/chronos")}
+                className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-700"
+              >
+                <ArrowLeft size={15} />
+                Retour au Chronos
+              </button>
 
-        {/* EN-TÊTE DU DOCUMENT */}
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <h1 className="text-xl font-bold text-slate-800">{detail.nom_fichier_original}</h1>
-          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${STATUT_COLORS[detail.statut]}`}>
-            {STATUT_LABELS[detail.statut]}
-          </span>
-          {estNouveau && (
-            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100">
-              Nouveau
-            </span>
-          )}
-          {entrepriseNom && <span className="text-sm font-medium text-gray-500 bg-white px-3 py-1 rounded-full border border-gray-200">· {entrepriseNom}</span>}
-        </div>
-
-        <div className="grid grid-cols-12 gap-6 mb-6">
-          
-          {/* VISIONNEUSE DE DOCUMENT (GAUCHE) */}
-          <div className="col-span-12 lg:col-span-5 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50/80 text-xs text-gray-500">
-              <span className="font-medium text-gray-600">{detail.mime_type ?? "Type inconnu"}</span>
-              <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-md p-1 shadow-sm">
-                <button onClick={() => setZoom((z) => Math.max(40, z - 20))} className="w-6 h-6 flex items-center justify-center hover:bg-gray-100 rounded text-gray-600 font-bold transition-colors" title="Zoom arrière">−</button>
-                <span className="w-12 text-center font-medium">{zoom}%</span>
-                <button onClick={() => setZoom((z) => Math.min(300, z + 20))} className="w-6 h-6 flex items-center justify-center hover:bg-gray-100 rounded text-gray-600 font-bold transition-colors" title="Zoom avant">+</button>
-                <div className="w-px h-4 bg-gray-200 mx-1"></div>
-                <a href={fileUrl} target="_blank" rel="noreferrer" className="px-2 text-green-600 hover:text-green-700 font-medium transition-colors">
-                  Ouvrir ↗
-                </a>
-              </div>
-            </div>
-            
-            <div className="flex-1 min-h-[520px] bg-slate-100 overflow-auto flex items-start justify-center p-4">
-              {isImage && (
-                <img src={fileUrl} alt={detail.nom_fichier_original} style={{ width: `${zoom}%` }} className="max-w-none shadow-md rounded transition-all duration-200" />
-              )}
-              {isPdf && (
-                <iframe src={`${fileUrl}#toolbar=0`} title={detail.nom_fichier_original} className="w-full h-[600px] border-0 rounded shadow-sm bg-white" />
-              )}
-              {!isImage && !isPdf && (
-                <div className="text-sm text-gray-500 p-8 text-center flex flex-col items-center justify-center h-full gap-4">
-                  <span className="text-4xl">📄</span>
-                  <p>Aperçu non disponible pour ce type de fichier.</p>
-                  <a href={fileUrl} target="_blank" rel="noreferrer" className="px-4 py-2 bg-white border border-gray-200 rounded-md text-green-700 font-medium hover:bg-gray-50 transition-colors shadow-sm">
-                    Télécharger / Ouvrir le fichier original ↗
-                  </a>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* INFORMATIONS EXTRAITES (CENTRE) */}
-          <div className="col-span-12 lg:col-span-3 space-y-4">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-              <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <span>🤖</span> Informations extraites (IA)
-              </h2>
-              {scoreCompletude !== null && (
-                <div className="mb-5 bg-gray-50 p-3 rounded-lg border border-gray-100">
-                  <div className="flex justify-between text-xs font-medium text-gray-500 mb-2">
-                    <span>Score de complétude</span>
-                    <span className="text-gray-800">{scoreCompletude}%</span>
-                  </div>
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: `${scoreCompletude}%` }} />
-                  </div>
-                </div>
-              )}
-              <div className="space-y-3 text-sm divide-y divide-gray-50">
-                {detail.donnees_extraites ? (
-                  <>
-                    {CHAMP_ORDRE.filter((k) => k in (detail.donnees_extraites as object)).map((cle) => {
-                      const valeur = (detail.donnees_extraites as Record<string, unknown>)[cle];
-                      const affichage =
-                        valeur === null || valeur === undefined || valeur === ""
-                          ? "—"
-                          : typeof valeur === "object"
-                          ? JSON.stringify(valeur)
-                          : String(valeur);
-                      return (
-                        <div key={cle} className="flex justify-between gap-4 pt-2 first:pt-0">
-                          <span className="text-gray-500 text-xs">{CHAMP_LABELS[cle] ?? cle}</span>
-                          <span className="font-semibold text-gray-800 text-right break-all">{affichage}</span>
-                        </div>
-                      );
-                    })}
-                    {/* Champs additionnels non prévus dans CHAMP_ORDRE */}
-                    {Object.entries(detail.donnees_extraites)
-                      .filter(([k]) => !CHAMP_ORDRE.includes(k))
-                      .map(([cle, valeur]) => {
-                        const affichage =
-                          valeur === null || valeur === undefined || valeur === ""
-                            ? "—"
-                            : typeof valeur === "object"
-                            ? JSON.stringify(valeur)
-                            : String(valeur);
-                        return (
-                          <div key={cle} className="flex justify-between gap-4 pt-2">
-                            <span className="text-gray-500 text-xs capitalize">{cle.replace(/_/g, " ")}</span>
-                            <span className="font-semibold text-gray-800 text-right break-all">{affichage}</span>
-                          </div>
-                        );
-                      })}
-                  </>
-                ) : (
-                  <p className="text-gray-400 text-center py-4 italic">Pas encore de données extraites.</p>
-                )}
-              </div>
-            </div>
-
-            {/* VÉRIFICATIONS DE L'IA */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-              <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <span>🛡️</span> Vérifications
-              </h2>
-              <div className="space-y-3 text-sm">
-                {verifications.map((v) => (
-                  <div key={v.label} className="flex items-center justify-between p-2 rounded bg-gray-50 border border-gray-100">
-                    <span className={`text-xs font-medium ${v.ok === false ? "text-red-600" : "text-gray-600"}`}>{v.label}</span>
-                    <span>
-                      {v.ok === null ? (
-                        <span className="text-gray-400 font-bold" title="Non vérifiable">—</span>
-                      ) : v.ok ? (
-                        <span className="text-green-500 font-bold text-lg leading-none" title="Vérification OK">✓</span>
-                      ) : (
-                        <span className="text-red-500 font-bold text-lg leading-none" title="Anomalie détectée">✕</span>
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              {detail.ecriture?.anomalie_details && (
-                <div className="mt-4 bg-orange-50 border border-orange-200 rounded-md p-3 flex gap-2 items-start">
-                  <span className="text-orange-500 text-lg leading-none">⚠️</span>
-                  <p className="text-xs text-orange-800 font-medium">{detail.ecriture.anomalie_details}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* DÉTAILS BANQUE / COMPTABILITÉ (DROITE) */}
-          <div className="col-span-12 lg:col-span-4 space-y-4">
-            
-            {/* ---- AFFICHAGE CONDITIONNEL : BANQUE OU ECRITURE CLASSIQUE ---- */}
-            {detail.categorie === "banque" ? (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <span>🏦</span> Mouvements du relevé bancaire
-                </h2>
-                {detail.mouvements_bancaires && detail.mouvements_bancaires.length > 0 ? (
-                  <div className="overflow-x-auto rounded-lg border border-gray-100">
-                    <table className="w-full text-xs">
-                      <thead className="bg-gray-50">
-                        <tr className="text-left text-gray-500 border-b border-gray-200">
-                          <th className="px-3 py-2 font-semibold">Date</th>
-                          <th className="px-3 py-2 font-semibold">Libellé</th>
-                          <th className="px-3 py-2 font-semibold text-right">Débit</th>
-                          <th className="px-3 py-2 font-semibold text-right">Crédit</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {detail.mouvements_bancaires.map((mvt) => (
-                          <tr key={mvt.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-3 py-2.5 whitespace-nowrap text-gray-600">{mvt.date_operation}</td>
-                            <td className="px-3 py-2.5 max-w-[120px] truncate font-medium text-gray-800" title={mvt.libelle}>{mvt.libelle}</td>
-                            <td className="px-3 py-2.5 text-right text-red-600 font-semibold">
-                              {mvt.type_mouvement === "DEBIT" ? Number(mvt.montant).toFixed(2) : ""}
-                            </td>
-                            <td className="px-3 py-2.5 text-right text-green-600 font-semibold">
-                              {mvt.type_mouvement === "CREDIT" ? Number(mvt.montant).toFixed(2) : ""}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400 bg-gray-50 p-4 rounded-lg text-center border border-dashed border-gray-200">Aucun mouvement n'a encore été extrait pour ce relevé.</p>
-                )}
-              </div>
-            ) : (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <span>🧮</span> Écriture comptable proposée
-                </h2>
-                {lignesEcriture.length > 0 ? (
-                  <div className="overflow-x-auto rounded-lg border border-gray-100">
-                    <table className="w-full text-xs">
-                      <thead className="bg-gray-50">
-                        <tr className="text-left text-gray-500 border-b border-gray-200">
-                          <th className="px-3 py-2 font-semibold">Compte</th>
-                          <th className="px-3 py-2 font-semibold">Libellé</th>
-                          <th className="px-3 py-2 font-semibold text-right">Débit</th>
-                          <th className="px-3 py-2 font-semibold text-right">Crédit</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {lignesEcriture.map((ligne, idx) => (
-                          <tr key={`${ligne.compte}-${idx}`} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-3 py-2.5 font-medium text-blue-600">{ligne.compte}</td>
-                            <td className="px-3 py-2.5 text-gray-700">{ligne.libelle}</td>
-                            <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{ligne.debit ? parseFloat(ligne.debit).toFixed(2) : "-"}</td>
-                            <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{ligne.credit ? parseFloat(ligne.credit).toFixed(2) : "-"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400 bg-gray-50 p-4 rounded-lg text-center border border-dashed border-gray-200">Pas encore d'écriture générée pour ce document.</p>
-                )}
-              </div>
-            )}
-            {/* ----------------------------------------------------------- */}
-
-            {/* ZONE DE COMMENTAIRES */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-              <h2 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <span>💬</span> Commentaires
-              </h2>
-              <textarea
-                value={commentaireDraft}
-                onChange={(e) => setCommentaireDraft(e.target.value)}
-                placeholder="Ajouter un commentaire (Bientôt disponible)..."
-                disabled
-                rows={2}
-                title="Bientôt disponible — nécessite une table de commentaires côté backend"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400 cursor-not-allowed resize-none focus:outline-none"
-              />
-            </div>
-
-            {/* HISTORIQUE */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-              <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <span>⏱️</span> Historique
-              </h2>
-              <ul className="text-sm space-y-3 relative before:absolute before:inset-y-0 before:left-1.5 before:w-0.5 before:bg-gray-100 pl-4">
-                <li className="flex justify-between items-start relative">
-                  <span className="absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_0_2px_#fff]"></span>
-                  <span className="text-gray-700 font-medium text-xs">Document importé</span>
-                  <span className="text-gray-400 text-[10px]">{new Date(detail.created_at).toLocaleDateString("fr-FR")}</span>
-                </li>
-                {detail.statut !== "en_attente" && (
-                  <li className="flex justify-between items-start relative">
-                    <span className="absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_0_2px_#fff]"></span>
-                    <span className="text-gray-700 font-medium text-xs">Extraction IA terminée</span>
-                    <span className="text-gray-400 text-[10px]">—</span>
-                  </li>
-                )}
-                {detail.ecriture && (
-                  <li className="flex justify-between items-start relative">
-                    <span className={`absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full shadow-[0_0_0_2px_#fff] ${detail.ecriture.statut_validation === 'valide' ? 'bg-green-500' : 'bg-yellow-400'}`}></span>
-                    <span className="text-gray-700 font-medium text-xs">Écriture {VALIDATION_LABELS[detail.ecriture.statut_validation]}</span>
-                    <span className="text-gray-400 text-[10px]">—</span>
-                  </li>
-                )}
-              </ul>
-            </div>
-
-            {/* ACTIONS SUR LE DOCUMENT */}
-            {detail.ecriture && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex gap-3 flex-wrap">
-                <button
-                  onClick={handleReject}
-                  disabled={isProcessing || detail.ecriture.statut_validation === "rejete"}
-                  className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-100 hover:bg-red-100 hover:border-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              <div className="flex flex-wrap items-center gap-2">
+                <h1
+                  className="max-w-3xl truncate text-xl font-bold text-slate-900"
+                  title={detail.nom_fichier_original}
                 >
-                  Rejeter
-                </button>
-                <button
-                  onClick={ouvrirCorrection}
-                  className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-yellow-50 text-yellow-700 border border-yellow-100 hover:bg-yellow-100 hover:border-yellow-200 transition-all"
-                >
-                  Corriger
-                </button>
-                <button
-                  onClick={handleValidate}
-                  disabled={isProcessing || detail.ecriture.statut_validation === "valide"}
-                  className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all"
-                >
-                  Valider
-                </button>
-                <a
-                  href={`http://localhost:8000/export/topaze/${detail.ecriture.id}?token=${localStorage.getItem("comptaflow_token")}`}
-                  className="w-full mt-2 px-4 py-2 rounded-lg text-sm font-bold bg-slate-800 text-white hover:bg-slate-700 text-center shadow-sm transition-all flex items-center justify-center gap-2"
-                >
-                  <span>⬇️</span> Exporter vers Topaze
-                </a>
-              </div>
-            )}
-          </div>
-        </div>
+                  {detail.nom_fichier_original}
+                </h1>
 
-        {/* DOCUMENTS SIMILAIRES / CHRONOS */}
-        <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-12 lg:col-span-8 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mb-4">
-              <span className="font-bold text-gray-800 text-sm flex items-center gap-2"><span>📂</span> Chronos voisins</span>
-              {entrepriseNom && <span className="bg-gray-100 px-2 py-0.5 rounded-full">{entrepriseNom}</span>}
-              {detail.annee && <span className="bg-gray-100 px-2 py-0.5 rounded-full">{detail.annee}</span>}
-              {detail.categorie && <span className="capitalize bg-gray-100 px-2 py-0.5 rounded-full">{detail.categorie}</span>}
-            </div>
-            
-            <div className="flex gap-4 overflow-x-auto pb-3 snap-x">
-              {siblingsFiltres.length === 0 && (
-                <p className="text-sm text-gray-400 py-6 text-center w-full bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                  Aucun document trouvé pour ce classement.
-                </p>
-              )}
-              {siblingsFiltres.map((doc) => (
-                <button
-                  key={doc.id}
-                  onClick={() => navigate(`/documents/${doc.id}`)}
-                  className={`shrink-0 w-40 text-left border rounded-xl p-3 hover:border-green-400 hover:shadow-md transition-all snap-start ${
-                    doc.id === detail.id ? "border-green-500 bg-green-50/50 shadow-sm ring-1 ring-green-500" : "border-gray-200 bg-white"
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    DOCUMENT_STATUS_CLASSES[detail.statut] ??
+                    "bg-slate-100 text-slate-700"
                   }`}
                 >
-                  <p className="text-xs font-bold text-gray-800 truncate mb-1" title={doc.nom_fichier_original}>{doc.nom_fichier_original}</p>
-                  <div className="flex justify-between items-center mb-1">
-                    <p className="text-[10px] text-gray-500 font-medium">
-                      {doc.date_piece ? new Date(doc.date_piece).toLocaleDateString("fr-FR") : "Date inc."}
-                    </p>
-                  </div>
-                  <p className="text-[11px] font-bold text-gray-900 mb-2">
-                    {doc.montant_ttc ? `${parseFloat(doc.montant_ttc).toFixed(2)} DH` : "—"}
-                  </p>
-                  {doc.statut_validation && (
-                    <span
-                      className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                        doc.statut_validation === "valide" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
-                      }`}
-                    >
-                      {VALIDATION_LABELS[doc.statut_validation]}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
+                  {DOCUMENT_STATUS_LABELS[detail.statut] ?? detail.statut}
+                </span>
 
-          <div className="col-span-12 lg:col-span-4 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <h2 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <span>🔍</span> Recherche rapide
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Nom de fichier</label>
-                <input
-                  type="text"
-                  value={rechercheFooter}
-                  onChange={(e) => setRechercheFooter(e.target.value)}
-                  placeholder="Ex: Facture_01..."
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all"
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    VALIDATION_CLASSES[validationStatus] ??
+                    "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {VALIDATION_LABELS[validationStatus] ?? validationStatus}
+                </span>
+              </div>
+
+              <p className="mt-1.5 text-sm text-slate-500">
+                {entrepriseName}
+                {detail.categorie ? ` • ${detail.categorie}` : ""}
+                {detail.annee ? ` • ${detail.annee}` : ""}
+                {detail.mois
+                  ? `/${String(detail.mois).padStart(2, "0")}`
+                  : ""}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => void handleExport("csv")}
+                disabled={currentAction === "export-csv"}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                <FileText size={16} />
+                CSV
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void handleExport("xlsx")}
+                disabled={currentAction === "export-xlsx"}
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+              >
+                <FileSpreadsheet size={16} />
+                Excel
+              </button>
+
+              <a
+                href={fileUrl ?? undefined}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <ExternalLink size={16} />
+                Fichier
+              </a>
+
+              <button
+                type="button"
+                onClick={() => void handleRetraiter()}
+                disabled={currentAction === "retraiter"}
+                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+              >
+                <RefreshCw
+                  size={16}
+                  className={currentAction === "retraiter" ? "animate-spin" : ""}
                 />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Statut</label>
-                <select
-                  value={filtreStatutFooter}
-                  onChange={(e) => setFiltreStatutFooter(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all cursor-pointer"
-                >
-                  <option value="">Tous les statuts</option>
-                  <option value="brouillon">Brouillon</option>
-                  <option value="a_verifier">À vérifier</option>
-                  <option value="valide">Validé</option>
-                  <option value="rejete">Rejeté</option>
-                </select>
-              </div>
+                Retraiter
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void handleDelete()}
+                disabled={currentAction === "delete"}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                <Trash2 size={16} />
+                Supprimer
+              </button>
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* MODALE DE CORRECTION D'ÉCRITURE */}
-        {isEditing && detail.ecriture && (
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md animate-fade-in-up">
-              <h2 className="text-lg font-bold text-gray-800 mb-5 border-b border-gray-100 pb-3">Corriger l'écriture comptable</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="edit-tiers" className="block text-xs font-bold text-gray-600 mb-1">Tiers (Client / Fournisseur)</label>
-                  <input
-                    id="edit-tiers"
-                    type="text"
-                    value={editForm.tiers}
-                    onChange={(e) => setEditForm({ ...editForm, tiers: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="edit-num" className="block text-xs font-bold text-gray-600 mb-1">N° pièce</label>
-                    <input
-                      id="edit-num"
-                      type="text"
-                      value={editForm.numero_piece}
-                      onChange={(e) => setEditForm({ ...editForm, numero_piece: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="edit-date" className="block text-xs font-bold text-gray-600 mb-1">Date pièce</label>
-                    <input
-                      id="edit-date"
-                      type="date"
-                      value={editForm.date_piece}
-                      onChange={(e) => setEditForm({ ...editForm, date_piece: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-3 pt-2">
-                  <div>
-                    <label htmlFor="edit-ht" className="block text-xs font-bold text-gray-600 mb-1">HT</label>
-                    <input
-                      id="edit-ht"
-                      type="number" step="0.01"
-                      value={editForm.montant_ht}
-                      onChange={(e) => setEditForm({ ...editForm, montant_ht: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="edit-tva" className="block text-xs font-bold text-gray-600 mb-1">TVA</label>
-                    <input
-                      id="edit-tva"
-                      type="number" step="0.01"
-                      value={editForm.montant_tva}
-                      onChange={(e) => setEditForm({ ...editForm, montant_tva: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="edit-ttc" className="block text-xs font-bold text-gray-600 mb-1">TTC</label>
-                    <input
-                      id="edit-ttc"
-                      type="number" step="0.01"
-                      value={editForm.montant_ttc}
-                      onChange={(e) => setEditForm({ ...editForm, montant_ttc: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm font-medium bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
-                <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                  Annuler
-                </button>
-                <button
-                  onClick={enregistrerCorrection}
-                  disabled={isProcessing}
-                  className="px-5 py-2 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-700 shadow-sm disabled:opacity-50 transition-colors"
-                >
-                  Enregistrer
-                </button>
-              </div>
+        {error && (
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <XCircle className="mt-0.5 shrink-0" size={17} />
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <CheckCircle2 className="mt-0.5 shrink-0" size={17} />
+            {success}
+          </div>
+        )}
+
+        {detail.message_erreur && (
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <AlertTriangle className="mt-0.5 shrink-0" size={17} />
+            <div>
+              <p className="font-semibold">Erreur de traitement</p>
+              <p>{detail.message_erreur}</p>
             </div>
           </div>
         )}
+
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3.5">
+              <div className="flex items-center gap-2.5">
+                <FileImage size={19} className="text-blue-700" />
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    Document original
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Comparez le document aux données extraites.
+                  </p>
+                </div>
+              </div>
+
+              {isImage && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setZoom((value) => Math.max(50, value - 10))}
+                    className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100"
+                    title="Réduire"
+                  >
+                    <ZoomOut size={17} />
+                  </button>
+                  <span className="min-w-12 text-center text-xs font-semibold text-slate-500">
+                    {zoom}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setZoom((value) => Math.min(200, value + 10))}
+                    className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100"
+                    title="Agrandir"
+                  >
+                    <ZoomIn size={17} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="h-[720px] overflow-auto bg-slate-100 p-3">
+              {isPdf && fileUrl && (
+                <iframe
+                  src={fileUrl}
+                  title={`Aperçu de ${detail.nom_fichier_original}`}
+                  className="h-full w-full rounded-xl border-0 bg-white"
+                />
+              )}
+
+              {isImage && fileUrl && (
+                <div className="flex min-h-full items-start justify-center">
+                  <img
+                    src={fileUrl}
+                    alt={detail.nom_fichier_original}
+                    style={{ width: `${zoom}%` }}
+                    className="max-w-none rounded-xl bg-white shadow"
+                  />
+                </div>
+              )}
+
+              {!isPdf && !isImage && (
+                <div className="flex h-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white text-center text-slate-500">
+                  <FileText size={44} className="mb-3 text-slate-300" />
+                  <p className="font-semibold">Aperçu non disponible</p>
+                  <p className="mt-1 text-xs">
+                    Utilisez le bouton « Fichier » pour l'ouvrir.
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="space-y-5">
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                <div>
+                  <h2 className="font-bold text-slate-900">
+                    Données comptables extraites
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Vérifiez puis corrigez les informations.
+                  </p>
+                </div>
+
+                {detail.ecriture && (
+                  <button
+                    type="button"
+                    onClick={openEntryEditor}
+                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                  >
+                    <Pencil size={15} />
+                    Modifier
+                  </button>
+                )}
+              </div>
+
+              {detail.ecriture ? (
+                <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
+                  <DataCard
+                    label="N° facture"
+                    value={detail.ecriture.numero_piece ?? "—"}
+                  />
+                  <DataCard
+                    label="Date"
+                    value={formatDate(detail.ecriture.date_piece)}
+                  />
+                  <DataCard
+                    label="Tiers"
+                    value={detail.ecriture.tiers ?? "—"}
+                  />
+                  <DataCard
+                    label="Type"
+                    value={detail.ecriture.type_ecriture}
+                  />
+                  <DataCard
+                    label="Montant HT"
+                    value={formatMoney(detail.ecriture.montant_ht)}
+                  />
+                  <DataCard
+                    label="TVA"
+                    value={`${formatMoney(detail.ecriture.montant_tva)}${
+                      detail.ecriture.taux_tva
+                        ? ` (${detail.ecriture.taux_tva} %)`
+                        : ""
+                    }`}
+                  />
+                  <DataCard
+                    label="Montant TTC"
+                    value={formatMoney(detail.ecriture.montant_ttc)}
+                    important
+                  />
+                  <DataCard
+                    label="Validation"
+                    value={
+                      VALIDATION_LABELS[detail.ecriture.statut_validation] ??
+                      detail.ecriture.statut_validation
+                    }
+                  />
+                </div>
+              ) : (
+                <div className="px-5 py-6 text-sm text-slate-500">
+                  {isBankDocument
+                    ? "Ce relevé utilise les mouvements bancaires affichés ci-dessous."
+                    : "Aucune écriture comptable n'a encore été créée."}
+                </div>
+              )}
+
+              {detail.ecriture?.anomalie_detectee && (
+                <div className="m-4 flex gap-2 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
+                  <AlertTriangle size={17} className="mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-semibold">Anomalie détectée</p>
+                    <p>
+                      {detail.ecriture.anomalie_details ??
+                        "Une vérification manuelle est nécessaire."}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 px-5 py-4">
+                <h2 className="font-bold text-slate-900">
+                  Données détectées par l'OCR / IA
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Ces valeurs sont incluses dans les exports CSV et Excel.
+                </p>
+              </div>
+
+              <div className="max-h-[390px] overflow-auto">
+                {extractedRows.length === 0 ? (
+                  <p className="px-5 py-6 text-sm text-slate-400">
+                    Aucune donnée structurée n'a été extraite.
+                  </p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {extractedRows.map((row) => (
+                        <tr
+                          key={row.key}
+                          className="border-b border-slate-100 last:border-0"
+                        >
+                          <th className="w-2/5 bg-slate-50/80 px-4 py-3 text-left align-top text-xs font-semibold text-slate-500">
+                            {row.label}
+                          </th>
+                          <td className="whitespace-pre-wrap break-words px-4 py-3 text-slate-800">
+                            {row.value}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {isBankDocument && (
+          <section className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="font-bold text-slate-900">
+                Mouvements bancaires extraits
+              </h2>
+              <p className="text-xs text-slate-500">
+                Corrigez chaque mouvement avant la validation du relevé.
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[950px] text-sm">
+                <thead>
+                  <tr className="border-b bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Libellé</th>
+                    <th className="px-4 py-3">Référence</th>
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3 text-right">Montant</th>
+                    <th className="px-4 py-3 text-right">Solde</th>
+                    <th className="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {movements.map((movement) => {
+                    const movementType = normalizeMovementType(
+                      movement.type_mouvement,
+                    );
+
+                    return (
+                      <tr
+                        key={movement.id}
+                        className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
+                      >
+                        <td className="px-4 py-3">
+                          {formatDate(movement.date_operation)}
+                        </td>
+                        <td className="max-w-lg px-4 py-3">
+                          {movement.libelle}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500">
+                          {movement.reference ?? "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                              movementType === "credit"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {movementType === "credit" ? "Crédit" : "Débit"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold">
+                          {formatMoney(movement.montant)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {formatMoney(movement.solde_apres_operation)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => openMovementEditor(movement)}
+                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                          >
+                            <Pencil size={14} />
+                            Modifier
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {movements.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-4 py-8 text-center text-slate-400"
+                      >
+                        Aucun mouvement bancaire n'a été extrait.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        <section className="sticky bottom-4 z-20 mt-5 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <label className="inline-flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 px-4 py-2.5 hover:bg-slate-50">
+              <input
+                type="checkbox"
+                checked={Boolean(detail.saisie_topaze)}
+                disabled={currentAction === "saisie"}
+                onChange={() => void handleToggleSaisie()}
+                className="h-4 w-4 accent-blue-600"
+              />
+              <span className="text-sm font-semibold text-slate-700">
+                {isBankDocument
+                  ? "Relevé bancaire saisi"
+                  : "Facture saisie dans Topaze"}
+              </span>
+            </label>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleReject()}
+                disabled={currentAction === "reject"}
+                className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
+              >
+                <X size={17} />
+                Rejeter
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void handleValidate()}
+                disabled={currentAction === "validate"}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50"
+              >
+                <Check size={17} />
+                Valider le document
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
+
+      {isEntryModalOpen && detail.ecriture && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={(event) => void saveEntry(event)}
+            className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl"
+          >
+            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  Modifier les données comptables
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Comparez les valeurs avec le document original.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEntryModalOpen(false)}
+                className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label className="sm:col-span-2">
+                <FieldLabel>Tiers / Fournisseur / Client</FieldLabel>
+                <TextInput
+                  value={entryForm.tiers}
+                  onChange={(event) =>
+                    setEntryForm({ ...entryForm, tiers: event.target.value })
+                  }
+                />
+              </label>
+
+              <label>
+                <FieldLabel>N° pièce / facture</FieldLabel>
+                <TextInput
+                  value={entryForm.numero_piece}
+                  onChange={(event) =>
+                    setEntryForm({
+                      ...entryForm,
+                      numero_piece: event.target.value,
+                    })
+                  }
+                />
+              </label>
+
+              <label>
+                <FieldLabel>Date de la pièce</FieldLabel>
+                <TextInput
+                  type="date"
+                  value={entryForm.date_piece}
+                  onChange={(event) =>
+                    setEntryForm({
+                      ...entryForm,
+                      date_piece: event.target.value,
+                    })
+                  }
+                />
+              </label>
+
+              <label>
+                <FieldLabel>Montant HT</FieldLabel>
+                <TextInput
+                  type="number"
+                  step="0.01"
+                  value={entryForm.montant_ht}
+                  onChange={(event) =>
+                    setEntryForm({
+                      ...entryForm,
+                      montant_ht: event.target.value,
+                    })
+                  }
+                />
+              </label>
+
+              <label>
+                <FieldLabel>Taux TVA</FieldLabel>
+                <select
+                  value={entryForm.taux_tva}
+                  onChange={(event) =>
+                    setEntryForm({
+                      ...entryForm,
+                      taux_tva: event.target.value,
+                    })
+                  }
+                  className={INPUT_CLASS}
+                >
+                  <option value="">Non défini</option>
+                  <option value="20">20 %</option>
+                  <option value="14">14 %</option>
+                  <option value="10">10 %</option>
+                  <option value="7">7 %</option>
+                  <option value="0">0 %</option>
+                </select>
+              </label>
+
+              <label>
+                <FieldLabel>Montant TVA</FieldLabel>
+                <TextInput
+                  type="number"
+                  step="0.01"
+                  value={entryForm.montant_tva}
+                  onChange={(event) =>
+                    setEntryForm({
+                      ...entryForm,
+                      montant_tva: event.target.value,
+                    })
+                  }
+                />
+              </label>
+
+              <label>
+                <FieldLabel>Montant TTC</FieldLabel>
+                <TextInput
+                  type="number"
+                  step="0.01"
+                  required
+                  value={entryForm.montant_ttc}
+                  onChange={(event) =>
+                    setEntryForm({
+                      ...entryForm,
+                      montant_ttc: event.target.value,
+                    })
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setIsEntryModalOpen(false)}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={currentAction === "save-entry"}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-5 py-2 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50"
+              >
+                <Save size={16} />
+                Enregistrer
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {movementForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={(event) => void saveMovement(event)}
+            className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl"
+          >
+            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  Modifier le mouvement bancaire
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Corrigez la ligne extraite depuis le relevé.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMovementForm(null)}
+                className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label>
+                <FieldLabel>Date</FieldLabel>
+                <TextInput
+                  type="date"
+                  required
+                  value={movementForm.date_operation}
+                  onChange={(event) =>
+                    setMovementForm({
+                      ...movementForm,
+                      date_operation: event.target.value,
+                    })
+                  }
+                />
+              </label>
+
+              <label>
+                <FieldLabel>Type</FieldLabel>
+                <select
+                  value={movementForm.type_mouvement}
+                  onChange={(event) =>
+                    setMovementForm({
+                      ...movementForm,
+                      type_mouvement: event.target.value as TypeMouvementBancaire,
+                    })
+                  }
+                  className={INPUT_CLASS}
+                >
+                  <option value="debit">Débit</option>
+                  <option value="credit">Crédit</option>
+                </select>
+              </label>
+
+              <label className="sm:col-span-2">
+                <FieldLabel>Libellé</FieldLabel>
+                <TextInput
+                  required
+                  value={movementForm.libelle}
+                  onChange={(event) =>
+                    setMovementForm({
+                      ...movementForm,
+                      libelle: event.target.value,
+                    })
+                  }
+                />
+              </label>
+
+              <label>
+                <FieldLabel>Référence</FieldLabel>
+                <TextInput
+                  value={movementForm.reference}
+                  onChange={(event) =>
+                    setMovementForm({
+                      ...movementForm,
+                      reference: event.target.value,
+                    })
+                  }
+                />
+              </label>
+
+              <label>
+                <FieldLabel>Montant</FieldLabel>
+                <TextInput
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  value={movementForm.montant}
+                  onChange={(event) =>
+                    setMovementForm({
+                      ...movementForm,
+                      montant: event.target.value,
+                    })
+                  }
+                />
+              </label>
+
+              <label className="sm:col-span-2">
+                <FieldLabel>Solde après opération</FieldLabel>
+                <TextInput
+                  type="number"
+                  step="0.01"
+                  value={movementForm.solde_apres_operation}
+                  onChange={(event) =>
+                    setMovementForm({
+                      ...movementForm,
+                      solde_apres_operation: event.target.value,
+                    })
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setMovementForm(null)}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={currentAction === "save-movement"}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-5 py-2 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50"
+              >
+                <Save size={16} />
+                Enregistrer
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

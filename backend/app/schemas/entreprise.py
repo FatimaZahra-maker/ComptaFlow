@@ -15,3 +15,9 @@ class EntrepriseOut(BaseModel):
     nom: str
     ice: str | None
     creee_automatiquement: bool
+
+
+class EntrepriseDisponibleOut(EntrepriseOut):
+    ecritures_brouillon: int = 0
+    ecritures_a_verifier: int = 0
+    ecritures_validees: int = 0

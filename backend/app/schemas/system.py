@@ -12,6 +12,5 @@ from pydantic import BaseModel
 
 class SystemInfoOut(BaseModel):
     ai_provider: str          # "cloud" ou "local"
-    gemini_configure: bool     # clé Gemini présente ou non (jamais la clé elle-même)
+    groq_configure: bool
     ollama_model: str
-    ollama_url: str

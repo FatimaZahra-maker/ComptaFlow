@@ -12,8 +12,18 @@ Appelée une fois au démarrage de chaque processus :
 """
 import logging
 import sys
+from contextvars import ContextVar
 
-_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+request_id_context: ContextVar[str] = ContextVar("request_id", default="-")
+
+
+class _RequestContextFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = request_id_context.get()
+        return True
+
+
+_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | request_id=%(request_id)s | %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
@@ -29,6 +39,7 @@ def configurer_logging(niveau: int = logging.INFO) -> None:
         return
 
     handler = logging.StreamHandler(sys.stdout)
+    handler.addFilter(_RequestContextFilter())
     handler.setFormatter(logging.Formatter(_FORMAT, datefmt=_DATE_FORMAT))
 
     logger_racine.setLevel(niveau)

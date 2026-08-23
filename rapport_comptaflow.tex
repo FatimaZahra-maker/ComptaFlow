@@ -1,0 +1,1942 @@
+\documentclass[12pt,a4paper,oneside]{report}
+
+% ============================================================
+% Rapport de projet ComptaFlow
+% Les champs inconnus sont volontairement laissés vides.
+% Compilation conseillée : pdflatex (deux passes) ou latexmk.
+% ============================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french,english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.5cm,headheight=15pt]{geometry}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,shapes.geometric,shapes.multipart,calc}
+
+\definecolor{ComptaGreen}{HTML}{15803D}
+\definecolor{ComptaDark}{HTML}{0F172A}
+\definecolor{ComptaLight}{HTML}{F0FDF4}
+\definecolor{ComptaBlue}{HTML}{1D4ED8}
+\definecolor{ComptaOrange}{HTML}{C2410C}
+\definecolor{ComptaGray}{HTML}{64748B}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=ComptaGreen,
+  citecolor=ComptaBlue,
+  urlcolor=ComptaBlue,
+  pdftitle={Conception et réalisation de ComptaFlow},
+  pdfauthor={}
+}
+
+\setstretch{1.15}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{3}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{ComptaFlow}
+\fancyhead[R]{Rapport de projet}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% ---------- Champs à renseigner ----------
+\newcommand{\Auteur}{RADOUI Fatima Zahra}
+\newcommand{\Formation}{Génie informatique}
+\newcommand{\Etablissement}{ENSA de Berrechid}
+\newcommand{\EntrepriseAccueil}{Seguribat}
+\newcommand{\EncadrantPedagogique}{M. Dehaj}
+\newcommand{\EncadrantEntreprise}{M. Faiz Mohammed Er-Raitab}
+\newcommand{\AnneeUniversitaire}{2025--2026}
+\newcommand{\DateSoutenance}{}
+\newcommand{\PeriodeProjet}{du 1\textsuperscript{er} juillet au 30 juillet}
+
+\newcommand{\champ}[1]{%
+  \textbf{#1 :}\enspace\rule{0.58\linewidth}{0.4pt}%
+}
+
+\newcommand{\acompleter}[1]{%
+  \begin{center}
+    \fcolorbox{ComptaGray}{white}{%
+      \begin{minipage}{0.88\textwidth}
+        \vspace{0.35em}\textit{#1}\vspace{0.35em}
+      \end{minipage}%
+    }
+  \end{center}%
+}
+
+\newcommand{\capture}[3]{%
+  \begin{figure}[H]
+    \centering
+    \IfFileExists{#1}{%
+      \includegraphics[width=0.92\textwidth,height=0.62\textheight,keepaspectratio]{#1}%
+    }{%
+      \fcolorbox{ComptaGray}{white}{%
+        \begin{minipage}[c][5.3cm][c]{0.86\textwidth}
+          \centering
+          \textbf{Capture d'écran à insérer}\\[0.7em]
+          Déposer l'image sous : \texttt{\detokenize{#1}}\\[0.5em]
+          #3
+        \end{minipage}%
+      }%
+    }
+    \caption{#2}
+  \end{figure}%
+}
+
+\tikzset{
+  actor/.style={draw, rounded corners, fill=ComptaLight, minimum width=2.7cm,
+    minimum height=0.9cm, align=center, font=\small\bfseries},
+  usecase/.style={draw, ellipse, fill=white, minimum width=3.5cm,
+    minimum height=1cm, align=center, font=\small},
+  box/.style={draw, rounded corners, fill=white, minimum width=3.1cm,
+    minimum height=1cm, align=center, font=\small},
+  layer/.style={draw, rounded corners, very thick, minimum width=12.5cm,
+    minimum height=1.15cm, align=center, font=\small},
+  flow/.style={-{Latex[length=2.3mm]}, thick, draw=ComptaDark},
+  data/.style={draw, rectangle split, rectangle split parts=2, rounded corners,
+    text width=3.25cm, align=left, font=\scriptsize, fill=white},
+  meriseEntity/.style={draw, rectangle split, rectangle split parts=2,
+    rounded corners, text width=3.15cm, align=left, font=\scriptsize,
+    fill=blue!4},
+  meriseAssoc/.style={draw, ellipse, align=center, font=\scriptsize,
+    fill=orange!8, minimum width=2.2cm, minimum height=0.8cm},
+  note/.style={draw, dashed, rounded corners, fill=yellow!8, align=left, font=\scriptsize}
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{ComptaGray},
+  backgroundcolor=\color{black!2},
+  showstringspaces=false
+}
+
+\begin{document}
+
+% ============================================================
+% Page de garde
+% ============================================================
+\begin{titlepage}
+  \begin{center}
+    \vspace*{0.7cm}
+    {\large \Etablissement}\\[0.5cm]
+    {\large \Formation}\\[1.4cm]
+
+    \fcolorbox{ComptaGreen}{ComptaLight}{%
+      \begin{minipage}{0.86\textwidth}
+        \centering
+        \vspace{0.8cm}
+        {\Huge\bfseries\color{ComptaDark} ComptaFlow}\\[0.45cm]
+        {\LARGE Conception et réalisation d'une plateforme intelligente de gestion documentaire et de pré-comptabilité}
+        \vspace{0.8cm}
+      \end{minipage}%
+    }\\[1.5cm]
+
+    {\Large Rapport de projet / stage}\\[1.1cm]
+
+    \begin{tabular}{L{6.2cm}L{6.2cm}}
+      \textbf{Réalisé par :} & \textbf{Entreprise d'accueil :} \\
+      \Auteur & \EntrepriseAccueil \\[0.8cm]
+      \textbf{Encadrant pédagogique :} & \textbf{Encadrant professionnel :} \\
+      \EncadrantPedagogique & \EncadrantEntreprise \\
+    \end{tabular}
+
+    \vfill
+    \textbf{Période du projet :} \PeriodeProjet\\[0.55cm]
+    \textbf{Date de soutenance :} \DateSoutenance\\[0.8cm]
+    {\large Année universitaire : \AnneeUniversitaire}
+  \end{center}
+\end{titlepage}
+
+\pagenumbering{roman}
+
+% ============================================================
+% 1. Remerciements
+% ============================================================
+\chapter*{Remerciements}
+\addcontentsline{toc}{chapter}{Remerciements}
+
+Au terme de cette expérience au sein de \textbf{SEGURIBAT}, je souhaite adresser mes sincères remerciements à toutes les personnes qui ont contribué, chacune à leur manière, à faire de ce stage une expérience aussi enrichissante sur le plan professionnel qu'humain.
+
+Je tiens tout particulièrement à exprimer ma profonde reconnaissance à \textbf{M. Faiz Mohammed Er-Raitab, comptable agréé par l'État, conseiller financier et fiscal et mon encadrant professionnel au sein de SEGURIBAT}, pour la confiance qu'il m'a accordée, sa disponibilité ainsi que l'accompagnement dont j'ai bénéficié tout au long de mon stage. Découvrant pour la première fois le domaine de la comptabilité et ses réalités professionnelles, j'ai pu compter sur ses explications et son expérience pour mieux comprendre les besoins du métier et clarifier de nombreux aspects qui m'étaient encore inconnus.
+
+Cette compréhension progressive du fonctionnement et des besoins réels du domaine m'a permis de mener ma propre réflexion, d'analyser les différentes problématiques rencontrées et, à partir de mes observations, de faire émerger l'idée du projet \textbf{ComptaFlow}. Le travail d'analyse, de conception, de développement puis d'amélioration de cette solution constitue pour moi l'un des aspects les plus marquants de ce stage. Il m'a permis de dépasser la simple application de connaissances techniques pour apprendre à partir d'un besoin réel, à rechercher des solutions adaptées, à remettre en question mes choix et à améliorer progressivement mon travail.
+
+Je remercie également chaleureusement \textbf{l'ensemble de l'équipe de SEGURIBAT} pour son accueil, sa gentillesse, sa disponibilité et son esprit d'entraide. La bienveillance avec laquelle j'ai été intégrée m'a permis d'évoluer dans un environnement agréable, propice à l'apprentissage, aux échanges et à la prise d'initiative.
+
+J'adresse également mes sincères remerciements à \textbf{M. Dehaj}, mon encadrant, pour son accompagnement et ses orientations, ainsi qu'à \textbf{M. Hnini}, chef de la filière, pour son engagement auprès des étudiants. Plus largement, je tiens à exprimer ma reconnaissance à \textbf{l'École Nationale des Sciences Appliquées de Berrechid}, à son corps enseignant et à toutes les personnes qui contribuent à notre formation. Les connaissances et les méthodes acquises au cours de mon parcours m'ont fourni les bases nécessaires pour aborder ce stage avec rigueur, curiosité et volonté d'apprendre.
+
+Cette expérience m'a permis de développer non seulement mes compétences en \textbf{développement logiciel, analyse des besoins, conception d'une solution informatique et intégration de technologies d'intelligence artificielle dans un contexte métier}, mais également des qualités essentielles telles que l'autonomie, l'adaptation, la réflexion, la communication et la persévérance face aux difficultés.
+
+Enfin, je souhaite adresser une pensée toute particulière à \textbf{ma famille}, pour son soutien, ses encouragements et sa présence constante tout au long de mon parcours. Leur confiance constitue pour moi une source précieuse de motivation.
+
+À toutes ces personnes, je souhaite exprimer ma gratitude pour leur contribution à cette expérience qui représente aujourd'hui bien plus qu'un simple stage : \textbf{une étape importante dans ma formation, dans ma compréhension du monde professionnel et dans la construction de mon parcours d'ingénieure.}
+
+% ============================================================
+% 2. Résumé
+% ============================================================
+\chapter*{Résumé}
+\addcontentsline{toc}{chapter}{Résumé}
+
+La transformation numérique des cabinets comptables soulève un double enjeu : accélérer le traitement d'un volume important de pièces tout en conservant la fiabilité, la traçabilité et le contrôle humain qu'exige la comptabilité. Le projet \textbf{ComptaFlow} répond à cet enjeu par une application web multi-tenant de gestion documentaire et de pré-comptabilité. La solution permet d'importer des factures et relevés bancaires, d'en extraire les données, d'identifier l'entreprise gérée et le tiers, de proposer des écritures comptables, puis de soumettre les résultats à validation.
+
+L'application repose sur un frontend React et TypeScript, une API FastAPI, une base PostgreSQL et un traitement asynchrone assuré par Celery et Redis. Son pipeline combine Groq Vision, l'extraction de texte native des PDF, PaddleOCR, Groq texte et un repli local Regex/Ollama. Les règles comptables restent déterministes : l'intelligence artificielle détermine la nature économique, tandis que Python recherche le compte exact dans le plan comptable propre à l'entreprise. Le périmètre inclut également les chronos, la détection de doublons, le Grand Livre, la Balance, la TVA, le CPC, le Bilan, la clôture, les devises Bank Al-Maghrib et le rapprochement bancaire avancé.
+
+La démarche suivie associe analyse du besoin, conception fonctionnelle, informationnelle et applicative, réalisation incrémentale, puis validation par des tests automatisés portant notamment sur les règles comptables, l'isolation des tenants, les états financiers et Banque V2.
+
+\textbf{Mots-clés :} pré-comptabilité, OCR, intelligence artificielle, FastAPI, React, PostgreSQL, multi-tenant, rapprochement bancaire.
+
+% ============================================================
+% 3. Abstract
+% ============================================================
+\begin{otherlanguage}{english}
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+The digital transformation of accounting firms creates a dual challenge: processing large volumes of documents faster while preserving accounting reliability, auditability, and human oversight. \textbf{ComptaFlow} addresses this challenge through a multi-tenant web platform for document management and pre-accounting. The system imports invoices and bank statements, extracts their data, identifies the managed company and the third party, proposes accounting entries, and submits the resulting information for professional review.
+
+The application uses a React and TypeScript frontend, a FastAPI backend, PostgreSQL, and asynchronous processing with Celery and Redis. Its pipeline combines Groq Vision, native PDF text extraction, PaddleOCR, Groq text processing, and a local Regex/Ollama fallback. Accounting decisions remain deterministic: artificial intelligence identifies the economic nature, while Python resolves the exact account from each company's own chart of accounts. The scope also covers document registers, duplicate detection, General Ledger, Trial Balance, VAT, income statement, balance sheet, closing entries, Bank Al-Maghrib exchange rates, and advanced bank reconciliation.
+
+The adopted method combines requirements analysis, functional, information, and application design, incremental implementation, and automated validation of accounting rules, tenant isolation, financial statements, and Bank V2 features.
+
+\textbf{Keywords:} pre-accounting, OCR, artificial intelligence, FastAPI, React, PostgreSQL, multi-tenancy, bank reconciliation.
+\end{otherlanguage}
+
+% ============================================================
+% 4. Listes
+% ============================================================
+\tableofcontents
+\listoffigures
+\listoftables
+
+\chapter*{Liste des abréviations}
+\addcontentsline{toc}{chapter}{Liste des abréviations}
+\begin{longtable}{L{3cm}L{11cm}}
+\toprule
+\textbf{Abréviation} & \textbf{Signification} \\
+\midrule
+API & Application Programming Interface, interface de programmation applicative. \\
+BAM & Bank Al-Maghrib. \\
+BIC & Bank Identifier Code. \\
+CGNC & Code Général de Normalisation Comptable marocain. \\
+CNSS & Caisse Nationale de Sécurité Sociale. \\
+CPC & Compte de Produits et Charges. \\
+CRUD & Create, Read, Update, Delete. \\
+HT & Montant hors taxes. \\
+IA & Intelligence artificielle. \\
+IBAN & International Bank Account Number. \\
+ICE & Identifiant Commun de l'Entreprise. \\
+JWT & JSON Web Token. \\
+OCR & Optical Character Recognition, reconnaissance optique de caractères. \\
+OD & Opérations diverses. \\
+PDF & Portable Document Format. \\
+RIB & Relevé d'Identité Bancaire. \\
+SPA & Single Page Application. \\
+TTC & Montant toutes taxes comprises. \\
+TVA & Taxe sur la valeur ajoutée. \\
+UML & Unified Modeling Language. \\
+UUID & Universally Unique Identifier. \\
+\bottomrule
+\end{longtable}
+
+\clearpage
+\pagenumbering{arabic}
+
+% ============================================================
+% 5. Introduction générale
+% ============================================================
+\chapter{Introduction générale}
+
+\section{Contexte}
+
+Les cabinets comptables reçoivent des documents hétérogènes : factures d'achat et de vente, relevés bancaires, avis fiscaux et sociaux, fichiers PDF natifs ou images numérisées. Leur traitement manuel nécessite la lecture, le classement, la saisie des montants, l'affectation comptable, la détection des anomalies et la validation. La répétition de ces opérations augmente les délais et le risque d'erreur, en particulier lorsque plusieurs dossiers d'entreprises sont gérés simultanément.
+
+ComptaFlow s'inscrit dans ce contexte comme une plateforme d'assistance. Elle automatise les tâches préparatoires mais maintient le comptable au centre de la décision : les résultats incertains sont signalés, les montants extraits sont préservés pour l'audit et aucune écriture ne peut être validée si elle n'est pas équilibrée.
+
+\section{Problématique}
+
+La problématique générale est la suivante :
+
+\begin{quote}
+\textit{Comment automatiser le traitement documentaire et la pré-comptabilité d'un cabinet, depuis le dépôt d'une pièce jusqu'aux états comptables, tout en garantissant l'isolation des dossiers, l'intégrité des montants, la traçabilité et la validation humaine ?}
+\end{quote}
+
+Cette problématique se décline en plusieurs difficultés : variabilité de la qualité des documents, identification fiable des rôles entreprise/tiers, résolution des comptes exacts propres à chaque dossier, traitement des devises, rapprochements bancaires complexes et cohérence des états produits.
+
+\section{Objectifs}
+
+Les objectifs du projet sont :
+
+\begin{itemize}[leftmargin=*]
+  \item centraliser les pièces comptables dans une interface sécurisée ;
+  \item extraire les informations utiles sans altérer silencieusement les valeurs sources ;
+  \item classifier les documents et déterminer correctement le sens achat/vente ;
+  \item préparer les informations nécessaires à la génération des écritures comptables conformément au plan comptable de chaque entreprise ;
+  \item gérer les relevés, comptes bancaires, paiements partiels et allocations multiples ;
+  \item produire les journaux, le Grand Livre, la Balance, la TVA, le CPC et le Bilan ;
+  \item fournir des contrôles de cohérence et une piste d'audit ;
+  \item assurer la séparation et la confidentialité des données entre les différentes entreprises clientes du cabinet.
+\end{itemize}
+
+\section{Méthode suivie}
+
+La réalisation de ComptaFlow s'est appuyée sur une \textbf{démarche incrémentale et itérative inspirée de la méthode Scrum}. Au début du projet, le travail a été organisé sous forme de \textit{sprints} afin de structurer les différentes étapes du développement et de définir progressivement les fonctionnalités à réaliser.
+
+Au fur et à mesure de l'avancement du projet, cette organisation a évolué vers une approche plus flexible. L'approfondissement du domaine comptable, l'étude des règles métier et l'analyse des pratiques observées au sein de SEGURIBAT ont permis d'identifier progressivement de nouveaux besoins, des contraintes supplémentaires ainsi que des améliorations à apporter à l'application.
+
+Le développement s'est ainsi déroulé par cycles successifs. Chaque fonctionnalité était d'abord analysée et conçue, puis implémentée et testée. Des versions intermédiaires de l'application étaient ensuite présentées à \textbf{M. Faiz Mohammed Er-Raitab, encadrant professionnel}, afin de recueillir ses remarques et de vérifier la cohérence du fonctionnement avec les besoins réels du cabinet. Ces retours permettaient de corriger certains éléments, d'améliorer les fonctionnalités existantes ou d'en ajouter de nouvelles.
+
+La méthode de travail suivait donc principalement le cycle suivant : \textbf{analyse du besoin, conception, développement, test, présentation, collecte des retours, puis amélioration}. Cette approche a permis de faire évoluer progressivement ComptaFlow en fonction de la compréhension du domaine comptable et des observations réalisées durant le stage.
+
+Sur le plan technique, chaque évolution était contrôlée au niveau du backend et du frontend. Des tests étaient également réalisés afin de vérifier le bon fonctionnement des fonctionnalités développées et d'identifier les éventuelles erreurs avant leur intégration définitive. Pour les situations comptables ambiguës ou nécessitant une interprétation professionnelle, le système privilégie une \textbf{validation humaine} plutôt qu'une décision automatique non fiable.
+
+Cette démarche a permis de conserver une certaine souplesse tout au long du développement et d'adapter progressivement la solution aux besoins identifiés sur le terrain.
+
+\section{Organisation du rapport}
+
+Après la présentation de l'entreprise d'accueil, le rapport expose le contexte et les besoins du projet. Il détaille ensuite la conception fonctionnelle, informationnelle et applicative. Les chapitres suivants présentent la réalisation, le pipeline de traitement, les principales fonctionnalités, les tests et les résultats. La conclusion dresse le bilan, les compétences acquises et les perspectives, avant les références et annexes.
+
+% ============================================================
+% 6. Présentation de l'entreprise
+% ============================================================
+\chapter{Présentation de l'entreprise d'accueil}
+
+Dans le cadre de mon stage d'initiation, j'ai intégré \textbf{SEGURIBAT}, une entreprise spécialisée dans l'accompagnement comptable, fiscal et administratif des entreprises. Elle assure la gestion d'un portefeuille important composé de plusieurs centaines d'entreprises clientes appartenant à différents secteurs d'activité et situées dans plusieurs régions du Maroc.
+
+Malgré le volume important de dossiers traités, SEGURIBAT fonctionne avec une équipe interne relativement réduite, au sein de laquelle les différentes tâches comptables, fiscales et administratives sont réparties entre les collaborateurs. Cette organisation m'a permis d'observer concrètement le traitement des pièces comptables, la saisie des opérations, les déclarations fiscales, le suivi des dossiers clients ainsi que l'utilisation d'outils professionnels tels que \textbf{Topaze}.
+
+Ce chapitre présente l'entreprise d'accueil, ses principales activités, son organisation interne ainsi que les outils et technologies utilisés dans le cadre de ses activités.
+
+\section{Fiche d'identité}
+\begin{table}[H]
+\centering
+\caption{Fiche d'identité de l'entreprise d'accueil}
+\begin{tabularx}{\textwidth}{L{5cm}Y}
+\toprule
+\textbf{Raison sociale} & SEGURIBAT \\
+\textbf{Secteur d'activité} & Comptabilité, fiscalité, accompagnement administratif et conseil aux entreprises \\
+\textbf{Adresse} & 261, boulevard de Témara, Hay Moulay Abdellah, Aïn Chock, Casablanca \\
+\textbf{Date de création} & 2015 \\
+\textbf{Effectif} & Équipe interne relativement réduite au regard du volume important de dossiers traités \\
+\textbf{Portefeuille clients} & Plusieurs centaines d'entreprises appartenant à différents secteurs d'activité \\
+\textbf{Zone d'intervention} & Plusieurs villes et régions du Maroc \\
+\textbf{Site web} & Non renseigné \\
+\textbf{Responsable / Encadrant professionnel} & M. Faiz Mohammed Er-Raitab --- Comptable agréé par l'État, conseiller financier et fiscal \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Activités}
+
+SEGURIBAT exerce principalement dans les domaines de la \textbf{comptabilité, de la fiscalité et de l'accompagnement administratif des entreprises}. L'entreprise assure le suivi d'un portefeuille important composé de plusieurs centaines d'entreprises clientes appartenant à différents secteurs d'activité et implantées dans plusieurs villes du Maroc.
+
+Ses activités couvrent notamment la \textbf{tenue de la comptabilité}, depuis la réception et le classement des pièces justificatives jusqu'à la saisie et au contrôle des opérations comptables. Les factures d'achat et de vente, les relevés bancaires ainsi que les différentes pièces nécessaires au suivi des dossiers sont traités puis enregistrés dans les outils comptables utilisés par l'entreprise.
+
+SEGURIBAT intervient également dans la \textbf{gestion fiscale}, notamment à travers la préparation et le traitement des déclarations de TVA ainsi que d'autres obligations fiscales liées à l'activité de ses clients. L'entreprise assure aussi certaines démarches administratives et déclaratives auprès des plateformes et organismes concernés.
+
+Ses prestations comprennent par ailleurs la \textbf{gestion de la paie et des déclarations sociales}, notamment celles liées à la CNSS, ainsi que l'accompagnement des entreprises lors de leur création et dans différentes démarches administratives.
+
+L'entreprise réalise également des travaux de \textbf{contrôle comptable, de préparation des bilans, de clôture des exercices et de conseil fiscal}, permettant aux entreprises clientes de suivre leur situation comptable et de respecter leurs obligations réglementaires.
+
+Compte tenu de l'importance du portefeuille géré, l'activité quotidienne implique le traitement d'un volume conséquent de pièces comptables, de déclarations et d'opérations de saisie, de vérification et de classement, réparties entre les différents collaborateurs de l'entreprise.
+
+\section{Organisation et services}
+
+SEGURIBAT fonctionne avec une \textbf{équipe interne relativement réduite} chargée de gérer un portefeuille important d'entreprises clientes. Son organisation repose principalement sur une \textbf{répartition fonctionnelle des tâches}, plutôt que sur une séparation stricte en plusieurs départements indépendants.
+
+Dans le cadre des activités observées, \textbf{M. Faiz}, mon encadrant professionnel, accompagne les collaborateurs dans le traitement des dossiers et intervient dans les opérations nécessitant davantage d'expertise, de contrôle ou de validation.
+
+Les collaborateurs se répartissent les différentes opérations liées au suivi des dossiers clients. Certains interviennent principalement dans la \textbf{saisie comptable}, notamment l'enregistrement des achats, des ventes et des opérations bancaires. D'autres prennent en charge le \textbf{traitement et la vérification de la TVA}, les déclarations fiscales, la paie et les obligations sociales, ainsi que les travaux de contrôle et de préparation de la clôture comptable.
+
+Bien que les responsabilités soient réparties entre les membres de l'équipe, ces différentes activités restent étroitement liées. Les informations issues du classement et de la saisie des pièces comptables servent notamment aux déclarations fiscales, aux opérations de contrôle ainsi qu'à l'établissement des différents états comptables. Cette organisation nécessite donc une coordination régulière entre les collaborateurs afin d'assurer la continuité et la fiabilité du traitement des dossiers.
+
+Le stage a été réalisé principalement \textbf{au sein de l'activité comptable, avec une dimension informatique transversale, sous la supervision de la direction}.
+
+\section{Organigramme}
+
+L'organigramme suivant présente une représentation fonctionnelle simplifiée de SEGURIBAT, établie à partir de l'organisation et de la répartition des tâches observées durant la période de stage. Les pôles indiqués représentent des familles d'activités et non des départements indépendants.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    node distance=1.8cm and 1.2cm,
+    every node/.style={font=\small},
+    main/.style={
+        rectangle,
+        rounded corners=10pt,
+        draw=blue!60!black,
+        very thick,
+        fill=blue!15,
+        minimum width=5cm,
+        minimum height=1.2cm,
+        align=center,
+        text centered
+    },
+    sub/.style={
+        rectangle,
+        rounded corners=8pt,
+        draw=teal!60!black,
+        thick,
+        fill=teal!10,
+        minimum width=4.2cm,
+        minimum height=1.4cm,
+        align=center,
+        text centered
+    },
+    orgarrow/.style={
+        -{Stealth[length=3mm]},
+        thick,
+        draw=blue!70!black
+    }
+]
+  \node[main] (direction) {Supervision de l'activité};
+
+  \node[sub, below left=2.2cm and 5.5cm of direction] (compta) {Pôle Comptabilité};
+  \node[sub, below left=2.2cm and 1.8cm of direction] (fiscalite) {Pôle Fiscalité\\et Déclarations};
+  \node[sub, below right=2.2cm and 1.8cm of direction] (social) {Pôle Social\\et Paie};
+  \node[sub, below right=2.2cm and 5.5cm of direction] (admin) {Pôle Administratif\\et Conseil};
+
+  \draw[orgarrow] (direction.south) |- (compta.north);
+  \draw[orgarrow] (direction.south) |- (fiscalite.north);
+  \draw[orgarrow] (direction.south) |- (social.north);
+  \draw[orgarrow] (direction.south) |- (admin.north);
+\end{tikzpicture}
+}
+\caption{Organigramme fonctionnel simplifié de SEGURIBAT}
+\label{fig:organigramme-seguribat}
+\end{figure}
+
+\section{Technologies utilisées par l'entreprise}
+
+Dans le cadre de ses activités comptables, fiscales et administratives, SEGURIBAT s'appuie principalement sur des outils spécialisés permettant d'assurer la saisie, le suivi et le traitement des dossiers de ses entreprises clientes.
+
+Une grande partie des \textbf{factures et pièces comptables est reçue sous format physique}. Ces documents sont ensuite triés, classés et exploités par les collaborateurs avant la saisie des informations nécessaires dans les outils comptables. Les imprimantes et les scanners sont ainsi régulièrement utilisés pour la gestion, la reproduction et, lorsque cela est nécessaire, la numérisation des documents.
+
+L'outil central utilisé par l'entreprise est \textbf{Topaze}, un logiciel de gestion comptable permettant notamment la saisie et la consultation des écritures, la gestion des journaux d'achat, de vente, de banque, de caisse, d'opérations diverses et de paie, ainsi que le suivi du plan comptable.
+
+Topaze intègre également différentes fonctionnalités liées à la \textbf{TVA, aux immobilisations, à la paie, à la gestion commerciale et aux états de synthèse}, ce qui en fait l'un des principaux outils utilisés quotidiennement par les collaborateurs.
+
+En complément, \textbf{Microsoft Excel} est utilisé ponctuellement pour certains traitements ou contrôles de données. Les échanges professionnels s'effectuent notamment à travers \textbf{Gmail} et \textbf{WhatsApp}.
+
+L'entreprise utilise par ailleurs des \textbf{postes de travail sous Windows}, ainsi que des ressources partagées permettant aux collaborateurs d'accéder aux fichiers nécessaires au traitement des différents dossiers clients.
+
+Les principaux outils observés peuvent être résumés comme suit :
+
+\begin{table}[H]
+\centering
+\caption{Outils et technologies utilisés par SEGURIBAT}
+\label{tab:technologies-seguribat}
+\begin{tabularx}{\textwidth}{L{3.2cm}L{4.2cm}Y}
+\toprule
+\textbf{Catégorie} & \textbf{Outils et moyens} & \textbf{Usage principal} \\
+\midrule
+Gestion documentaire & Documents papier, imprimantes et scanners & Réception, classement, impression et numérisation des pièces \\
+Logiciel comptable & Topaze & Saisie, journaux comptables, TVA, paie, immobilisations et états de synthèse \\
+Bureautique & Microsoft Excel & Contrôles et traitements ponctuels \\
+Communication & Gmail et WhatsApp & Échanges professionnels \\
+Infrastructure & Postes Windows et ressources partagées & Accès aux logiciels et aux dossiers clients \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ============================================================
+% 7. Contexte du projet
+% ============================================================
+\chapter{Contexte du projet ComptaFlow}
+
+\section{Problème métier}
+
+Le traitement des pièces comptables au sein de SEGURIBAT repose encore sur plusieurs opérations manuelles, depuis l'identification et le classement des documents jusqu'à l'extraction des informations et leur saisie dans le logiciel comptable Topaze. La figure~\ref{fig:processus-actuel-seguribat} présente le processus observé au sein de l'entreprise.
+
+\begin{figure}[H]
+\centering
+\resizebox{!}{0.78\textheight}{%
+\begin{tikzpicture}[
+  node distance=0.3cm,
+  currentprocess/.style={
+    draw=ComptaGray,
+    rounded corners=4pt,
+    fill=black!2,
+    text width=9.3cm,
+    minimum height=0.62cm,
+    align=center,
+    font=\footnotesize,
+    inner sep=3pt
+  },
+  currentterminal/.style={
+    draw=ComptaGreen,
+    ellipse,
+    fill=ComptaLight,
+    minimum width=2.7cm,
+    minimum height=0.65cm,
+    align=center,
+    font=\footnotesize\bfseries
+  },
+  currentarrow/.style={
+    -{Stealth[length=2.2mm]},
+    thick,
+    draw=ComptaDark
+  }
+]
+  \node[currentterminal] (start) {Début};
+  \node[currentprocess, below=of start] (receive) {Réception des documents comptables\\PDF, courriels, scans et autres pièces};
+  \node[currentprocess, below=of receive] (print) {Impression des documents};
+  \node[currentprocess, below=of print] (company) {Identification de l'entreprise concernée};
+  \node[currentprocess, below=of company] (year) {Identification de l'année comptable};
+  \node[currentprocess, below=of year] (category) {Identification de la catégorie\\achat, vente, banque, CNSS, TVA, etc.};
+  \node[currentprocess, below=of category] (filing) {Classement manuel dans le chrono\\entreprise $\rightarrow$ année $\rightarrow$ catégorie};
+  \node[currentprocess, below=of filing] (open) {Ouverture du chrono concerné};
+  \node[currentprocess, below=of open] (select) {Sélection de la catégorie à traiter};
+  \node[currentprocess, below=of select] (read) {Lecture de la pièce comptable};
+  \node[currentprocess, below=of read] (extract) {Extraction manuelle des informations\\date, numéro de facture, ICE / IF / RC et montants HT / TVA / TTC};
+  \node[currentprocess, below=of extract] (entry) {Saisie manuelle dans Topaze};
+  \node[currentprocess, below=of entry] (stamp) {Apposition du cachet « Document saisi »};
+  \node[currentterminal, below=of stamp] (end) {Fin};
+
+  \draw[currentarrow] (start) -- (receive);
+  \draw[currentarrow] (receive) -- (print);
+  \draw[currentarrow] (print) -- (company);
+  \draw[currentarrow] (company) -- (year);
+  \draw[currentarrow] (year) -- (category);
+  \draw[currentarrow] (category) -- (filing);
+  \draw[currentarrow] (filing) -- (open);
+  \draw[currentarrow] (open) -- (select);
+  \draw[currentarrow] (select) -- (read);
+  \draw[currentarrow] (read) -- (extract);
+  \draw[currentarrow] (extract) -- (entry);
+  \draw[currentarrow] (entry) -- (stamp);
+  \draw[currentarrow] (stamp) -- (end);
+\end{tikzpicture}%
+}
+\caption{Processus actuel de traitement d'une pièce comptable au sein de SEGURIBAT}
+\label{fig:processus-actuel-seguribat}
+\end{figure}
+
+La succession de ces opérations mobilise un temps important, en particulier lorsque le nombre de pièces augmente. Elle expose également le traitement à des erreurs de classement ou de transcription, rend les anomalies moins visibles avant la saisie et complique la traçabilité uniforme des opérations entre les différents dossiers clients. Pour les relevés bancaires, le collaborateur doit en outre examiner les mouvements et rechercher les pièces correspondantes avant leur traitement comptable.
+
+\section{Solutions déjà utilisées et limites}
+
+\begin{table}[H]
+\centering
+\caption{Solutions utilisées par SEGURIBAT et limites observées}
+\label{tab:solutions-existantes-seguribat}
+\begin{tabularx}{\textwidth}{L{3.3cm}L{5.1cm}Y}
+\toprule
+\textbf{Solution utilisée} & \textbf{Utilisation} & \textbf{Limites observées} \\
+\midrule
+\textbf{Chronos physiques} & Classer les pièces par entreprise, année et catégorie. & Classement manuel et recherche lente en cas d'anomalie. \\
+\textbf{Traitement manuel des pièces} & Identifier l'entreprise, lire la pièce et relever les informations nécessaires. & Processus répétitif, long et exposé aux erreurs de transcription. \\
+\textbf{Topaze} & Saisir les écritures et réaliser une grande partie des traitements comptables. & Les informations doivent encore être préparées et saisies manuellement. \\
+\textbf{Microsoft Excel} & Effectuer certains calculs complémentaires avant la saisie dans Topaze. & Les résultats doivent être reportés manuellement dans Topaze, avec un risque d'erreur. \\
+\textbf{E-mail et PDF} & Recevoir certaines pièces sous format numérique. & Les documents sont souvent imprimés avant d'être classés dans les chronos. \\
+\textbf{Imprimante / scanner} & Imprimer les pièces reçues et numériser certains documents. & Ne supprime ni le classement physique ni la saisie manuelle. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ces solutions permettent d'assurer le traitement comptable, mais le processus reste \textbf{semi-manuel}, notamment pour le classement, la lecture des pièces, certains calculs et la préparation des données avant leur saisie dans Topaze.
+
+\section{Présentation de ComptaFlow}
+
+ComptaFlow est une plateforme web intelligente destinée aux cabinets comptables. Elle relie la gestion documentaire, l'extraction OCR/IA, les règles de pré-comptabilité et les contrôles professionnels. Une pièce suit un état explicite : en attente, en traitement, traitée, validée ou en erreur. Les écritures suivent de leur côté un cycle brouillon, à vérifier, validé ou rejeté.
+
+Le système sépare trois responsabilités : l'IA extrait et propose une nature économique ; les services Python appliquent les règles ; le plan comptable de l'entreprise fournit le compte exact. Cette séparation réduit le risque d'invention et conserve une intervention humaine lorsque plusieurs comptes sont compatibles ou qu'une donnée est incohérente.
+
+\section{Objectifs spécifiques}
+
+\begin{enumerate}[leftmargin=*]
+  \item Centraliser et sécuriser les pièces comptables afin de faciliter leur stockage et leur recherche.
+  \item Automatiser l'extraction et le classement des documents, avec des mécanismes de repli en cas d'échec.
+  \item Préparer les données comptables en s'appuyant sur le plan comptable de chaque entreprise et en maintenant une validation humaine lorsque nécessaire.
+  \item Assurer la séparation et la confidentialité des données entre les différentes entreprises clientes du cabinet.
+  \item Gérer les opérations bancaires et les rapprochements, y compris les paiements partiels et multiples.
+  \item Produire les principaux journaux et états comptables et assister la préparation de la clôture.
+  \item Préserver la traçabilité des données et faciliter leur exploitation dans le flux comptable existant, notamment avec Topaze.
+\end{enumerate}
+
+% ============================================================
+% 8. Besoins
+% ============================================================
+\chapter{Analyse des besoins}
+
+\section{Acteurs}
+
+Le système distingue les rôles techniques d'administration des rôles liés au fonctionnement du cabinet. Chaque utilisateur dispose ainsi de droits adaptés à ses responsabilités.
+
+\begin{table}[H]
+\centering
+\caption{Acteurs de ComptaFlow et responsabilités principales}
+\label{tab:acteurs-comptaflow}
+\begin{tabularx}{\textwidth}{L{4.2cm}Y}
+\toprule
+\textbf{Acteur} & \textbf{Responsabilités principales} \\
+\midrule
+\textbf{Super-administrateur} & Assure l'administration technique globale, la configuration initiale et certaines opérations de maintenance de la plateforme. Durant le développement et les tests, ce rôle a été assuré par la développeuse du projet. \\
+\textbf{Administrateur du cabinet} & Gère les utilisateurs du cabinet, attribue les rôles et supervise les paramètres liés à son organisation. \\
+\textbf{Expert-comptable} & Contrôle les informations comptables, examine les anomalies et intervient dans les validations sensibles. \\
+\textbf{Chef de mission} & Supervise le traitement des dossiers et contrôle l'avancement des opérations comptables. \\
+\textbf{Collaborateur} & Importe les documents, consulte les chronos, vérifie les informations extraites et réalise les opérations courantes. \\
+\textbf{Assistant} & Participe aux tâches de préparation, d'import et de consultation avec des droits plus limités. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Le \textbf{super-administrateur} possède donc un rôle technique global, distinct des utilisateurs opérationnels du cabinet. Les autres profils correspondent à une organisation progressive des responsabilités métier.
+
+L'accès à l'application est protégé par authentification. Après connexion, les droits associés au rôle de l'utilisateur déterminent les fonctionnalités auxquelles il peut accéder et les opérations qu'il peut effectuer.
+
+\section{Besoins fonctionnels}
+
+\begin{longtable}{L{1.4cm}L{5cm}L{8cm}}
+\caption{Besoins fonctionnels principaux}\label{tab:bf}\\
+\toprule
+\textbf{ID} & \textbf{Besoin} & \textbf{Description} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{ID} & \textbf{Besoin} & \textbf{Description} \\
+\midrule
+\endhead
+BF01 & Authentification et rôles & Permettre la connexion des utilisateurs et limiter les actions selon le rôle attribué. \\
+BF02 & Isolation des données & Séparer les données de chaque entreprise cliente et garantir qu'un utilisateur n'accède qu'aux informations autorisées. \\
+BF03 & Import documentaire & Importer des factures, relevés et autres pièces autorisées tout en contrôlant leur format, leur taille et les éventuels doublons. \\
+BF04 & Extraction des données & Extraire automatiquement les informations utiles des documents et prévoir un mécanisme de repli lorsque l'extraction principale échoue. \\
+BF05 & Identification et classification & Identifier l'entreprise concernée, reconnaître le tiers et déterminer la nature du document, notamment achat ou vente. \\
+BF06 & Chronos numériques & Classer automatiquement les documents par entreprise, année, mois et catégorie. \\
+BF07 & Préparation comptable & Générer une pré-écriture à partir des informations extraites et permettre sa correction, sa validation ou son rejet. \\
+BF08 & Plan comptable & Importer et gérer le plan comptable propre à chaque entreprise afin d'utiliser les comptes appropriés. \\
+BF09 & Gestion bancaire & Gérer les relevés et comptes bancaires ainsi que les rapprochements simples, partiels, multiples et les virements internes. \\
+BF10 & Gestion des devises & Conserver le montant et la devise d'origine, récupérer le taux de change correspondant et effectuer séparément la conversion en MAD. \\
+BF11 & États comptables & Produire le Grand Livre, la Balance, la TVA, le CPC et le Bilan à partir des données comptables validées. \\
+BF12 & Pré-clôture & Contrôler la cohérence des comptes, signaler les anomalies et préparer les opérations nécessaires à la clôture sous validation humaine. \\
+BF13 & Pilotage et suivi & Fournir un tableau de bord, des alertes, des notifications, des tâches et des outils de recherche permettant de suivre l'activité. \\
+BF14 & Export & Exporter les données et registres et préparer des informations exploitables dans le flux de travail avec Topaze. \\
+\bottomrule
+\end{longtable}
+
+\section{Besoins non fonctionnels}
+
+Les besoins non fonctionnels définissent les exigences de qualité, de sécurité et de fiabilité auxquelles le système doit répondre.
+
+\begin{longtable}{L{1.4cm}L{4.2cm}L{8.8cm}}
+\caption{Besoins non fonctionnels}\label{tab:bnf}\\
+\toprule
+\textbf{ID} & \textbf{Qualité} & \textbf{Exigence} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{ID} & \textbf{Qualité} & \textbf{Exigence} \\
+\midrule
+\endhead
+BNF01 & Sécurité & Protéger l'accès par authentification, mots de passe sécurisés et contrôle des droits selon le rôle. \\
+BNF02 & Confidentialité & Garantir l'isolation des données entre les différentes entreprises et empêcher tout accès non autorisé à un autre dossier. \\
+BNF03 & Intégrité des données & Conserver les valeurs extraites d'origine et signaler toute incohérence sans modification silencieuse. \\
+BNF04 & Fiabilité comptable & Refuser les pré-écritures déséquilibrées et ne jamais générer de compte ou de donnée comptable fictive. \\
+BNF05 & Traçabilité & Conserver les données d'origine, les statuts, les erreurs et les actions de validation afin de permettre le suivi des traitements. \\
+BNF06 & Résilience & Prévoir des mécanismes de reprise et des méthodes alternatives lorsque certains traitements d'extraction échouent. \\
+BNF07 & Performance & Exécuter les traitements lourds sans bloquer l'utilisation de l'interface et maintenir des temps de réponse acceptables. \\
+BNF08 & Maintenabilité & Organiser l'application en composants et services séparés afin de faciliter les corrections et les évolutions. \\
+BNF09 & Portabilité & Permettre le déploiement de l'application dans différents environnements avec une configuration adaptée. \\
+BNF10 & Ergonomie & Proposer une interface claire, responsive et simple à utiliser, avec des statuts, filtres et actions facilement identifiables. \\
+\bottomrule
+\end{longtable}
+
+\section{Diagramme de cas d'utilisation}
+
+Le diagramme de cas d'utilisation présente les principales interactions entre les différents profils utilisateurs et les fonctionnalités du système. Afin d'améliorer la lisibilité, les rôles ayant des responsabilités proches sont regroupés dans une même représentation.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  uc/.style={
+    draw=ComptaBlue!75!black,
+    ellipse,
+    fill=white,
+    text width=3.75cm,
+    minimum height=0.86cm,
+    align=center,
+    font=\scriptsize,
+    inner sep=2.5pt
+  },
+  zoneTitle/.style={font=\scriptsize\bfseries, text=ComptaDark},
+  actorLabel/.style={
+    align=center,
+    font=\scriptsize\bfseries,
+    text=ComptaDark,
+    fill=white,
+    inner sep=1.5pt
+  },
+  association/.style={draw=ComptaGray!90!black, line width=0.42pt},
+  pics/umlactor/.style={code={
+    \draw[draw=ComptaDark, line width=0.65pt] (0,0.55) circle (0.17);
+    \draw[draw=ComptaDark, line width=0.65pt] (0,0.38) -- (0,-0.14);
+    \draw[draw=ComptaDark, line width=0.65pt] (-0.34,0.18) -- (0,0.27) -- (0.34,0.18);
+    \draw[draw=ComptaDark, line width=0.65pt] (0,-0.14) -- (-0.28,-0.52);
+    \draw[draw=ComptaDark, line width=0.65pt] (0,-0.14) -- (0.28,-0.52);
+  }}
+]
+  % Frontière du système
+  \draw[draw=ComptaGray, line width=0.7pt, rounded corners=5pt]
+    (2.45,0.55) rectangle (13.55,16.55);
+  \node[font=\small\bfseries, fill=white, inner xsep=5pt]
+    at (8,16.55) {Système};
+
+  % Zones fonctionnelles
+  \draw[draw=ComptaGray!45, fill=ComptaLight!65, rounded corners=4pt]
+    (3.05,10.65) rectangle (7.75,15.35);
+  \node[zoneTitle] at (5.40,15.05) {Gestion documentaire};
+
+  \draw[draw=ComptaGray!45, fill=blue!3, rounded corners=4pt]
+    (8.25,10.05) rectangle (12.95,15.35);
+  \node[zoneTitle] at (10.60,15.05) {Administration};
+
+  \draw[draw=ComptaGray!45, fill=blue!3, rounded corners=4pt]
+    (3.05,5.55) rectangle (12.95,9.65);
+  \node[zoneTitle] at (8,9.35) {Traitement comptable};
+
+  \draw[draw=ComptaGray!45, fill=ComptaLight!65, rounded corners=4pt]
+    (3.05,1.05) rectangle (12.95,5.05);
+  \node[zoneTitle] at (8,4.75) {Gestion bancaire};
+
+  % Authentification commune
+  \node[uc, text width=3.1cm] (login) at (8,15.95) {S'authentifier};
+
+  % Gestion documentaire
+  \node[uc] (document) at (5.40,13.95) {Importer et consulter\\un document};
+  \node[uc] (correction) at (5.40,12.65) {Corriger ou contrôler\\les données extraites};
+  \node[uc] (chronos) at (5.40,11.35) {Consulter les chronos\\et les registres};
+
+  % Administration
+  \node[uc] (users) at (10.60,13.95) {Gérer les utilisateurs\\et attribuer les rôles};
+  \node[uc] (settings) at (10.60,12.75) {Gérer le plan comptable\\et les comptes bancaires};
+  \node[uc] (pilotage) at (10.60,11.55) {Consulter les outils\\de pilotage};
+  \node[uc] (technical) at (10.60,10.45) {Administrer techniquement\\la plateforme};
+
+  % Traitement comptable
+  \node[uc, text width=4.4cm] (ledger) at (8,8.55) {Consulter le Grand Livre,\\la Balance et la TVA};
+  \node[uc, text width=4.4cm] (statements) at (8,7.30) {Consulter le CPC, le Bilan\\et la pré-clôture};
+  \node[uc, text width=4.4cm] (preentry) at (8,6.15) {Contrôler, valider ou rejeter\\une pré-écriture};
+
+  % Gestion bancaire
+  \node[uc, text width=4.4cm] (statementsBank) at (8,3.85) {Gérer les relevés bancaires};
+  \node[uc, text width=4.4cm] (reconcile) at (8,2.35) {Consulter ou effectuer\\les rapprochements};
+
+  % Acteurs UML à gauche
+  \pic at (0.95,12.80) {umlactor};
+  \node[actorLabel] at (0.95,11.85) {Assistant /\\Collaborateur};
+  \coordinate (assistantLink) at (1.70,12.80);
+
+  \pic at (0.95,7.55) {umlactor};
+  \node[actorLabel] at (0.95,6.55) {Expert-comptable /\\Chef de mission};
+  \coordinate (expertLink) at (1.70,7.55);
+
+  % Acteurs UML à droite ; le rôle technique est séparé visuellement
+  \pic at (15.05,10.45) {umlactor};
+  \node[actorLabel, draw=ComptaOrange!70!black, rounded corners=2pt]
+    at (15.05,9.45) {Super-\\administrateur};
+  \coordinate (superLink) at (14.30,10.45);
+
+  \pic at (15.05,13.35) {umlactor};
+  \node[actorLabel] at (15.05,12.35) {Administrateur\\du cabinet};
+  \coordinate (adminLink) at (14.30,13.35);
+
+  % Associations de l'assistant / collaborateur
+  \draw[association] (assistantLink) -- (document.west);
+  \draw[association] (assistantLink) -- (correction.west);
+  \draw[association] (assistantLink) -- (chronos.west);
+  \draw[association] (assistantLink) -- (2.80,12.80) |- (statementsBank.west);
+  \draw[association] (assistantLink) -- (2.65,12.80) |- (login.west);
+
+  % Associations de l'expert-comptable / chef de mission
+  \draw[association] (expertLink) -- (ledger.west);
+  \draw[association] (expertLink) -- (statements.west);
+  \draw[association] (expertLink) -- (preentry.west);
+  \draw[association] (expertLink) -- (2.90,7.55) |- (document.west);
+  \draw[association] (expertLink) -- (2.75,7.55) |- (correction.west);
+  \draw[association] (expertLink) -- (2.60,7.55) |- (chronos.west);
+  \draw[association] (expertLink) -- (2.45,7.55) |- (reconcile.west);
+  \draw[association] (expertLink) -- (2.30,7.55) |- (login.west);
+
+  % Associations de l'administrateur du cabinet
+  \draw[association] (adminLink) -- (users.east);
+  \draw[association] (adminLink) -- (settings.east);
+  \draw[association] (adminLink) -- (pilotage.east);
+  \draw[association] (adminLink) -- (13.15,13.35) |- (login.east);
+
+  % Associations du super-administrateur technique
+  \draw[association] (superLink) -- (technical.east);
+  \draw[association] (superLink) -- (13.35,10.45) |- (users.east);
+  \draw[association] (superLink) -- (13.50,10.45) |- (login.east);
+\end{tikzpicture}%
+}
+\caption{Diagramme général des cas d'utilisation}
+\label{fig:usecase}
+\end{figure}
+
+Les assistants et collaborateurs interviennent principalement dans le traitement courant des documents. Les chefs de mission et experts-comptables disposent de fonctions supplémentaires de contrôle, de consultation des états comptables et de validation. L'administrateur du cabinet assure principalement la gestion des utilisateurs et des paramètres du cabinet, tandis que le super-administrateur intervient au niveau de l'administration technique globale.
+
+% ============================================================
+% 9. Conception
+% ============================================================
+\chapter{Conception du système}
+
+\section{Conception fonctionnelle}
+
+Le traitement principal d'une pièce comptable suit un enchaînement allant de son import jusqu'au contrôle et à la validation des données obtenues.
+
+\subsection{Scénario nominal d'une facture}
+
+\begin{enumerate}[leftmargin=*]
+  \item L'utilisateur importe une facture au format PDF ou image.
+  \item Le système vérifie le document et l'enregistre pour traitement.
+  \item Les informations utiles de la pièce sont extraites automatiquement.
+  \item Le système identifie l'entreprise concernée, le tiers et détermine s'il s'agit notamment d'un achat ou d'une vente.
+  \item Le document est classé dans le chrono correspondant selon l'entreprise, la période et la catégorie.
+  \item À partir des informations extraites et du plan comptable de l'entreprise, une pré-écriture comptable est préparée.
+  \item L'utilisateur contrôle la pièce, les données extraites et les comptes proposés. Il peut corriger les informations si nécessaire.
+  \item Un utilisateur autorisé valide ou rejette la pré-écriture.
+  \item Les données validées peuvent ensuite alimenter le Grand Livre, la Balance et les autres états comptables.
+\end{enumerate}
+
+\subsection{Diagramme d'activité}
+
+\begin{figure}[H]
+\centering
+\resizebox{!}{0.72\textheight}{%
+\begin{tikzpicture}[node distance=0.72cm]
+  \node[box, fill=ComptaLight] (start) {Sélection du document};
+  \node[box, below=of start] (valid) {Contrôles fichier et doublon};
+  \node[box, below=of valid] (queue) {Enregistrement du document\\pour traitement};
+  \node[box, below=of queue] (extract) {Extraction et classification};
+  \node[box, below=of extract] (company) {Identification entreprise / tiers};
+  \node[diamond, draw, below=0.85cm of company, aspect=2.2, align=center, font=\small] (type) {Document bancaire ?};
+  \node[box, below left=0.9cm and 1.4cm of type] (movement) {Traiter les mouvements et\\rapprochements bancaires};
+  \node[box, below right=0.9cm and 1.4cm of type] (entry) {Préparer la pré-écriture\\comptable};
+  \node[diamond, draw, below=2.2cm of type, aspect=2.2, align=center, font=\small] (check) {Données cohérentes\\et suffisantes ?};
+  \node[box, below left=0.9cm and 1.4cm of check] (manual) {Vérification / correction\\humaine};
+  \node[box, below right=0.9cm and 1.4cm of check] (proposal) {Soumettre à validation};
+  \node[diamond, draw, below=2.2cm of check, aspect=2.2, align=center, font=\small] (approval) {Pré-écriture\\validée ?};
+  \node[box, fill=ComptaLight, below=0.9cm of approval, minimum width=6.2cm] (states) {Alimentation du Grand Livre, de la Balance\\et des états comptables};
+
+  \draw[flow] (start) -- (valid);
+  \draw[flow] (valid) -- (queue);
+  \draw[flow] (queue) -- (extract);
+  \draw[flow] (extract) -- (company);
+  \draw[flow] (company) -- (type);
+  \draw[flow] (type) -| node[above left,font=\scriptsize]{oui} (movement);
+  \draw[flow] (type) -| node[above right,font=\scriptsize]{non} (entry);
+  \draw[flow] (movement) |- (check);
+  \draw[flow] (entry) |- (check);
+  \draw[flow] (check) -| node[above left,font=\scriptsize]{non} (manual);
+  \draw[flow] (check) -| node[above right,font=\scriptsize]{oui} (proposal);
+  \draw[flow] (manual.east) -- node[above,font=\scriptsize]{après correction} (proposal.west);
+  \draw[flow] (proposal.south) |- (approval.east);
+  \draw[flow] (approval.west) -| node[near start,below,font=\scriptsize]{non} ([xshift=-0.7cm]manual.west) -- (manual.west);
+  \draw[flow] (approval) -- node[right,font=\scriptsize]{oui} (states);
+\end{tikzpicture}
+}
+\caption{Activité principale de traitement d'un document}
+\label{fig:activity}
+\end{figure}
+
+\clearpage
+\subsection{Diagramme de séquence du traitement d'une pièce}
+
+Afin de compléter la représentation fonctionnelle précédente, le diagramme suivant illustre les échanges entre les principaux composants. Il met en évidence le traitement asynchrone, l'enregistrement progressif des résultats et le contrôle humain avant validation.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.94\textwidth}{!}{%
+\begin{tikzpicture}[
+  x=1cm,
+  y=1cm,
+  seqParticipant/.style={
+    draw=ComptaBlue,
+    rounded corners=3pt,
+    fill=blue!5,
+    minimum width=2.05cm,
+    minimum height=0.8cm,
+    text width=1.9cm,
+    align=center,
+    font=\scriptsize\bfseries
+  },
+  seqLife/.style={draw=ComptaGray, dashed, thin},
+  seqMessage/.style={-{Latex[length=2mm]}, draw=ComptaDark, thick},
+  seqReturn/.style={-{Latex[length=2mm]}, draw=ComptaGray, dashed},
+  seqLabel/.style={font=\scriptsize, fill=white, inner sep=1.5pt, align=center},
+  seqNote/.style={
+    draw=ComptaOrange,
+    rounded corners=3pt,
+    fill=orange!6,
+    text width=4.2cm,
+    align=left,
+    font=\scriptsize
+  }
+]
+  % Participants
+  \node[seqParticipant] (user) at (0,0) {Utilisateur};
+  \node[seqParticipant] (web) at (2.35,0) {Interface Web};
+  \node[seqParticipant] (api) at (4.7,0) {API FastAPI};
+  \node[seqParticipant] (db) at (7.05,0) {Base PostgreSQL};
+  \node[seqParticipant] (redis) at (9.4,0) {Redis / file de tâches};
+  \node[seqParticipant] (worker) at (11.75,0) {Worker Celery};
+  \node[seqParticipant] (services) at (14.1,0) {Services OCR/IA et métier};
+
+  % Lignes de vie
+  \foreach \participant in {user,web,api,db,redis,worker,services}{
+    \draw[seqLife] (\participant.south) -- ++(0,-15.85);
+  }
+
+  % Import et contrôles initiaux
+  \draw[seqMessage] (0,-0.85) -- node[seqLabel,above]{Sélectionner une pièce} (2.35,-0.85);
+  \draw[seqMessage] (2.35,-1.45) -- node[seqLabel,above]{Importer le fichier} (4.7,-1.45);
+  \draw[seqMessage] (4.7,-2.0) -- ++(0.72,0) -- ++(0,-0.5) -- (4.7,-2.5);
+  \node[seqLabel, font=\tiny, anchor=west] at (5.43,-2.25) {Format / taille / doublon / stockage local};
+  \draw[seqMessage] (4.7,-3.05) -- node[seqLabel,above]{Créer le document\\en attente} (7.05,-3.05);
+  \draw[seqMessage] (4.7,-3.65) -- node[seqLabel,above]{Publier \texttt{process\_document(id)}} (9.4,-3.65);
+  \draw[seqReturn] (4.7,-4.25) -- node[seqLabel,above]{Document créé} (2.35,-4.25);
+
+  % Traitement asynchrone
+  \node[font=\scriptsize\bfseries, text=ComptaGreen, fill=white] at (10.55,-4.7) {Traitement asynchrone};
+  \draw[seqMessage] (9.4,-5.15) -- node[seqLabel,above]{Distribuer la tâche} (11.75,-5.15);
+  \draw[seqMessage] (11.75,-5.75) -- node[seqLabel,above]{Statut : en traitement} (7.05,-5.75);
+  \draw[seqMessage] (11.75,-6.35) -- node[seqLabel,above]{Extraire et classifier} (14.1,-6.35);
+  \draw[seqReturn] (14.1,-6.95) -- node[seqLabel,above]{Texte et données extraites} (11.75,-6.95);
+  \node[seqLabel, font=\scriptsize\itshape, text=ComptaOrange, anchor=east] at (14.1,-7.45) {Repli si l'extraction est insuffisante};
+  \draw[seqMessage] (11.75,-8.55) -- node[seqLabel,above]{Identifier, classer et préparer\\la pré-écriture} (14.1,-8.55);
+  \draw[seqReturn] (14.1,-9.15) -- node[seqLabel,above]{Résultat et anomalies éventuelles} (11.75,-9.15);
+  \draw[seqMessage] (11.75,-9.75) -- node[seqLabel,above]{Enregistrer résultats, statut\\et pré-écriture} (7.05,-9.75);
+  \node[seqLabel, font=\scriptsize\itshape, text=ComptaOrange, anchor=east] at (14.1,-10.35) {Ambiguïté : données conservées, contrôle humain requis};
+
+  % Consultation puis décision humaine
+  \draw[seqMessage] (2.35,-11.25) -- node[seqLabel,above]{Consulter l'avancement} (4.7,-11.25);
+  \draw[seqMessage] (4.7,-11.85) -- node[seqLabel,above]{Lire statut et résultat} (7.05,-11.85);
+  \draw[seqReturn] (7.05,-12.45) -- node[seqLabel,above]{Données persistées} (4.7,-12.45);
+  \draw[seqReturn] (4.7,-13.05) -- node[seqLabel,above]{Afficher pièce et pré-écriture} (2.35,-13.05);
+  \draw[seqMessage] (0,-13.65) -- node[seqLabel,above]{Contrôler et, si nécessaire, corriger} (2.35,-13.65);
+  \draw[seqMessage] (2.35,-14.25) -- node[seqLabel,above]{Correction ou validation / rejet} (4.7,-14.25);
+  \draw[seqMessage] (4.7,-14.85) -- node[seqLabel,above]{Mettre à jour la pré-écriture} (7.05,-14.85);
+  \draw[seqReturn] (4.7,-15.45) -- node[seqLabel,above]{Confirmation} (2.35,-15.45);
+  \draw[seqReturn] (2.35,-16.05) -- node[seqLabel,above]{Résultat de la décision} (0,-16.05);
+\end{tikzpicture}%
+}
+\caption{Diagramme de séquence du traitement d'une pièce comptable}
+\label{fig:sequence-document}
+\end{figure}
+
+L'interface transmet le document sans exécuter elle-même les traitements lourds. L'API contrôle l'import, organise la persistance et déclenche le traitement asynchrone par l'intermédiaire de la file de tâches. Le worker coordonne ensuite l'extraction et l'analyse métier, puis enregistre progressivement les résultats et les anomalies éventuelles. La pré-écriture ainsi préparée reste soumise au contrôle, à la correction et à la décision d'un utilisateur autorisé avant son exploitation dans les fonctions comptables sensibles.
+
+\subsection{Règles fonctionnelles critiques}
+
+Certaines décisions nécessitent des règles métier précises afin d'éviter une classification ou un traitement comptable incorrect.
+
+\begin{table}[H]
+\centering
+\caption{Principales règles fonctionnelles appliquées}
+\label{tab:regles-fonctionnelles-critiques}
+\begin{tabularx}{\textwidth}{L{4.1cm}Y}
+\toprule
+\textbf{Règle} & \textbf{Principe appliqué} \\
+\midrule
+Identification achat / vente & Pour un achat, l'entreprise gérée est destinataire et le tiers est fournisseur. Pour une vente, l'entreprise est émettrice et le tiers est client. La classification ne repose donc pas uniquement sur le nom du tiers. \\
+Contrôle des montants & Les montants HT, TVA et TTC extraits de la pièce sont conservés comme données de référence. Les calculs réalisés servent principalement à vérifier leur cohérence et à signaler les anomalies. \\
+Sélection des comptes & Les comptes sont recherchés dans le plan comptable propre à l'entreprise. Lorsque plusieurs comptes sont possibles ou que le choix est ambigu, le système demande une vérification humaine au lieu de sélectionner arbitrairement un compte. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Conception informationnelle}
+
+\subsection{Principes de modélisation}
+
+Les entités utilisent des UUID et des horodatages. La majorité des données métier propres au cabinet sont rattachées à un \texttt{cabinet\_id}, tandis que les données propres à un dossier comptable sont également associées à un \texttt{entreprise\_id}. Cette redondance contrôlée de portée facilite les filtres de sécurité et empêche qu'un identifiant métier seul donne accès à un autre tenant.
+
+Dans l'implémentation actuelle, le chrono constitue le conteneur documentaire principal d'une entreprise. Il n'est pas créé un chrono distinct pour chaque exercice ou catégorie : le classement interne est porté par les attributs \texttt{annee}, \texttt{mois} et \texttt{categorie} du document. La contrainte \texttt{UNIQUE(entreprise\_id)} de la table \texttt{chronos} traduit donc bien un maximum d'un chrono principal par entreprise.
+
+\subsection{Modèle conceptuel de données Merise}
+
+Le MCD exprime les objets métier et leurs associations sans dépendre de PostgreSQL. Les cardinalités sont écrites dans le sens entité--association. Par exemple, un cabinet gère de zéro à plusieurs entreprises, tandis qu'une entreprise appartient obligatoirement à un seul cabinet. Un document peut rester sans entreprise et sans chrono lorsqu'il concerne directement le cabinet ; cette possibilité est effectivement prévue par le modèle et par le traitement documentaire.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[meriseEntity] (cabinet) at (0,0) {\textbf{CABINET}\nodepart{second}\underline{id\_cabinet}\\nom\\ICE\\coordonnées\\actif};
+  \node[meriseAssoc] (appartenir) at (3,2.25) {APPARTENIR};
+  \node[meriseEntity] (user) at (6,2.25) {\textbf{UTILISATEUR}\nodepart{second}\underline{id\_utilisateur}\\email\\nom, prénom\\rôle\\actif};
+  \node[meriseAssoc] (gerer) at (3,-2.2) {GÉRER};
+  \node[meriseEntity] (company) at (6,-2.2) {\textbf{ENTREPRISE}\nodepart{second}\underline{id\_entreprise}\\nom\\ICE, IF, RC\\forme juridique\\actif};
+
+  \node[meriseAssoc] (deposer) at (9,1.45) {DÉPOSER};
+  \node[meriseEntity] (document) at (12,1.45) {\textbf{DOCUMENT}\nodepart{second}\underline{id\_document}\\fichier, hash\\année, mois, catégorie\\statut, texte OCR\\données extraites};
+  \node[meriseAssoc] (posseder) at (9,-3.65) {POSSÉDER};
+  \node[meriseEntity] (chrono) at (12,-3.65) {\textbf{CHRONO}\nodepart{second}\underline{id\_chrono}\\nom};
+  \node[meriseAssoc] (classer) at (12,-1.15) {CLASSER};
+  \node[meriseAssoc] (rattacher) at (9,-0.35) {RATTACHER};
+
+  \node[meriseAssoc] (produire) at (15,2.45) {PRODUIRE};
+  \node[meriseEntity] (entry) at (18,2.45) {\textbf{PRÉ-ÉCRITURE COMPTABLE}\nodepart{second}\underline{id\_pré-écriture}\\type, date, tiers\\HT, TVA, TTC\\devise\\statut validation};
+  \node[meriseAssoc] (extraire) at (15,-1.05) {EXTRAIRE};
+  \node[meriseEntity] (movement) at (18,-1.05) {\textbf{MOUVEMENT}\nodepart{second}\underline{id\_mouvement}\\date, libellé\\débit/crédit\\montant, devise\\statut rapprochement};
+  \node[meriseAssoc] (rapprocher) at (21.2,0.7) {RAPPROCHER\\montant affecté\\statut, score};
+
+  \node[meriseAssoc] (planifier) at (3,-5.25) {PLANIFIER};
+  \node[meriseEntity] (account) at (0,-5.25) {\textbf{COMPTE COMPTABLE}\nodepart{second}\underline{id\_compte}\\numéro, libellé\\famille CGNC\\usage, nature};
+  \node[meriseAssoc] (detenir) at (7.8,-5.25) {DÉTENIR};
+  \node[meriseEntity] (bankaccount) at (11,-6.15) {\textbf{COMPTE BANCAIRE}\nodepart{second}\underline{id\_compte bancaire}\\banque\\RIB, IBAN, BIC\\devise\\compte comptable};
+  \node[meriseAssoc] (affecter) at (15,-4.75) {AFFECTER};
+
+  \draw (cabinet) -- node[pos=.22,above left,font=\tiny]{0,N} (appartenir);
+  \draw (appartenir) -- node[pos=.78,above,font=\tiny]{1,1} (user);
+  \draw (cabinet) -- node[pos=.2,below left,font=\tiny]{0,N} (gerer);
+  \draw (gerer) -- node[pos=.78,below,font=\tiny]{1,1} (company);
+  \draw (user) -- node[pos=.2,above,font=\tiny]{0,N} (deposer);
+  \draw (deposer) -- node[pos=.78,above,font=\tiny]{1,1} (document);
+  \draw (company) -- node[pos=.2,below,font=\tiny]{0,1} (posseder);
+  \draw (posseder) -- node[pos=.78,below,font=\tiny]{1,1} (chrono);
+  \draw (chrono) -- node[pos=.18,right,font=\tiny]{0,N} (classer);
+  \draw (classer) -- node[pos=.78,right,font=\tiny]{0,1} (document);
+  \draw (company) -- node[pos=.2,above,font=\tiny]{0,N} (rattacher);
+  \draw (rattacher) -- node[pos=.78,above,font=\tiny]{0,1} (document);
+  \draw (document) -- node[pos=.2,above,font=\tiny]{0,1} (produire);
+  \draw (produire) -- node[pos=.78,above,font=\tiny]{1,1} (entry);
+  \draw (document) -- node[pos=.2,below,font=\tiny]{0,N} (extraire);
+  \draw (extraire) -- node[pos=.78,below,font=\tiny]{1,1} (movement);
+  \draw (entry) -- node[pos=.22,above,font=\tiny]{0,N} (rapprocher);
+  \draw (movement) -- node[pos=.22,below,font=\tiny]{0,N} (rapprocher);
+  \draw (account) -- node[pos=.2,above,font=\tiny]{1,1} (planifier);
+  \draw (planifier) -- node[pos=.78,above,font=\tiny]{0,N} (company);
+  \draw (company) -- node[pos=.22,below,font=\tiny]{0,N} (detenir);
+  \draw (detenir) -- node[pos=.78,above,font=\tiny]{1,1} (bankaccount);
+  \draw (bankaccount) -- node[pos=.2,above,font=\tiny]{0,N} (affecter);
+  \draw (affecter) -- node[pos=.78,below,font=\tiny]{0,1} (movement);
+\end{tikzpicture}%
+}
+\caption{MCD Merise du cœur documentaire, comptable et bancaire}
+\label{fig:mcd-merise}
+\end{figure}
+
+Le rapprochement est une association porteuse de propriétés. Une pré-écriture comptable peut être réglée par plusieurs mouvements et un mouvement peut être réparti entre plusieurs pré-écritures. Le montant affecté, le score et le statut appartiennent donc à l'association \textsc{Rapprocher}, et non à l'une des deux entités. Cette modélisation correspond à la table d'allocation utilisée pour les paiements partiels et multiples.
+
+\begin{table}[H]
+\centering
+\caption{Règles de cardinalité du MCD}
+\begin{tabularx}{\textwidth}{L{3.5cm}L{3cm}Y}
+\toprule
+\textbf{Association} & \textbf{Cardinalités} & \textbf{Règle métier} \\
+\midrule
+APPARTENIR & Cabinet 0,N ; utilisateur 1,1 & Tout utilisateur dépend d'un seul cabinet. \\
+GÉRER & Cabinet 0,N ; entreprise 1,1 & Une entreprise gérée ne peut appartenir qu'à un cabinet. \\
+DÉPOSER & Utilisateur 0,N ; document 1,1 & Chaque document conserve l'auteur de son dépôt. \\
+POSSÉDER & Entreprise 0,1 ; chrono 1,1 & Une entreprise possède au plus un chrono principal ; année, mois et catégorie sont portés par les documents. \\
+CLASSER & Chrono 0,N ; document 0,1 & Un document du cabinet peut rester hors chrono entreprise. \\
+RATTACHER & Entreprise 0,N ; document 0,1 & Un document peut rester au niveau du cabinet sans dossier artificiel. \\
+PRODUIRE & Document 0,1 ; pré-écriture 1,1 & Une facture produit au plus une pré-écriture, composée ensuite de plusieurs lignes débit/crédit. \\
+EXTRAIRE & Document 0,N ; mouvement 1,1 & Chaque mouvement extrait garde son document source. \\
+RAPPROCHER & Pré-écriture 0,N ; mouvement 0,N & L'association couvre paiements partiels et allocations multiples. \\
+PLANIFIER & Entreprise 0,N ; compte 1,1 & Tout compte exact appartient au plan d'une seule entreprise. \\
+DÉTENIR & Entreprise 0,N ; compte bancaire 1,1 & Une entreprise peut gérer plusieurs banques. \\
+AFFECTER & Compte bancaire 0,N ; mouvement 0,1 & L'affectation reste facultative tant que le RIB/IBAN n'est pas résolu. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Modèle logique de données Merise}
+
+Le passage au MLD transforme les associations de type 1,N en clés étrangères placées du côté N. L'association N,N \textsc{Rapprocher} devient une relation autonome. La notation \textbf{PK} indique une clé primaire, \textit{FK} une clé étrangère et \textsc{UQ} une contrainte d'unicité.
+
+\small
+\begin{longtable}{L{4.4cm}L{10cm}}
+\caption{MLD relationnel de ComptaFlow}\label{tab:mld-merise}\\
+\toprule
+\textbf{Relation} & \textbf{Attributs logiques principaux} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Relation} & \textbf{Attributs logiques principaux} \\
+\midrule
+\endhead
+CABINET & \textbf{PK} id, nom, ICE \textsc{UQ}, adresse, téléphone, email, actif \\
+UTILISATEUR & \textbf{PK} id, \textit{FK} cabinet\_id, email \textsc{UQ}, mot\_de\_passe\_haché, nom, prénom, rôle, actif \\
+ENTREPRISE & \textbf{PK} id, \textit{FK} cabinet\_id, nom, ICE, IF, RC, forme\_juridique, adresse, actif ; \textsc{UQ}(cabinet\_id, ICE) \\
+CHRONO & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id \textsc{UQ}, nom \\
+DOCUMENT & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK?} entreprise\_id, \textit{FK?} chrono\_id, \textit{FK} uploaded\_by, année, mois, catégorie, fichier, hash, statut, texte\_ocr, données\_extraites \\
+ÉCRITURE COMPTABLE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, \textit{FK} document\_id, \textit{FK?} validated\_by, type, comptes, HT, TVA, TTC, devise, statut \\
+LIGNE COMPTABLE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, \textit{FK?} écriture\_id, \textit{FK?} mouvement\_id, \textit{FK?} régularisation\_id, date, journal, compte, débit, crédit, ordre, validée \\
+\shortstack[l]{COMPTE COMPTABLE\\ENTREPRISE} & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, numéro, libellé, famille, usage, nature, tiers ; \textsc{UQ}(cabinet\_id, entreprise\_id, numéro) \\
+\shortstack[l]{COMPTE BANCAIRE\\ENTREPRISE} & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, libellé, banque, RIB, IBAN, BIC, devise, numéro\_compte\_comptable \\
+MOUVEMENT BANCAIRE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, \textit{FK} document\_id, \textit{FK?} compte\_bancaire\_id, \textit{FK?} mouvement\_lié\_id, date, libellé, type\_mouvement, montant, devise, rapprochement \\
+\shortstack[l]{RAPPROCHEMENTS\\BANCAIRES\\ALLOCATIONS} & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, \textit{FK} mouvement\_bancaire\_id, \textit{FK} écriture\_id, montant\_affecté, écart\_change, statut, score ; \textsc{UQ}(mouvement\_bancaire\_id, écriture\_id) \\
+\shortstack[l]{TVA\\CONFIGURATIONS\\ENTREPRISE} & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, périodicité, prorata, retenue ; \textsc{UQ}(cabinet\_id, entreprise\_id) \\
+TVA\_PÉRIODE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, année, mois, statut, collectée, récupérable, crédits, TVA\_nette, anomalies ; \textsc{UQ}(cabinet\_id, entreprise\_id, année, mois) \\
+TVA RÉGULARISATION & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, \textit{FK} période\_id, nature, montant\_signé, motif, date, statut \\
+\shortstack[l]{TVA CRÉDIT\\UTILISATION} & \textbf{PK} id, \textit{FK} entreprise\_id, \textit{FK} période\_source\_id \textsc{UQ}, \textit{FK} période\_destination\_id \textsc{UQ}, montant\_utilisé \\
+\shortstack[l]{RÉGULARISATION\\CLÔTURE} & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, exercice, date, type, libellé, montant, comptes, statut, anomalies \\
+TAUX CHANGE BAM & \textbf{PK} id, date\_cours, devise, unité, cours\_achat, cours\_vente, source ; \textsc{UQ}(date\_cours, devise, source) \\
+TÂCHE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK?} entreprise\_id, \textit{FK} cree\_par, \textit{FK?} assignee\_a, titre, échéance, priorité, récurrence, statut \\
+AUDIT LOG & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK?} user\_id, action, détails, adresse\_IP, horodatage \\
+\bottomrule
+\end{longtable}
+\normalsize
+
+Le MCD retient la règle fonctionnelle d'une seule pré-écriture par facture. Le service de préparation comptable applique cette règle en réutilisant la première pré-écriture trouvée et en supprimant les anciens doublons. En revanche, dans le schéma physique actuel, \texttt{ecritures\_comptables.document\_id} est une clé étrangère indexée mais non unique. Le MLD ne lui attribue donc pas de contrainte \textsc{UQ} inexistante ; une future migration pourrait renforcer cette règle au niveau de la base après contrôle des données existantes.
+
+\subsection{Modèle physique de données PostgreSQL}
+
+Le MPD applique le MLD à PostgreSQL. Les identifiants sont des \texttt{UUID}, les montants utilisent \texttt{NUMERIC} afin d'éviter les erreurs d'arrondi binaires, et les données d'extraction auditables sont stockées en \texttt{JSONB}. Les objets dépendants utilisent des actions référentielles explicites, principalement \texttt{ON DELETE CASCADE} pour les portées cabinet et entreprise et \texttt{SET NULL} pour certaines références optionnelles.
+
+\small
+\begin{longtable}{L{4cm}L{4.2cm}L{6.1cm}}
+\caption{MPD PostgreSQL : types et contraintes structurantes}\label{tab:mpd-merise}\\
+\toprule
+\textbf{Table / colonne} & \textbf{Type physique} & \textbf{Contraintes ou usage} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Table / colonne} & \textbf{Type physique} & \textbf{Contraintes ou usage} \\
+\midrule
+\endhead
+Toutes les tables métier : \texttt{id} & \texttt{UUID} & Clé primaire, valeur générée par UUID4. \\
+Tables multi-tenant : \texttt{cabinet\_id} & \texttt{UUID} & FK vers \texttt{cabinets.id}, non nul, indexé, suppression en cascade. \\
+Données rattachées à un dossier : \texttt{entreprise\_id} & \texttt{UUID} & FK vers \texttt{entreprises.id}, le plus souvent non nulle et indexée ; elle est facultative dans \texttt{documents} et \texttt{taches}. \\
+\shortstack[l]{\texttt{chronos.}\\\texttt{entreprise\_id}} & \texttt{UUID} & FK non nulle et \texttt{UNIQUE} : un chrono principal au maximum par entreprise. \\
+\shortstack[l]{\texttt{documents.}\\\texttt{entreprise\_id}\\\texttt{documents.}\\\texttt{chrono\_id}} & \texttt{UUID NULL} & Clés étrangères facultatives pour conserver une pièce propre au cabinet. \\
+\shortstack[l]{\texttt{documents.}\\\texttt{donnees\_extraites}} & \texttt{JSONB} & Données originales et enrichies du pipeline. \\
+\shortstack[l]{\texttt{documents.}\\\texttt{texte\_ocr}} & \texttt{TEXT} & Texte extrait conservé pour contrôle et audit. \\
+\shortstack[l]{\texttt{documents.}\\\texttt{hash\_fichier}} & \texttt{VARCHAR(64)} & Index de détection des doublons binaires. \\
+Montants extraits de facture & \texttt{NUMERIC(12,2)} & HT, TVA et TTC conservés avec deux décimales. \\
+Débit/crédit, allocations et valeurs MAD converties & \texttt{NUMERIC(14,2)} & Précision comptable, valeurs non flottantes. \\
+Montants en devise & \texttt{NUMERIC(18,6)} & Montants originaux et parts affectées conservés avec une précision supérieure. \\
+Cours de change et cours BAM & \texttt{NUMERIC(20,10)} & Conservation des taux sans troncature prématurée. \\
+Statuts et catégories & \texttt{ENUM} ou \texttt{VARCHAR} & Vocabulaires contrôlés par modèle, schéma et service. \\
+Dates métier & \texttt{DATE} & Date de pièce, opération, cours ou régularisation. \\
+Dates d'audit & \texttt{TIMESTAMP WITH TIME ZONE} & Création, modification, validation et confirmation. \\
+\shortstack[l]{\texttt{lignes\_}\\\texttt{comptables}} & trois \texttt{CHECK} & Montants positifs, un seul sens débit/crédit et une seule origine parmi facture, banque ou clôture. \\
+Plan comptable & \shortstack[l]{\texttt{UNIQUE(cabinet\_id,}\\\texttt{entreprise\_id,}\\\texttt{numero\_compte)}} & Un numéro est unique uniquement dans le dossier concerné. \\
+Allocations bancaires & \shortstack[l]{\texttt{UNIQUE(}\\\texttt{mouvement\_}\\\texttt{bancaire\_id,}\\\texttt{ecriture\_id)}} & Empêche de dupliquer une même paire de rapprochement. \\
+Périodes TVA & \shortstack[l]{\texttt{UNIQUE(cabinet\_id,}\\\texttt{entreprise\_id,}\\\texttt{annee, mois)}} & Une période par mois et par dossier. \\
+Taux BAM & \shortstack[l]{\texttt{UNIQUE(date\_cours,}\\\texttt{devise, source)}} & Évite la duplication d'un cours historique. \\
+\bottomrule
+\end{longtable}
+\normalsize
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.45cm]
+  \node[layer, fill=blue!6] (mcd) {MCD : entités, associations, propriétés et cardinalités métier};
+  \node[layer, fill=green!7, below=of mcd] (mld) {MLD : relations, clés primaires, clés étrangères et unicités};
+  \node[layer, fill=orange!7, below=of mld] (mpd) {MPD PostgreSQL : UUID, NUMERIC, JSONB, index, CHECK et actions référentielles};
+  \node[layer, fill=red!5, below=of mpd] (orm) {Implémentation : modèles SQLAlchemy + migrations Alembic};
+  \draw[flow] (mcd) -- (mld);
+  \draw[flow] (mld) -- (mpd);
+  \draw[flow] (mpd) -- (orm);
+\end{tikzpicture}
+\caption{Passage de la conception Merise à l'implémentation}
+\label{fig:merise-passage}
+\end{figure}
+
+\subsection{Dictionnaire synthétique des tables}
+
+Afin d'éviter de répéter le MLD complet, ce dictionnaire est volontairement limité aux tables du cœur documentaire, comptable et bancaire représentées dans le MCD. Les tables spécialisées de TVA, de change, de clôture, de tâches et d'audit restent recensées dans le MLD.
+
+\small
+\begin{longtable}{L{5.4cm}L{9cm}}
+\caption{Tables principales de ComptaFlow}\label{tab:tables}\\
+\toprule
+\textbf{Table} & \textbf{Responsabilité} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Table} & \textbf{Responsabilité} \\
+\midrule
+\endhead
+\texttt{cabinets} & Tenant principal, coordonnées et état du cabinet. \\
+\texttt{users} & Utilisateurs, identité, rôle, état et dernier accès. \\
+\texttt{entreprises} & Dossiers comptables gérés par un cabinet. \\
+\texttt{chronos} & Regroupement documentaire par entreprise. \\
+\texttt{documents} & Métadonnées du fichier, empreinte, statut, OCR, JSON extrait et erreurs. \\
+\texttt{ecritures\_comptables} & Pré-écriture comptable, montants, comptes, devise, anomalies et validation. \\
+\texttt{lignes\_comptables} & Lignes débit/crédit alimentant Grand Livre, Balance et états. \\
+\shortstack[l]{\texttt{comptes\_comptables\_}\\\texttt{entreprise}} & Plan exact d'une entreprise, famille CGNC, usage et nature. \\
+\shortstack[l]{\texttt{comptes\_bancaires\_}\\\texttt{entreprise}} & Banque, RIB/IBAN, devise et compte comptable associé. \\
+\texttt{mouvements\_bancaires} & Opérations extraites, conversion, compte, rapprochement et virement lié. \\
+\shortstack[l]{\texttt{rapprochements\_bancaires\_}\\\texttt{allocations}} & Relation plusieurs-à-plusieurs entre paiements et factures avec montant alloué. \\
+\bottomrule
+\end{longtable}
+\normalsize
+
+\section{Conception applicative}
+
+L'application adopte une architecture modulaire afin de séparer l'interface
+utilisateur, les échanges avec l'API, les règles métier, les traitements
+asynchrones et la persistance. Cette organisation facilite la maintenance et
+isole les traitements documentaires lourds du fonctionnement courant de
+l'interface.
+
+\subsection{Architecture en couches}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  scale=0.82,
+  every node/.style={transform shape},
+  font=\small,
+  appcard/.style={
+    rectangle split,
+    rectangle split parts=3,
+    rounded corners=3pt,
+    draw=ComptaBlue!55!ComptaDark,
+    line width=0.65pt,
+    text width=3.65cm,
+    minimum width=4.15cm,
+    minimum height=2.75cm,
+    align=center,
+    inner sep=5pt
+  },
+  archflow/.style={-{Stealth[length=2.3mm]}, thick, draw=ComptaBlue!75!ComptaDark},
+  zone/.style={rounded corners=5pt, draw=ComptaGray!75, dashed, line width=0.55pt, inner sep=7pt}
+]
+  \node[appcard, fill=ComptaBlue!5] (presentation) at (0,5.15)
+    {\textbf{\color{ComptaDark}Présentation}
+     \nodepart{two}Interface utilisateur\\Pages, composants et formulaires
+     \nodepart{three}\scriptsize\color{ComptaBlue}React -- TypeScript -- Vite\\Tailwind CSS};
+
+  \node[appcard, fill=ComptaBlue!4] (communication) at (4.95,5.15)
+    {\textbf{\color{ComptaDark}Communication API}
+     \nodepart{two}Requêtes HTTP\\Gestion du jeton et des erreurs
+     \nodepart{three}\scriptsize\color{ComptaBlue}Axios};
+
+  \node[appcard, fill=ComptaGreen!7] (api) at (9.9,5.15)
+    {\textbf{\color{ComptaDark}API et contrôle d'accès}
+     \nodepart{two}Routes REST, authentification\\Rôles et validation des entrées
+     \nodepart{three}\scriptsize\color{ComptaGreen!55!black}FastAPI -- JWT / RBAC -- Pydantic};
+
+  \node[appcard, fill=ComptaGreen!6] (services) at (9.9,0)
+    {\textbf{\color{ComptaDark}Services métier}
+     \nodepart{two}Documents, entreprises, chronos\\Comptabilité, banque, TVA et clôture
+     \nodepart{three}\scriptsize\color{ComptaGreen!55!black}Services Python};
+
+  \node[appcard, fill=ComptaOrange!8] (async) at (4.95,0)
+    {\textbf{\color{ComptaDark}Traitements asynchrones}
+     \nodepart{two}Extraction et classification\\OCR / IA et reprises
+     \nodepart{three}\scriptsize\color{ComptaOrange!75!black}Celery -- Redis};
+
+  \node[appcard, fill=ComptaGray!12] (persistence) at (0,0)
+    {\textbf{\color{ComptaDark}Persistance}
+     \nodepart{two}Données, historique\\PDF et images stockés localement
+     \nodepart{three}\scriptsize\color{ComptaDark}PostgreSQL -- SQLAlchemy\\Alembic -- stockage local};
+
+  \draw[archflow] (presentation.east) -- (communication.west);
+  \draw[archflow] (communication.east) -- (api.west);
+  \draw[archflow] (api.south) -- (services.north);
+  \draw[archflow] (services.west) -- (async.east);
+  \draw[archflow] (async.west) -- (persistence.east);
+
+  \node[zone, fit=(presentation)(communication)] (interfacezone) {};
+  \node[zone, fit=(api)(services)] (corezone) {};
+  \node[zone, fit=(async)(persistence)] (infrazone) {};
+  \node[font=\scriptsize\bfseries, text=ComptaGray!45!ComptaDark,
+        fill=white, inner sep=1.5pt] at (interfacezone.north) {Interface utilisateur};
+  \node[font=\scriptsize\bfseries, text=ComptaGray!45!ComptaDark,
+        fill=white, inner sep=1.5pt] at (corezone.north) {Cœur applicatif};
+  \node[font=\scriptsize\bfseries, text=ComptaGray!45!ComptaDark,
+        fill=white, inner sep=1.5pt] at (infrazone.north) {Infrastructure};
+\end{tikzpicture}
+\caption{Architecture en couches de l'application}
+\label{fig:layers}
+\end{figure}
+
+\subsection{Diagramme de composants}
+
+Le diagramme suivant précise les principaux composants techniques et les
+échanges entre eux.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  component/.style={rounded corners=4pt, draw=ComptaBlue!60!ComptaDark,
+    line width=0.7pt, fill=white, align=center, minimum height=0.9cm,
+    text width=3.55cm, inner sep=5pt},
+  infrastructure/.style={component, draw=ComptaGreen!60!black, fill=ComptaGreen!5,
+    text width=3.25cm},
+  direct/.style={-{Stealth[length=2.4mm]}, thick, draw=ComptaBlue!75!ComptaDark},
+  directboth/.style={{Stealth[length=2.4mm]}-{Stealth[length=2.4mm]}, thick,
+    draw=ComptaBlue!75!ComptaDark},
+  asynchronous/.style={-{Stealth[length=2.4mm]}, thick, dashed,
+    draw=ComptaOrange!85!black},
+  asynchronousboth/.style={{Stealth[length=2.4mm]}-{Stealth[length=2.4mm]}, thick,
+    dashed, draw=ComptaOrange!85!black},
+  edgelabel/.style={font=\scriptsize, fill=white, inner sep=1.5pt, text=ComptaDark}
+]
+  \node[draw=none, fill=none, font=\small\bfseries, text=ComptaDark] (user) at (0,13.5)
+    {Utilisateur / navigateur};
+  \node[component, fill=ComptaBlue!5] (frontend) at (0,11.7)
+    {\textbf{Frontend Web}\\React, TypeScript, Vite, Tailwind CSS};
+  \node[component, fill=ComptaGreen!6] (fastapi) at (0,9.35)
+    {\textbf{API FastAPI}\\Routes REST, JWT / RBAC, Pydantic};
+  \node[component, fill=ComptaGreen!5, text width=4.45cm] (services) at (0,6.65)
+    {\textbf{Services métier}\\Documents, entreprises, chronos, comptabilité,\\banque, TVA, états et clôture};
+
+  \node[infrastructure] (postgres) at (-4.55,3.25)
+    {\textbf{PostgreSQL}\\Données métier et historique};
+  \node[infrastructure, fill=ComptaOrange!7, draw=ComptaOrange!75!black] (redis) at (0,3.25)
+    {\textbf{Redis}\\Broker Celery et backend de résultats};
+  \node[infrastructure] (storage) at (4.55,3.25)
+    {\textbf{Stockage documentaire local}\\PDF et images};
+  \node[infrastructure, fill=ComptaOrange!7, draw=ComptaOrange!75!black] (worker) at (0,-0.1)
+    {\textbf{Worker Celery}\\Traitement documentaire asynchrone};
+  \node[infrastructure, text width=4.4cm] (ocria) at (4.8,-0.1)
+    {\textbf{Extraction / OCR / IA}\\Groq Vision et texte\\Replis : texte PDF natif, PaddleOCR, Regex, Ollama};
+
+  \draw[direct] (user) -- (frontend);
+  \draw[directboth] (frontend) -- node[edgelabel, right]{HTTPS / JSON} (fastapi);
+  \draw[direct] (fastapi) -- node[edgelabel, right]{appels directs} (services);
+  \draw[directboth] (services.south west) -- node[edgelabel, above, sloped]{lecture / écriture} (postgres.north);
+  \draw[directboth] (fastapi.east) -| node[edgelabel, near end, right]{fichiers} (storage.north);
+  \draw[asynchronous] (fastapi.west) -- ++(-1.35,0) |- node[edgelabel, near end, above]{tâches Celery} (redis.north);
+  \draw[asynchronousboth] (redis) -- node[edgelabel, right]{broker / résultats} (worker);
+  \draw[directboth] (worker.west) -- node[edgelabel, below, sloped]{lecture / écriture} (postgres.south);
+  \draw[direct] (storage.south west) -- node[edgelabel, below, sloped]{lecture} (worker.north east);
+  \draw[direct] (worker) -- node[edgelabel, above]{appels} (ocria);
+
+  \draw[direct] (-4.7,-2.05) -- ++(0.75,0)
+    node[anchor=west, font=\scriptsize, text=ComptaDark]{appel ou accès direct};
+  \draw[asynchronous] (0.2,-2.05) -- ++(0.75,0)
+    node[anchor=west, font=\scriptsize, text=ComptaDark]{échange asynchrone};
+\end{tikzpicture}
+\caption{Diagramme des composants techniques}
+\label{fig:components}
+\end{figure}
+
+\subsection{Organisation du code}
+
+L'organisation du code reprend la séparation des responsabilités définie par
+l'architecture applicative.
+
+\clearpage
+\thispagestyle{fancy}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  codepanel/.style={rounded corners=5pt, line width=0.8pt, fill=white,
+    minimum width=7.15cm, minimum height=10.1cm, inner sep=8pt,
+    align=left, anchor=north west}
+]
+  \node[codepanel, draw=ComptaGreen!65!black] (backend) at (0,0) {%
+    \begin{minipage}[t]{6.55cm}
+    {\large\bfseries\color{ComptaGreen!55!black}BACKEND}\par
+    \vspace{0.25em}
+    {\small\color{ComptaGray!45!ComptaDark}\texttt{backend/app/}}\par
+    \vspace{0.5em}
+    \renewcommand{\arraystretch}{1.42}
+    \begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.45cm}>{\raggedright\arraybackslash}p{3.65cm}@{}}
+      \texttt{api/}      & Routes HTTP FastAPI \\
+      \texttt{core/}     & Configuration, sécurité, base et Celery \\
+      \texttt{models/}   & Modèles SQLAlchemy \\
+      \texttt{schemas/}  & Schémas Pydantic \\
+      \texttt{services/} & Logique métier et intégrations \\
+      \texttt{tasks/}    & Traitements asynchrones \\
+      \texttt{main.py}   & Initialisation de l'API et des routeurs \\
+    \end{tabular}
+    \end{minipage}
+  };
+
+  \node[codepanel, draw=ComptaBlue!70!ComptaDark] (frontend) at (7.65,0) {%
+    \begin{minipage}[t]{6.55cm}
+    {\large\bfseries\color{ComptaBlue}FRONTEND}\par
+    \vspace{0.25em}
+    {\small\color{ComptaGray!45!ComptaDark}\texttt{frontend/src/}}\par
+    \vspace{0.5em}
+    \renewcommand{\arraystretch}{1.31}
+    \begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.45cm}>{\raggedright\arraybackslash}p{3.65cm}@{}}
+      \texttt{api/}        & Appels Axios vers le backend \\
+      \texttt{assets/}     & Ressources statiques \\
+      \texttt{components/} & Composants réutilisables \\
+      \texttt{context/}    & État partagé d'authentification \\
+      \texttt{pages/}      & Vues principales \\
+      \texttt{types/}      & Types TypeScript \\
+      \texttt{utils/}      & Fonctions utilitaires \\
+      \texttt{App.tsx}     & Routage et composition des pages \\
+      \texttt{main.tsx}    & Point d'entrée React \\
+    \end{tabular}
+    \end{minipage}
+  };
+
+  \draw[ComptaGreen!65!black, line width=2.2pt]
+    ([xshift=0.16cm,yshift=-0.18cm]backend.north west) --
+    ([xshift=0.16cm,yshift=0.18cm]backend.south west);
+  \draw[ComptaBlue, line width=2.2pt]
+    ([xshift=0.16cm,yshift=-0.18cm]frontend.north west) --
+    ([xshift=0.16cm,yshift=0.18cm]frontend.south west);
+\end{tikzpicture}
+\caption{Organisation du code du projet}
+\label{fig:code-organization}
+\end{figure}
+
+% ============================================================
+% 10. Réalisation
+% ============================================================
+\chapter{Réalisation}
+
+\section{Technologies utilisées}
+
+\begin{table}[H]
+\centering
+\caption{Technologies du projet}
+\begin{tabularx}{\textwidth}{L{3.4cm}L{4cm}Y}
+\toprule
+\textbf{Domaine} & \textbf{Technologie} & \textbf{Rôle} \\
+\midrule
+Frontend & React 19, TypeScript, Vite & SPA, typage, compilation et chargement différé des pages. \\
+Interface & Tailwind CSS, Lucide React & Mise en forme responsive et iconographie. \\
+Communication & Axios & Client HTTP et interception des erreurs d'authentification. \\
+Backend & Python (cible Docker 3.12), FastAPI, Pydantic & API REST, validation des entrées et sérialisation. \\
+Métier et données & Python, SQLAlchemy & Règles comptables et accès objet-relationnel. \\
+Base & PostgreSQL & Persistance transactionnelle multi-tenant. \\
+Migrations & Alembic & Évolution versionnée du schéma. \\
+Asynchrone & Celery, Redis & File de tâches et exécution du pipeline lourd. \\
+OCR et image & PaddleOCR, PaddlePaddle, OpenCV, Pillow & Prétraitement et extraction locale du texte. \\
+IA & Groq Vision/texte, Ollama & Extraction/classification principale et repli local. \\
+Documents & ReportLab, Pandas, OpenPyXL & Rapports et exports tabulaires. \\
+Tests & Pytest & Validation automatisée des services et règles. \\
+Déploiement & Docker, Docker Compose, Nginx & Conteneurisation, orchestration et diffusion du frontend. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Architecture du logiciel}
+
+Le navigateur appelle l'API REST avec un jeton JWT. FastAPI contrôle l'utilisateur, son rôle et son cabinet avant de déléguer aux services. Les opérations courtes sont traitées dans la requête ; l'analyse documentaire est envoyée au worker Celery via Redis. SQLAlchemy applique les transactions PostgreSQL et les migrations Alembic maintiennent le schéma. Cette architecture évite que l'OCR ou l'IA bloque l'interface.
+
+\section{Pipeline complet de traitement}
+
+Le traitement d'une pièce comptable repose sur une chaîne successive de
+contrôles, d'extraction, d'identification et d'application des règles métier.
+Lors de l'import, l'API contrôle le contenu du fichier, calcule son empreinte,
+écarte les doublons binaires déjà connus dans le cabinet, puis enregistre le
+document dans le stockage local. Une tâche Celery, transmise par Redis, prend
+ensuite en charge les opérations documentaires sans bloquer l'interface.
+
+Le système tente d'abord une extraction et une classification unifiées par
+Groq Vision. Si ce traitement n'aboutit pas, il exploite la couche texte native
+du PDF ou, à défaut, PaddleOCR, avant d'appliquer les mécanismes d'analyse
+textuelle prévus. Les valeurs obtenues sont normalisées et contrôlées sans
+remplacer silencieusement les montants extraits.
+
+L'entreprise concernée, le tiers et le sens achat/vente sont ensuite déterminés
+à partir des acteurs présents sur la pièce et des dossiers réellement suivis
+par le cabinet. Après la détection des doublons métier et l'affectation au
+chrono, une facture conduit à la préparation d'une pré-écriture comptable,
+tandis qu'un relevé bancaire conduit à la création de mouvements pouvant être
+rapprochés avec les factures correspondantes. Les résultats incomplets ou
+ambigus restent soumis à un contrôle humain.
+
+Les lignes comptables sont préparées dès le stade de brouillon pour permettre
+leur prévisualisation. Elles n'alimentent toutefois les journaux, le Grand
+Livre, la Balance, la TVA, le CPC et le Bilan que lorsqu'elles sont marquées
+comme validées.
+
+\clearpage
+\thispagestyle{fancy}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  pipebox/.style={rounded corners=4pt, draw=ComptaBlue!65!ComptaDark,
+    line width=0.7pt, fill=white, align=center, text width=3.05cm,
+    minimum height=1.45cm, inner sep=4pt},
+  analysisbox/.style={pipebox, fill=ComptaBlue!5},
+  businessbox/.style={pipebox, fill=ComptaGreen!6,
+    draw=ComptaGreen!65!black},
+  decision/.style={diamond, aspect=2.25, draw=ComptaOrange!80!black,
+    line width=0.75pt, fill=ComptaOrange!8, align=center,
+    text width=2.3cm, inner sep=2pt},
+  pipeflow/.style={-{Stealth[length=2.4mm]}, thick,
+    draw=ComptaBlue!75!ComptaDark},
+  phase/.style={rounded corners=6pt, draw=ComptaGray!80, dashed,
+    line width=0.55pt, inner sep=8pt},
+  phaselabel/.style={font=\small\bfseries,
+    text=ComptaGray!40!ComptaDark, fill=white, inner sep=2pt},
+  edgeword/.style={font=\footnotesize\bfseries,
+    text=ComptaDark, fill=white, inner sep=1pt}
+]
+  % Phase A : acquisition documentaire
+  \node[pipebox, fill=ComptaLight] (upload) at (-5.7,15.3)
+    {\textbf{1. Import du document}};
+  \node[pipebox] (control) at (-1.9,15.3)
+    {\textbf{2. Contrôle du fichier}\\[-0.1em]
+     \footnotesize SHA-256, doublon exact, taille 20 Mo\\MIME, signature et extension};
+  \node[pipebox] (storage) at (1.9,15.3)
+    {\textbf{3. Stockage du document}\\[-0.1em]
+     \footnotesize stockage local par cabinet\\statut \texttt{en\_attente}};
+  \node[pipebox, fill=ComptaOrange!7, draw=ComptaOrange!75!black] (queue) at (5.7,15.3)
+    {\textbf{4. Mise en file du traitement}\\[-0.1em]
+     \footnotesize Celery / Redis};
+
+  % Phase B : extraction et analyse
+  \node[analysisbox, text width=4.1cm] (extract) at (0,12.45)
+    {\textbf{5. Extraction et classification principales}\\[-0.1em]
+     \footnotesize Groq Vision};
+  \node[decision] (usable) at (0,10.35)
+    {\textbf{Données\\exploitables ?}};
+  \node[analysisbox, fill=ComptaOrange!6, draw=ComptaOrange!75!black,
+        text width=4.2cm] (fallback) at (-3.75,8.1)
+    {\textbf{6. Mécanismes de repli}\\[-0.1em]
+     \footnotesize texte PDF natif, sinon PaddleOCR\\Groq texte ; Regex/ML + Ollama};
+  \node[analysisbox, text width=3.65cm] (kept) at (3.75,8.1)
+    {\textbf{Conservation des données extraites}\\[-0.1em]
+     \footnotesize valeurs et source d'extraction};
+  \node[analysisbox, text width=4.55cm] (normalize) at (0,5.85)
+    {\textbf{7. Normalisation et contrôle de cohérence}\\[-0.1em]
+     \footnotesize HT / TVA / TTC ou totaux et solde bancaire};
+  \node[analysisbox, text width=4.35cm] (identify) at (0,3.55)
+    {\textbf{8. Identification métier}\\[-0.1em]
+     \footnotesize entreprise, tiers et sens achat/vente};
+
+  % Phase C : traitement métier et validation
+  \node[businessbox] (chrono) at (-5.7,0.25)
+    {\textbf{9. Doublon métier et chrono}\\[-0.1em]
+     \footnotesize avant toute pré-écriture};
+  \node[businessbox] (rules) at (-1.9,0.25)
+    {\textbf{10. Règles métier et comptes}\\[-0.1em]
+     \footnotesize plan comptable de l'entreprise};
+  \node[businessbox] (prepare) at (1.9,0.25)
+    {\textbf{11. Préparation comptable}\\[-0.1em]
+     \footnotesize pré-écriture ou traitement bancaire};
+  \node[businessbox] (human) at (5.7,0.25)
+    {\textbf{12. Contrôle humain}\\[-0.1em]
+     \footnotesize correction, validation ou rejet};
+  \node[businessbox, fill=ComptaLight, text width=5.8cm] (statements) at (0,-2.55)
+    {\textbf{13. Exploitation des données validées}\\[-0.1em]
+     \footnotesize Journaux, Grand Livre, Balance, TVA, CPC et Bilan};
+
+  % Flux principal et branche de repli
+  \draw[pipeflow] (upload) -- (control);
+  \draw[pipeflow] (control) -- (storage);
+  \draw[pipeflow] (storage) -- (queue);
+  \draw[pipeflow] (queue.south) |- (extract.east);
+  \draw[pipeflow] (extract) -- (usable);
+  \draw[pipeflow] (usable.west) -| node[edgeword, pos=0.25, above]{non} (fallback.north);
+  \draw[pipeflow] (usable.east) -| node[edgeword, pos=0.25, above]{oui} (kept.north);
+  \draw[pipeflow] (fallback.south) |- (normalize.west);
+  \draw[pipeflow] (kept.south) |- (normalize.east);
+  \draw[pipeflow] (normalize) -- (identify);
+  \draw[pipeflow] (identify.south) -- ++(0,-0.4) -| (chrono.north);
+  \draw[pipeflow] (chrono) -- (rules);
+  \draw[pipeflow] (rules) -- (prepare);
+  \draw[pipeflow] (prepare) -- (human);
+  \draw[pipeflow] (human.south) |- (statements.east);
+
+  % Regroupements visuels
+  \node[phase, fit=(upload)(control)(storage)(queue)] (phaseA) {};
+  \node[phase, fit=(extract)(usable)(fallback)(kept)(normalize)(identify)] (phaseB) {};
+  \node[phase, fit=(chrono)(rules)(prepare)(human)(statements)] (phaseC) {};
+  \node[phaselabel] at (phaseA.north) {A. Acquisition documentaire};
+  \node[phaselabel] at (phaseB.north) {B. Extraction et analyse};
+  \node[phaselabel] at (phaseC.north) {C. Traitement métier et validation};
+\end{tikzpicture}
+\caption{Pipeline complet de traitement d'une pièce comptable}
+\label{fig:pipeline}
+\end{figure}
+
+\clearpage
+Le pipeline suit ainsi une progression contrôlée : les informations extraites
+ne sont pas considérées comme définitives. Elles passent par des contrôles de
+cohérence, une identification métier et, lorsque la situation le nécessite,
+une intervention humaine. Cette organisation associe automatisation du
+traitement documentaire et contrôle professionnel des résultats.
+
+\subsection{Traitement des factures}
+
+Lors du traitement d'une facture, les valeurs extraites sont conservées dans
+les données du document afin de préserver la source du traitement. Le service
+d'identification recherche séparément le fournisseur et le client parmi les
+dossiers confirmés du cabinet. La correspondance suit l'ordre ICE, identifiant
+fiscal, RC puis nom normalisé. Les champs historiques
+\texttt{nom\_entreprise} et \texttt{tiers} ne sont utilisés comme émetteur et
+destinataire que lorsque les deux rôles structurés sont absents.
+
+Le sens de l'opération est déterminé depuis le point de vue du dossier suivi.
+Si l'entreprise gérée est cliente ou destinataire, la facture est classée en
+achat et le tiers correspond au fournisseur. Si elle est fournisseur ou
+émettrice, la facture est classée en vente et le tiers correspond au client.
+Lorsque les deux parties correspondent à des dossiers suivis, ou qu'aucun
+dossier ne peut être reconnu de façon sûre, la direction reste à vérifier au
+lieu d'être choisie arbitrairement.
+
+Après le contrôle du doublon métier et l'affectation au chrono, le service crée
+ou met à jour la pré-écriture comptable associée au document. Les lignes
+Débit/Crédit sont préparées pour la prévisualisation, mais leur statut reste
+\texttt{brouillon} ou \texttt{a\_verifier}. Une correction replace la
+pré-écriture à vérifier, et la validation est refusée tant que ses lignes ne
+sont pas complètes et équilibrées.
+
+\subsection{Résolution des comptes}
+
+Les moteurs d'extraction ne doivent pas fournir un numéro de compte définitif :
+ils proposent une nature économique appartenant à un vocabulaire contrôlé.
+Les règles Python transforment cette nature en famille CGNC, puis interrogent
+le plan comptable de l'entreprise avec les portées \texttt{cabinet\_id} et
+\texttt{entreprise\_id}. La recherche privilégie un compte actif compatible
+avec l'usage et, lorsqu'elle est renseignée, avec la nature de l'opération.
+
+Une correction déjà présente sur la pré-écriture reste prioritaire. Le moteur
+recherche ensuite un compte unique dans le plan, puis peut accepter une donnée
+explicitement fournie si elle appartient à la famille attendue, ou réutiliser
+un compte historique confirmé pour la même entreprise et la même nature. Si
+plusieurs candidats demeurent, le choix automatique est refusé et leurs
+numéros sont conservés pour vérification.
+
+Aucun compte HT ou TVA exact n'est fabriqué lorsque le plan ne permet pas de le
+déterminer. Pour les comptes tiers uniquement, un compte ``divers'' configuré
+dans le plan, ou un compte provisoire compatible, peut servir de repli ; il
+n'est pas assimilé à un compte personnel confirmé du fournisseur ou du client.
+Toute absence ou ambiguïté empêchant la construction de lignes complètes place
+la pré-écriture au statut \texttt{a\_verifier}.
+
+\subsection{Traitement bancaire}
+
+Les relevés bancaires suivent une branche spécialisée. Chaque ligne extraite est
+normalisée puis conservée individuellement, avec son libellé original et son
+texte brut dans les données du document. Aucune déduplication n'est appliquée
+aux opérations : deux lignes identiques sur le relevé restent deux mouvements
+distincts. Les totaux débit/crédit sont comparés aux totaux imprimés et, lorsque
+les informations existent, le solde final est rapproché du solde initial et des
+mouvements extraits.
+
+L'identification du compte bancaire intervient lors du rapprochement. Le
+service recherche d'abord une correspondance non ambiguë par RIB ou IBAN, puis
+par nom de banque ; un compte actif unique peut également être retenu. À défaut,
+un compte comptable unique portant l'usage \texttt{banque} dans le plan de
+l'entreprise peut être utilisé, sans inventer de numéro.
+
+Le rapprochement calcule le montant déjà réglé et le solde restant de chaque
+facture. Une correspondance exacte, unique et suffisamment bien notée peut être
+affectée automatiquement. Les paiements partiels et les règlements groupés sont
+proposés, tandis que les résultats multiples ou ambigus nécessitent une
+affectation humaine. La table d'allocations permet ainsi qu'un mouvement règle
+plusieurs factures et qu'une facture reçoive plusieurs règlements. Lors d'une
+confirmation, la valeur imputée ne peut pas dépasser le solde restant et le
+total affecté doit couvrir exactement le mouvement bancaire.
+
+Les virements internes sont liés par paires débit/crédit sur deux comptes
+bancaires distincts, avec contrôle du montant et de la proximité des dates.
+Les frais bancaires, acomptes et autres opérations spéciales peuvent être
+enregistrés avec un compte de contrepartie qui doit exister dans le plan de
+l'entreprise ; tant qu'il manque, aucune ligne comptable complète n'est
+produite.
+
+\subsection{Gestion des devises et cours BAM}
+
+Pour une opération libellée dans une devise étrangère, le moteur conserve
+séparément la devise et les montants d'origine, le montant converti en dirhams,
+le taux appliqué, sa date, son type, sa source et l'unité de cotation. Les cours
+Bank Al-Maghrib déjà obtenus sont mis en cache dans PostgreSQL par date, devise
+et source, avec leurs valeurs d'achat et de vente.
+
+Pour une facture d'achat, le cours de vente à la clientèle de la date de la
+pièce est utilisé ; pour une facture de vente, le système utilise le cours
+d'achat auprès de la clientèle. Un débit bancaire suit le cours de vente et un
+crédit le cours d'achat. La conversion multiplie le montant par le taux puis
+divise le résultat par l'unité de cotation, ce qui prend notamment en compte
+les devises publiées par unité de 100.
+
+Les montants extraits ne sont jamais écrasés par leur conversion. Pour un
+mouvement bancaire, le montant MAD réellement porté par la banque peut en outre
+être conservé séparément de la valeur BAM théorique. Si la date, le sens ou le
+cours demandé ne peut pas être établi de façon sûre, le système signale
+l'anomalie et refuse toute substitution silencieuse par le cours du jour ; la
+pré-écriture ou le mouvement reste alors à vérifier.
+
+% ============================================================
+% 11. Fonctionnalités principales
+% ============================================================
+\chapter{Fonctionnalités principales réalisées}
+
+Ce chapitre décrit les fonctionnalités présentes dans la version analysée. Adaptez le texte à votre contribution personnelle et remplacez les cadres par vos propres captures, sans données confidentielles.
+
+\section{Authentification et tableau de bord}
+
+Après connexion, le tableau de bord synthétise les documents par statut, les écritures à vérifier ou validées, la situation TVA et les actions requises. La navigation est protégée et adaptée au rôle de l'utilisateur.
+
+\capture{captures/dashboard.png}{Tableau de bord de ComptaFlow}{Afficher les indicateurs de documents, écritures et TVA.}
+
+\section{Import et suivi documentaire}
+
+L'utilisateur importe une image ou un PDF. La plateforme indique l'état du traitement et permet de filtrer les chronos par entreprise, catégorie, année et mois. La recherche porte notamment sur les factures, ICE et tiers.
+
+\capture{captures/import.png}{Interface d'import d'un document}{Utiliser un document de démonstration ne contenant aucune donnée confidentielle.}
+\capture{captures/chronos.png}{Suivi des documents dans les chronos}{Montrer les filtres et les statuts de traitement.}
+
+\section{Contrôle détaillé et validation}
+
+La vue détaillée affiche l'aperçu de la pièce, les champs extraits, les anomalies et la proposition comptable. L'utilisateur peut corriger les données, puis valider ou rejeter le document selon ses droits.
+
+\capture{captures/document_detail.png}{Contrôle d'un document et de son écriture}{Masquer les informations personnelles, bancaires ou fiscales sensibles.}
+
+\section{Plan comptable et comptes bancaires}
+
+Chaque entreprise dispose de comptes exacts. L'interface permet leur import et leur administration, ainsi que la configuration des comptes bancaires avec RIB, IBAN, devise et compte comptable associé.
+
+\capture{captures/plan_comptable.png}{Plan comptable propre à une entreprise}{Illustrer la recherche ou l'import des comptes.}
+\capture{captures/comptes_bancaires.png}{Configuration des comptes bancaires}{Masquer le RIB et l'IBAN réels.}
+
+\section{Banque V2 et rapprochement}
+
+La page Banque présente les mouvements et leur état de rapprochement. Les propositions peuvent être simples, partielles ou groupées. Une confirmation humaine finalise les allocations ; les virements internes sont liés pour éviter un double comptage.
+
+\capture{captures/banque_v2.png}{Mouvements et rapprochements bancaires}{Présenter un exemple anonymisé de rapprochement.}
+
+\section{États et contrôles comptables}
+
+Les lignes validées alimentent le Grand Livre et la Balance. Le CPC et le Bilan exposent leurs rubriques, les comptes non classés et les incohérences sans fabriquer de correction. La TVA distingue notamment la TVA collectée, récupérable sur charges et récupérable sur immobilisations. La pré-clôture agrège les anomalies bloquantes ou à vérifier.
+
+\capture{captures/grand_livre.png}{Consultation du Grand Livre}{Montrer une période et un compte de démonstration.}
+\capture{captures/cpc_bilan.png}{État comptable et contrôles de cohérence}{Afficher le CPC ou le Bilan sans informations confidentielles.}
+\capture{captures/precloture.png}{Tableau de pré-clôture}{Montrer les contrôles et leur niveau de priorité.}
+
+\section{Tâches, rappels, notifications et rapports}
+
+Les tâches peuvent comporter une entreprise, un responsable, une échéance, une priorité et une récurrence. Les alertes et notifications regroupent les actions nécessaires. Les rapports donnent une vue synthétique et peuvent être exportés.
+
+\capture{captures/rappels.png}{Gestion des tâches et rappels}{Illustrer une liste de tâches fictives.}
+
+\acompleter{Préciser ici les fonctionnalités que vous avez personnellement conçues ou développées, votre niveau de responsabilité et les difficultés techniques propres à chacune.}
+
+% ============================================================
+% 12. Tests et validation
+% ============================================================
+\chapter{Tests et validation}
+
+\section{Stratégie de validation}
+
+La validation combine tests automatisés backend, contrôles de compilation frontend et scénarios fonctionnels manuels. Les tests ciblent surtout les zones à risque : intégrité des montants, équilibre débit/crédit, isolation multi-tenant, résolution des comptes, changements de devise, rapprochements et cohérence des états.
+
+\section{Couverture fonctionnelle des tests automatisés}
+
+La suite Pytest présente dans le dépôt couvre notamment :
+
+\begin{itemize}[leftmargin=*]
+  \item les règles de comptes d'achat et de vente et le refus des comptes inconnus ;
+  \item la conservation de HT, TVA et TTC et le signalement des incohérences ;
+  \item l'identification entreprise/tiers et l'isolation par cabinet ;
+  \item la sécurité des fichiers importés et la politique de reprise ;
+  \item les écritures équilibrées, Grand Livre et Balance ;
+  \item les calculs CPC, Bilan, TVA V2 et pré-clôture ;
+  \item les cours BAM, conversions et écarts de change ;
+  \item Banque V2, paiements partiels, groupes, allocations et virements internes ;
+  \item la journalisation des actions sensibles.
+\end{itemize}
+
+\section{Résultats obtenus}
+
+\begin{table}[H]
+\centering
+\caption{Résultats de validation de la version documentée}
+\begin{tabularx}{\textwidth}{L{4.6cm}L{3.4cm}Y}
+\toprule
+\textbf{Validation} & \textbf{Résultat} & \textbf{Observation} \\
+\midrule
+Import des modèles SQLAlchemy & Réussi & Les modèles du package \texttt{app.models} sont importables. \\
+Chaîne Alembic & Réussi & Une seule tête détectée : \texttt{c1f6a9b4d803}. \\
+Tests backend Pytest & Réussi & 200 tests réussis en 7,67 secondes ; aucun échec. \\
+Typecheck TypeScript & Réussi & \texttt{npm run typecheck} terminé sans erreur. \\
+Build frontend & Réussi & Build Vite de production terminé ; 1\,891 modules transformés. \\
+Lint frontend & Réussi avec avertissement & Aucun échec ; un avertissement Fast Refresh dans \texttt{AuthContext.tsx}. \\
+Scénarios manuels &  & Renseigner les scénarios réellement exécutés et les résultats observés. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Exemples de scénarios de recette}
+
+\begin{longtable}{L{1.5cm}L{5cm}L{5cm}L{2.5cm}}
+\caption{Scénarios fonctionnels à renseigner}\label{tab:recette}\\
+\toprule
+\textbf{ID} & \textbf{Scénario} & \textbf{Résultat attendu} & \textbf{Résultat réel} \\
+\midrule
+\endfirsthead
+T01 & Importer une facture d'achat valide. & Document classé, montants conservés, écriture proposée et équilibrée. & \\
+T02 & Importer une facture avec HT + TVA différent de TTC. & Anomalie visible, aucune correction silencieuse. & \\
+T03 & Ouvrir une donnée d'un autre cabinet. & Accès refusé ou absence du résultat. & \\
+T04 & Rapprocher un règlement partiel. & Allocation limitée au montant réglé et solde restant conservé. & \\
+T05 & Demander un cours historique introuvable. & Message de vérification, aucun cours du jour substitué. & \\
+T06 & Générer le Bilan avec un déséquilibre. & Déséquilibre signalé sans ligne fictive. & \\
+\bottomrule
+\end{longtable}
+
+\section{Problèmes rencontrés et corrections}
+
+\acompleter{Décrire vos problèmes réels sous la forme : symptôme, cause racine, solution appliquée et preuve de validation. Exemples possibles à confirmer : compatibilité des dépendances OCR, classification ambiguë, gestion des montants absents, performance du worker ou résolution de comptes multiples.}
+
+% ============================================================
+% 13. Conclusion
+% ============================================================
+\chapter{Conclusion générale}
+
+\section{Bilan}
+
+ComptaFlow fournit une chaîne cohérente allant du document brut aux états comptables. Son principal apport réside dans l'association de techniques d'extraction variées avec des règles métier déterministes et un contrôle humain. La structure multi-tenant, la conservation des données originales, la résolution des comptes par entreprise et le refus des corrections fictives répondent aux exigences de confiance du domaine comptable.
+
+Le périmètre réalisé couvre l'import, les chronos, les écritures, Banque V2, les devises BAM, les états comptables, la TVA et la clôture. La modularité des services permet d'ajouter des traitements tout en maintenant des règles identiques entre le chemin principal et les replis.
+
+\section{Compétences acquises}
+
+\acompleter{Présenter vos acquis personnels : analyse métier comptable, modélisation UML, React/TypeScript, FastAPI, SQLAlchemy, PostgreSQL, Celery/Redis, OCR/IA, tests, Git, Docker, communication et gestion de projet.}
+
+\section{Perspectives}
+
+Les perspectives techniques et fonctionnelles possibles sont :
+
+\begin{itemize}[leftmargin=*]
+  \item mesurer la précision d'extraction sur un corpus anonymisé et versionné ;
+  \item renforcer l'observabilité avec métriques de temps, erreurs et taux de validation ;
+  \item développer une stratégie de sauvegarde, restauration et archivage probant ;
+  \item enrichir les exports vers les logiciels comptables utilisés par l'entreprise ;
+  \item ajouter des tests end-to-end du navigateur au worker ;
+  \item améliorer l'assistance à la résolution des cas ambigus sans supprimer la validation humaine.
+\end{itemize}
+
+\acompleter{Sélectionner et justifier les perspectives réellement prévues avec l'entreprise ou l'encadrant.}
+
+% ============================================================
+% 14. Références
+% ============================================================
+\begin{thebibliography}{99}
+\addcontentsline{toc}{chapter}{Références}
+
+\bibitem{fastapi}
+FastAPI, \textit{Documentation officielle}, \url{https://fastapi.tiangolo.com/}.
+
+\bibitem{sqlalchemy}
+SQLAlchemy, \textit{Documentation officielle}, \url{https://docs.sqlalchemy.org/}.
+
+\bibitem{alembic}
+Alembic, \textit{Documentation officielle}, \url{https://alembic.sqlalchemy.org/}.
+
+\bibitem{react}
+React, \textit{Documentation officielle}, \url{https://react.dev/}.
+
+\bibitem{typescript}
+Microsoft, \textit{Documentation TypeScript}, \url{https://www.typescriptlang.org/docs/}.
+
+\bibitem{postgresql}
+PostgreSQL Global Development Group, \textit{PostgreSQL Documentation}, \url{https://www.postgresql.org/docs/}.
+
+\bibitem{celery}
+Celery Project, \textit{Celery Documentation}, \url{https://docs.celeryq.dev/}.
+
+\bibitem{redis}
+Redis, \textit{Redis Documentation}, \url{https://redis.io/docs/}.
+
+\bibitem{paddleocr}
+PaddlePaddle, \textit{PaddleOCR Documentation}, \url{https://www.paddleocr.ai/}.
+
+\bibitem{docker}
+Docker, \textit{Docker Documentation}, \url{https://docs.docker.com/}.
+
+\bibitem{bam}
+Bank Al-Maghrib, \textit{Cours de change}, \url{https://www.bkam.ma/}.
+
+\bibitem{cgnc}
+Conseil National de la Comptabilité, \textit{Code Général de Normalisation Comptable marocain}.
+
+\bibitem{repo}
+Projet ComptaFlow, \textit{Code source, modèles, services, routes, migrations et tests de la version documentée}, dépôt local consulté en août 2026.
+
+\end{thebibliography}
+
+% ============================================================
+% 15. Annexes
+% ============================================================
+\appendix
+\chapter{Arborescence technique}
+
+\begin{lstlisting}
+ComptaFlow_vs/
+|-- backend/
+|   |-- alembic/versions/       migrations de base
+|   |-- app/
+|   |   |-- api/                routes FastAPI
+|   |   |-- core/               configuration, securite, DB, Celery
+|   |   |-- models/             entites SQLAlchemy
+|   |   |-- schemas/            contrats Pydantic
+|   |   |-- services/           logique metier
+|   |   `-- tasks/              traitements asynchrones
+|   `-- tests/                  tests Pytest
+|-- frontend/
+|   `-- src/
+|       |-- api/                clients HTTP
+|       |-- components/         composants reutilisables
+|       |-- context/            authentification
+|       |-- pages/              ecrans fonctionnels
+|       |-- types/              types TypeScript
+|       `-- utils/              utilitaires
+|-- docker-compose.yml
+`-- rapport_comptaflow.tex
+\end{lstlisting}
+
+\chapter{Commandes de validation}
+
+\begin{lstlisting}
+# Backend (depuis backend/)
+python -m pytest -q
+python -m alembic heads
+python -m alembic current
+python -m alembic history
+
+# Frontend (depuis frontend/)
+npm run typecheck
+npm run build
+npm run lint
+
+# Compilation du rapport (depuis la racine)
+pdflatex rapport_comptaflow.tex
+pdflatex rapport_comptaflow.tex
+
+# Variante si latexmk est disponible
+latexmk -pdf rapport_comptaflow.tex
+\end{lstlisting}
+
+\chapter{Informations restant à compléter}
+
+\begin{itemize}[leftmargin=*]
+  \item identité de l'auteur, formation, établissement et année universitaire ;
+  \item nom et présentation de l'entreprise d'accueil ;
+  \item encadrants, période du projet et date de soutenance ;
+  \item remerciements personnels ;
+  \item méthode de gestion de projet réellement suivie ;
+  \item contribution personnelle et difficultés rencontrées ;
+  \item résultats précis des tests et scénarios manuels ;
+  \item captures d'écran anonymisées dans le dossier \texttt{captures/} ;
+  \item bilan des compétences et perspectives validées.
+\end{itemize}
+
+\end{document}

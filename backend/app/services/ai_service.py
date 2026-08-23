@@ -17,6 +17,10 @@ import re
 import requests
 
 from app.core.config import settings
+from app.services.accounting_rules_service import (
+    NATURES_ECONOMIQUES_AUTORISEES,
+    normaliser_nature_economique_extraite,
+)
 from app.services.document_classifier import detecter_type_document
 from app.services.regex_extraction_service import (
     completer_champs_manquants,
@@ -49,6 +53,7 @@ _MOTS_A_IGNORER_HEURISTIQUE = {
 _SCHEMA_JSON_REDUIT = """{{
   "nom_entreprise": string,
   "tiers": string,
+  "nature_comptable": string | null,
   "categorie": "clients" | "fournisseurs" | "banque" | "cnss" | "tva" | "impots" | "achats" | "ventes" | "divers"
 }}"""
 
@@ -75,6 +80,9 @@ EXTRACTION_PROMPTS = {
 Identifie le nom de l'entreprise émettrice (nom_entreprise), le nom du
 client/destinataire s'il est visible (tiers), et la catégorie
 comptable la plus probable (categorie). Réponds UNIQUEMENT ce JSON :
+Nature économique autorisée (ou null si elle n'est pas identifiable) :
+""" + ", ".join(sorted(NATURES_ECONOMIQUES_AUTORISEES)) + """
+Ne propose jamais de numéro de compte.
 """ + _SCHEMA_JSON_REDUIT + """
 
 Texte :
@@ -171,6 +179,7 @@ def extraire_donnees_rapide(texte_ocr: str) -> dict:
         "categorie": "divers",
         "date_piece": None,
         "numero_piece": None,
+        "nature_comptable": None,
         "tiers": None,
         "montant_ht": None,
         "taux_tva": None,
@@ -255,6 +264,12 @@ def enrichir_avec_ia(texte_ocr: str, type_document: str) -> dict:
     elif categorie_ia:
         logger.warning("Ollama : categorie '%s' hors vocabulaire valide, ignorée.", categorie_ia)
 
+    nature = normaliser_nature_economique_extraite(
+        champs_ia.get("nature_comptable")
+    )
+    if nature is not None and type_document == "facture":
+        resultat["nature_comptable"] = nature
+
     return resultat
 
 
@@ -285,6 +300,10 @@ def _extraire_donnees_locale_synchrone(texte_ocr: str) -> dict:
     if "categorie" in resultat_ia:
         donnees["categorie"] = resultat_ia["categorie"]
         conf["categorie"] = resultat_ia["conf_categorie"]
+
+    if "nature_comptable" in resultat_ia:
+        donnees["nature_comptable"] = resultat_ia["nature_comptable"]
+        conf["nature_comptable"] = 0.75
 
     donnees["enrichissement_ia_statut"] = "termine"
     return donnees

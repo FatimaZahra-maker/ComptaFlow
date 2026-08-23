@@ -1,6 +1,79 @@
-paddleocr==2.7.0
-opencv-python==4.9.0.80
-requests==2.31.0
-psutil==5.9.8
-scikit-learn==1.5.0
-joblib==1.4.2
+DOCUMENT COMPTABLE (Image / PDF)
+                                              │
+                                              ▼
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│ 1. EXTRACTION DU TEXTE (OCR)                                                               │
+│    Service : ocr_service.py                                                                │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│ • Prétraitement du document                                                                │
+│ • Exécution de PaddleOCR                                                                   │
+│ • Extraction du texte brut                                                                 │
+└───────────────────────────────────────┬────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+                              Texte OCR extrait
+                                        │
+                                        ▼
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│ 2. ORCHESTRATION DE L'EXTRACTION INTELLIGENTE                                              │
+│    Service : ai_service.py (extraire_donnees())                                            │
+└───────────────────────────────────────┬────────────────────────────────────────────────────┘
+                                        │
+                       ┌────────────────┴────────────────┐
+                       │  Service Groq disponible ?       │
+                       └──────────────┬───────────────────┘
+                                      │
+                    ┌─────────────────┴──────────────────┐
+                    │                                    │
+                  OUI                                 NON / ÉCHEC
+                    │                                    │
+                    ▼                                    ▼
+
+┌─────────────────────────────────────────────┐   ┌──────────────────────────────────────────────┐
+│ EXTRACTION CLOUD (Groq)                     │   │ EXTRACTION LOCALE (Fallback)                 │
+│ Service : groq_service.py                   │   │ Service : ai_service.py                       │
+├─────────────────────────────────────────────┤   ├──────────────────────────────────────────────┤
+│ • Analyse du texte OCR                      │   │ Étape 1 : Analyse locale                      │
+│ • Extraction des informations               │   │ • Classification du document                  │
+│   comptables                                │   │   (document_classifier.py)                    │
+│ • Identification :                          │   │ • Extraction par Regex :                      │
+│   - Entreprise                              │   │   - Date                                      │
+│   - Tiers                                   │   │   - N° pièce                                  │
+│   - Date                                    │   │   - ICE / IF / RC                             │
+│   - Montants HT / TVA / TTC                 │   │   - HT / TVA / TTC                            │
+│   - Identifiants fiscaux                    │   │                                               │
+│ • Vérification de la cohérence              │   │ Étape 2 : Enrichissement par Ollama           │
+│   des montants                              │   │ • Extraction des informations                 │
+│                                             │   │   sémantiques :                               │
+│                                             │   │   - Nom de l'entreprise                       │
+│                                             │   │   - Tiers                                     │
+│                                             │   │   - Catégorie comptable                       │
+│                                             │   │ • Fusion avec les données Regex               │
+└─────────────────────────┬───────────────────┘   └────────────────────┬─────────────────────────┘
+                          │                                              │
+                          └──────────────────────┬───────────────────────┘
+                                                 │
+                                                 ▼
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│ 3. VALIDATION ET STRUCTURATION DES DONNÉES                                                 │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│ • Vérification de la cohérence des montants                                                │
+│ • Attribution d'un score de confiance                                                      │
+│ • Signalement des incohérences (a_verifier = True)                                         │
+│ • Génération d'un objet JSON structuré                                                     │
+└───────────────────────────────────────┬────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│ DONNÉES COMPTABLES STRUCTURÉES                                                             │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│ • Entreprise                                                                               │
+│ • Tiers                                                                                    │
+│ • Catégorie comptable                                                                      │
+│ • Date                                                                                     │
+│ • Numéro de pièce                                                                          │
+│ • ICE / IF / RC                                                                            │
+│ • Montants HT / TVA / TTC                                                                  │
+│ • Scores de confiance                                                                       │
+│ • Indicateur de vérification                                                                │
+└─────────────────────────────────────────────────

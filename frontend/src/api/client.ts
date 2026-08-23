@@ -1,7 +1,10 @@
 import axios from "axios";
 
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000")
+  .replace(/\/$/, "");
+
 export const apiClient = axios.create({
-  baseURL: "http://localhost:8000",
+  baseURL: API_BASE_URL,
 });
 
 // Attache automatiquement le token JWT (s'il existe) à chaque requête sortante
@@ -25,3 +28,27 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export async function fetchApiBlob(
+  url: string,
+  params?: Record<string, string | number | undefined>,
+): Promise<Blob> {
+  const response = await apiClient.get<Blob>(url, { params, responseType: "blob" });
+  return response.data;
+}
+
+export async function downloadApiBlob(
+  url: string,
+  filename: string,
+  params?: Record<string, string | number | undefined>,
+): Promise<void> {
+  const blob = await fetchApiBlob(url, params);
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+}

@@ -4,13 +4,18 @@ services:
     container_name: comptaflow_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: comptaflow
-      POSTGRES_PASSWORD: comptaflow_dev_password
-      POSTGRES_DB: comptaflow_db
+      POSTGRES_USER: ${POSTGRES_USER:-comptaflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-comptaflow_db}
     ports:
       - "5433:5432"   # <-- 5433 côté machine, pas 5432, pour ne PAS entrer en conflit avec l'autre projet
     volumes:
       - comptaflow_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-comptaflow} -d ${POSTGRES_DB:-comptaflow_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7
@@ -18,6 +23,11 @@ services:
     restart: unless-stopped
     ports:
       - "6380:6379"   # même logique, décalé de 6379 par défaut
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   ollama:
     image: ollama/ollama:latest
     container_name: comptaflow_ollama

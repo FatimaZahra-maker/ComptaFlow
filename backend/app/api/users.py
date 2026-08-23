@@ -15,6 +15,7 @@ from app.core.security import hash_password
 from app.models.user import User
 from app.models.enums import RoleEnum
 from app.schemas.user import UserOut, UserCreate
+from app.services import audit_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -50,6 +51,12 @@ def create_user(
         role=payload.role,
     )
     db.add(nouvel_utilisateur)
+    db.flush()
+    audit_service.enregistrer(
+        db, user=current_user, action="user.create", resource_type="user",
+        resource_id=nouvel_utilisateur.id,
+        apres={"email": nouvel_utilisateur.email, "role": nouvel_utilisateur.role.value},
+    )
     db.commit()
     db.refresh(nouvel_utilisateur)
     return nouvel_utilisateur
@@ -90,6 +97,11 @@ def deactivate_user(
         raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
 
     utilisateur.is_active = False
+    audit_service.enregistrer(
+        db, user=current_user, action="user.deactivate", resource_type="user",
+        resource_id=utilisateur.id,
+        avant={"is_active": True}, apres={"is_active": False},
+    )
     db.commit()
     db.refresh(utilisateur)
     return utilisateur

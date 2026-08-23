@@ -22,7 +22,6 @@ router = APIRouter(prefix="/system", tags=["system"])
 def get_system_info(current_user: User = Depends(get_current_user)):
     return SystemInfoOut(
         ai_provider=settings.AI_PROVIDER,
-        gemini_configure=bool(settings.GEMINI_API_KEY),
+        groq_configure=bool(settings.GROQ_API_KEY),
         ollama_model=settings.OLLAMA_MODEL,
-        ollama_url=settings.OLLAMA_URL,
     )

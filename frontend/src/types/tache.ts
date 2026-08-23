@@ -27,3 +27,12 @@ export interface TacheCreatePayload {
   priorite?: PrioriteTache;
   recurrence?: RecurrenceTache;
 }
+export interface TacheUpdatePayload {
+  titre?: string;
+  description?: string | null;
+  date_echeance?: string;
+  statut?: StatutTache;
+  priorite?: PrioriteTache;
+  recurrence?: RecurrenceTache;
+  assignee_a?: string | null;
+}

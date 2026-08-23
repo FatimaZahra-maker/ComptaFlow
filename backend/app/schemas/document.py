@@ -23,5 +23,13 @@ class DocumentOut(BaseModel):
     categorie: Optional[str] = None
     annee: Optional[int] = None
     mois: Optional[int] = None
+    date_piece: Optional[str] = None
+
+    implique_cabinet: bool = False
+    traitement_cabinet_propre: bool = False
+    role_cabinet: Optional[str] = None
+
+    est_doublon: bool = False
+    doublon_de_document_id: Optional[uuid.UUID] = None
 
     model_config = ConfigDict(from_attributes=True)

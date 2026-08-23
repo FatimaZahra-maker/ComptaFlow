@@ -1,0 +1,45 @@
+name: ComptaFlow CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: sqlite:///:memory:
+      SECRET_KEY: ci-only-not-a-production-secret
+      REDIS_URL: redis://localhost:6379/0
+      OLLAMA_URL: http://localhost:11434
+      OLLAMA_MODEL: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/current_env.txt
+      - run: pip install -r current_env.txt
+      - run: python -m compileall app alembic tests
+      - run: python -c "import app.models; print('MODELS_OK')"
+      - run: python -m pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build

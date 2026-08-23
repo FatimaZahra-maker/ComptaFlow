@@ -93,5 +93,57 @@ class Document(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin):
         passive_deletes=True,
     )
 
+
+    @property
+    def date_piece(self) -> Optional[str]:
+        """Date comptable extraite, conservée dans donnees_extraites."""
+        donnees = self.donnees_extraites or {}
+        if not isinstance(donnees, dict):
+            return None
+        valeur = donnees.get("date_piece")
+        if valeur in (None, ""):
+            return None
+        return str(valeur)
+
+    @property
+    def implique_cabinet(self) -> bool:
+        """True quand SEGURIBAT/cabinet apparaît sur la pièce."""
+        donnees = self.donnees_extraites or {}
+        return bool(donnees.get("implique_cabinet")) if isinstance(donnees, dict) else False
+
+    @property
+    def traitement_cabinet_propre(self) -> bool:
+        """True quand la pièce relève de la comptabilité propre du cabinet."""
+        donnees = self.donnees_extraites or {}
+        return bool(donnees.get("traitement_cabinet_propre")) if isinstance(donnees, dict) else False
+
+    @property
+    def role_cabinet(self) -> Optional[str]:
+        donnees = self.donnees_extraites or {}
+        if not isinstance(donnees, dict):
+            return None
+        valeur = donnees.get("role_cabinet")
+        return str(valeur) if valeur not in (None, "") else None
+
+    @property
+    def est_doublon(self) -> bool:
+        """Indique si ce document est un upload dupliqué d'une pièce déjà traitée."""
+        donnees = self.donnees_extraites or {}
+        return bool(donnees.get("est_doublon")) if isinstance(donnees, dict) else False
+
+    @property
+    def doublon_de_document_id(self) -> Optional[uuid.UUID]:
+        """Identifiant du document original, stocké dans donnees_extraites."""
+        donnees = self.donnees_extraites or {}
+        if not isinstance(donnees, dict):
+            return None
+        valeur = donnees.get("doublon_de_document_id")
+        if not valeur:
+            return None
+        try:
+            return uuid.UUID(str(valeur))
+        except (TypeError, ValueError, AttributeError):
+            return None
+
     def __repr__(self) -> str:
         return f"<Document {self.nom_fichier_original} ({self.statut})>"

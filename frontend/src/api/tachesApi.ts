@@ -1,5 +1,5 @@
 import { apiClient } from "./client";
-import type { Tache, TacheCreatePayload } from "../types/tache";
+import type { Tache, TacheCreatePayload, TacheUpdatePayload } from "../types/tache";
 
 export async function listTaches(filters: { entreprise_id?: string; statut?: string; seulement_en_retard?: boolean } = {}): Promise<Tache[]> {
   const response = await apiClient.get<Tache[]>("/taches", { params: filters });
@@ -18,4 +18,8 @@ export async function terminerTache(id: string): Promise<Tache> {
 
 export async function deleteTache(id: string): Promise<void> {
   await apiClient.delete(`/taches/${id}`);
+}
+export async function updateTache(id: string, payload: TacheUpdatePayload): Promise<Tache> {
+  const response = await apiClient.patch<Tache>(`/taches/${id}`, payload);
+  return response.data;
 }

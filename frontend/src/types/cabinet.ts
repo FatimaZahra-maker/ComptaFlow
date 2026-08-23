@@ -18,7 +18,6 @@ export interface CabinetUpdatePayload {
 
 export interface SystemInfo {
   ai_provider: string;
-  gemini_configure: boolean;
+  groq_configure: boolean;
   ollama_model: string;
-  ollama_url: string;
 }

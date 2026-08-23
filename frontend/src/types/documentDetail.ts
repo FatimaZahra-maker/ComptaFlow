@@ -31,7 +31,10 @@ export interface DocumentDetail {
   texte_ocr: string | null;
   donnees_extraites: Record<string, unknown> | null;
   message_erreur: string | null;
+  type_erreur: string | null;
+  error_code: string | null;
+  saisie_topaze: boolean;
 
   ecriture: EcritureResume | null;
-  mouvements_bancaires?: MouvementBancaire[] | null;
+  mouvements_bancaires: MouvementBancaire[];
 }

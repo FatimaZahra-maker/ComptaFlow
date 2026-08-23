@@ -44,7 +44,6 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import (
     get_current_user,
-    get_current_user_flexible,
     require_role,
 )
 
@@ -72,6 +71,7 @@ from app.schemas.mouvement_bancaire import (
 from app.tasks.document_processing import (
     process_document,
 )
+from app.services import audit_service, rapprochement_bancaire_service
 
 
 router = APIRouter(
@@ -92,6 +92,58 @@ ALLOWED_MIME_TYPES = {
 
 
 MAX_FILE_SIZE_MB = 20
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+
+_EXTENSIONS_PAR_MIME = {
+    "application/pdf": {".pdf"},
+    "image/png": {".png"},
+    "image/jpeg": {".jpg", ".jpeg"},
+    "image/jpg": {".jpg", ".jpeg"},
+}
+
+
+def _detecter_mime_reel(contenu: bytes) -> str | None:
+    if contenu.startswith(b"%PDF-"):
+        return "application/pdf"
+    if contenu.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if contenu.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    return None
+
+
+def _valider_fichier_uploade(
+    contenu: bytes,
+    nom_fichier: str,
+    mime_declare: str | None,
+) -> tuple[str, str]:
+    if len(contenu) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(status_code=400, detail="Fichier trop volumineux (maximum 20 MB).")
+
+    mime_reel = _detecter_mime_reel(contenu)
+    if mime_reel is None:
+        raise HTTPException(status_code=400, detail="Contenu de fichier non reconnu (PDF, PNG ou JPEG requis).")
+
+    if mime_declare not in ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail="Type MIME déclaré non autorisé.")
+
+    mime_declare_normalise = "image/jpeg" if mime_declare == "image/jpg" else mime_declare
+    if mime_declare_normalise != mime_reel:
+        raise HTTPException(status_code=400, detail="Le contenu du fichier ne correspond pas au type MIME déclaré.")
+
+    extension = Path(nom_fichier).suffix.lower()
+    if extension not in _EXTENSIONS_PAR_MIME[mime_reel]:
+        raise HTTPException(status_code=400, detail="L'extension ne correspond pas au contenu du fichier.")
+
+    return mime_reel, extension
+
+
+def _resoudre_chemin_stockage(chemin: str) -> Path:
+    racine = Path(settings.STORAGE_PATH).resolve()
+    candidat = Path(chemin).resolve()
+    if not candidat.is_relative_to(racine):
+        raise HTTPException(status_code=404, detail="Fichier original introuvable sur le serveur.")
+    return candidat
 
 
 _ROLES_VALIDATION = (
@@ -821,35 +873,7 @@ def upload_document(
         get_current_user
     ),
 ):
-    if (
-        file.content_type
-        not in ALLOWED_MIME_TYPES
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Type de fichier non autorisé: "
-                f"{file.content_type}. "
-                "Types acceptés: PDF, PNG, JPEG."
-            ),
-        )
-
-    content = file.file.read()
-
-    size_mb = (
-        len(content)
-        / (1024 * 1024)
-    )
-
-    if size_mb > MAX_FILE_SIZE_MB:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Fichier trop volumineux: "
-                f"{size_mb:.1f} MB "
-                f"(maximum {MAX_FILE_SIZE_MB} MB)."
-            ),
-        )
+    content = file.file.read(MAX_FILE_SIZE_BYTES + 1)
 
     file_hash = hashlib.sha256(
         content
@@ -895,9 +919,9 @@ def upload_document(
         or "document"
     )
 
-    file_extension = Path(
-        original_filename
-    ).suffix.lower()
+    mime_reel, file_extension = _valider_fichier_uploade(
+        content, original_filename, file.content_type
+    )
 
     stored_path = (
         storage_dir
@@ -937,9 +961,7 @@ def upload_document(
             content
         ),
 
-        mime_type=(
-            file.content_type
-        ),
+        mime_type=mime_reel,
 
         saisie_topaze=False,
     )
@@ -1020,9 +1042,7 @@ def get_document_detail(
 def telecharger_fichier_original(
     document_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(
-        get_current_user_flexible
-    ),
+    current_user: User = Depends(get_current_user),
 ):
     document = _get_document_or_404(
         db,
@@ -1030,9 +1050,7 @@ def telecharger_fichier_original(
         current_user.cabinet_id,
     )
 
-    file_path = Path(
-        document.chemin_stockage
-    )
+    file_path = _resoudre_chemin_stockage(document.chemin_stockage)
 
     if not file_path.exists():
         raise HTTPException(
@@ -1056,17 +1074,8 @@ def telecharger_fichier_original(
 
         media_type=media_type,
 
-        filename=(
-            document.nom_fichier_original
-        ),
-
-        headers={
-            "Content-Disposition": (
-                "inline; filename=\""
-                f"{document.nom_fichier_original}"
-                "\""
-            )
-        },
+        filename=Path(document.nom_fichier_original).name.replace("\r", "").replace("\n", ""),
+        content_disposition_type="inline",
     )
 
 
@@ -1143,6 +1152,7 @@ def validate_document(
         document.id,
     )
 
+    ancien_statut = document.statut.value if hasattr(document.statut, "value") else str(document.statut)
     if entry is not None:
         entry.statut_validation = (
             StatutValidationEnum.VALIDE
@@ -1154,6 +1164,12 @@ def validate_document(
 
     document.statut = (
         StatutDocumentEnum.VALIDE
+    )
+
+    audit_service.enregistrer(
+        db, user=current_user, action="document.validate",
+        resource_type="document", resource_id=document.id,
+        avant={"statut": ancien_statut}, apres={"statut": StatutDocumentEnum.VALIDE.value},
     )
 
     db.commit()
@@ -1189,6 +1205,7 @@ def reject_document(
         document.id,
     )
 
+    ancien_statut = document.statut.value if hasattr(document.statut, "value") else str(document.statut)
     if entry is not None:
         entry.statut_validation = (
             StatutValidationEnum.REJETE
@@ -1202,6 +1219,12 @@ def reject_document(
     # mais non validé.
     document.statut = (
         StatutDocumentEnum.TRAITE
+    )
+
+    audit_service.enregistrer(
+        db, user=current_user, action="document.reject",
+        resource_type="document", resource_id=document.id,
+        avant={"statut": ancien_statut}, apres={"statut": StatutDocumentEnum.TRAITE.value},
     )
 
     db.commit()
@@ -1292,7 +1315,18 @@ def update_bank_movement(
             field_value,
         )
 
-    # Toute correction demande une nouvelle validation.
+    # Toute correction bancaire invalide le rapprochement précédent puis
+    # relance immédiatement la proposition avec les nouvelles valeurs.
+    rapprochement_bancaire_service.annuler_rapprochement(
+        db,
+        movement
+    )
+    db.flush()
+    rapprochement_bancaire_service.rapprocher_mouvement(
+        db,
+        movement,
+    )
+
     document.statut = (
         StatutDocumentEnum.TRAITE
     )
@@ -1500,6 +1534,11 @@ def delete_document(
             document.id,
         )
 
+        audit_service.enregistrer(
+            db, user=current_user, action="document.delete",
+            resource_type="document", resource_id=document.id,
+            avant={"nom_fichier": document.nom_fichier_original}, apres=None,
+        )
         db.delete(document)
         db.commit()
 
@@ -1511,10 +1550,7 @@ def delete_document(
         )
         raise HTTPException(
             status_code=500,
-            detail=(
-                "La suppression en base de données a échoué. "
-                f"{type(exc).__name__}: {exc}"
-            ),
+            detail="La suppression en base de données a échoué.",
         ) from exc
 
     file_deleted = False

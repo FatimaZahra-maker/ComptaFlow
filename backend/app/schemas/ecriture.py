@@ -19,6 +19,10 @@ class EcritureOut(BaseModel):
     numero_piece: str | None = None
     date_piece: date | None = None
     tiers: str | None = None
+    compte_tiers: str | None = None
+    compte_tva: str | None = None
+    compte_ht: str | None = None
+    libelle: str | None = None
     montant_ht: Decimal | None = None
     taux_tva: str | None = None
     montant_tva: Decimal | None = None
@@ -37,6 +41,21 @@ class EcritureOut(BaseModel):
     entreprise_nom: str | None = None
     categorie_document: str | None = None
     statut_document: str | None = None
+
+    # Métadonnées devise venant de Document.donnees_extraites.
+    devise_originale: str | None = None
+    montant_ht_devise: Decimal | None = None
+    montant_tva_devise: Decimal | None = None
+    montant_ttc_devise: Decimal | None = None
+    montant_ht_mad: Decimal | None = None
+    montant_tva_mad: Decimal | None = None
+    montant_ttc_mad: Decimal | None = None
+    date_cours_change: date | None = None
+    type_cours_change: str | None = None
+    taux_change: Decimal | None = None
+    unite_cotation: int | None = None
+    source_cours_change: str | None = None
+    conversion_devise_statut: str | None = None
 
 
 class EcritureUpdate(BaseModel):

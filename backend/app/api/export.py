@@ -1,16 +1,15 @@
 """Routes d'export Excel, CSV, PDF et Topaze."""
 
-import io
 import uuid
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response
 from sqlalchemy import Integer, cast, extract, func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user_flexible
+from app.core.deps import get_current_user
 from app.models.document import Document
 from app.models.ecriture import EcritureComptable
 from app.models.enums import CategorieDocumentEnum, StatutValidationEnum
@@ -83,27 +82,15 @@ def _recuperer_lignes_et_totaux(
 def exporter_topaze(
     ecriture_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
-    ecriture = db.query(EcritureComptable).filter(
-        EcritureComptable.id == ecriture_id,
-        EcritureComptable.cabinet_id == current_user.cabinet_id,
-    ).first()
-
-    if ecriture is None:
-        raise HTTPException(status_code=404, detail="Écriture introuvable.")
-
-    contenu = export_service.generer_export_topaze(ecriture)
-    nom_piece = ecriture.numero_piece or str(ecriture.id)
-
-    return StreamingResponse(
-        io.BytesIO(contenu),
-        media_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="export_topaze_{nom_piece}.csv"'
-            )
-        },
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            "Configuration du connecteur Topaze requise : fournir un exemple "
+            "d'import, les colonnes, le séparateur, l'encodage, les journaux "
+            "et les identifiants attendus."
+        ),
     )
 
 
@@ -115,7 +102,7 @@ def export_registre(
     annee: int = Query(...),
     mois: int = Query(..., ge=1, le=12),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_flexible),
+    current_user: User = Depends(get_current_user),
 ):
     normalized_format = format.lower()
 

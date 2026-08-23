@@ -16,7 +16,11 @@ import time
 import requests
 
 from app.core.config import settings
-from app.services.gemini_service import _construire_donnees
+from app.services.accounting_rules_service import (
+    NATURES_ECONOMIQUES_AUTORISEES,
+    normaliser_nature_economique_extraite,
+)
+from app.services.extraction_mapping_service import construire_donnees_extraites
 
 logger = logging.getLogger("comptaflow.groq_service")
 
@@ -37,6 +41,7 @@ _SCHEMA_JSON = """{
   "categorie_document": "facture" | "releve_bancaire" | "avis_cnss" | "avis_tva" | "autre",
   "date_piece": string | null,
   "numero_piece": string | null,
+  "nature_comptable": string | null,
   "montant_ht": number | null,
   "taux_tva": number | null,
   "montant_tva": number | null,
@@ -58,6 +63,13 @@ categorie_document (type physique du document, PAS la direction comptable) :
 - "avis_cnss" : avis ou bordereau CNSS
 - "avis_tva" : déclaration ou avis de TVA
 - "autre" : tout le reste
+
+Pour une facture uniquement, nature_comptable décrit la nature économique
+visible, jamais un numéro de compte. Elle doit être exactement l'une des
+valeurs suivantes, ou null si aucune nature dominante n'est identifiable :
+""" + ", ".join(sorted(NATURES_ECONOMIQUES_AUTORISEES)) + """
+Ne décide pas Achat/Vente ici : ComptaFlow le détermine ensuite selon
+l'entreprise gérée et les rôles fournisseur/client.
 
 RÈGLES D'EXTRACTION STRICTES :
 1. NUMÉRO DE PIÈCE : Cherche explicitement "Facture n°", "N°", ou "Invoice". Ignore totalement les numéros de devis (ex: "Devis n°") ou de bons de commande.
@@ -147,7 +159,7 @@ def _appeler_groq_texte_avec_retry(texte_court: str) -> str | None:
 
 def _valider_et_corriger_montants(donnees: dict) -> dict:
     """
-    Vérifie et corrige la cohérence mathématique des montants (HT, TVA, TTC).
+    Contrôle les montants extraits sans reconstruire une valeur absente.
     """
     if not donnees:
         return donnees
@@ -172,26 +184,27 @@ def _valider_et_corriger_montants(donnees: dict) -> dict:
     ttc = vers_float(donnees.get("montant_ttc"))
     taux = vers_float(donnees.get("taux_tva"))
 
-    if ht is not None and tva is not None and ttc is None:
-        ttc = round(ht + tva, 2)
-    elif ht is not None and ttc is not None and tva is None:
-        tva = round(ttc - ht, 2)
-    elif ttc is not None and taux is not None and ht is None:
-        ht = round(ttc / (1 + (taux / 100)), 2)
-        tva = round(ttc - ht, 2)
-    elif ht is not None and taux is not None and tva is None:
-        tva = round(ht * (taux / 100), 2)
-        ttc = round(ht + tva, 2)
-
-    if ht is not None and tva is not None and ttc is not None:
-        if abs((ht + tva) - ttc) > 0.5:
-            tva = round(ttc - ht, 2)
-
     donnees["montant_ht"] = ht
     donnees["montant_tva"] = tva
     donnees["montant_ttc"] = ttc
-    if taux is not None:
-         donnees["taux_tva"] = taux
+    donnees["taux_tva"] = taux
+
+    raisons: list[str] = []
+    raison_existante = str(donnees.get("raison_verification") or "").strip()
+    if raison_existante:
+        raisons.append(raison_existante)
+
+    if ht is not None and tva is not None and ttc is not None:
+        if abs((ht + tva) - ttc) > 1.0:
+            raisons.append("Incohérence entre les montants HT, TVA et TTC extraits.")
+
+    if ht is not None and tva is not None and taux is not None:
+        if abs((ht * taux / 100) - tva) > 1.0:
+            raisons.append("Incohérence entre le taux et la TVA extraits.")
+
+    if raisons:
+        donnees["a_verifier"] = True
+        donnees["raison_verification"] = " | ".join(dict.fromkeys(raisons))
 
     return donnees
 
@@ -212,7 +225,14 @@ def extraire_et_classifier(texte_ocr: str) -> dict | None:
         logger.warning("Réponse Groq (texte) non-JSON exploitable -- repli direct sur Ollama.")
         return None
 
-    donnees = _construire_donnees(champs)
+    donnees = construire_donnees_extraites(champs)
+    nature = normaliser_nature_economique_extraite(
+        champs.get("nature_comptable")
+    )
+    donnees["nature_comptable"] = nature
+    donnees.setdefault("confiance_par_champ", {})[
+        "nature_comptable"
+    ] = 0.90 if nature is not None else 0.0
     
     # Validation mathématique avant retour
     donnees = _valider_et_corriger_montants(donnees)

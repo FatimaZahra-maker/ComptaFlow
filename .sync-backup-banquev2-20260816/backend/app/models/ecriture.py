@@ -1,0 +1,176 @@
+"""app/models/ecriture.py"""
+
+import uuid
+from datetime import date
+from decimal import Decimal
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Boolean, Date, Enum, ForeignKey, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.database import Base
+from app.models.base import CabinetScopedMixin, TimestampMixin, UUIDMixin
+from app.models.enums import StatutValidationEnum, TauxTVAEnum, TypeEcritureEnum
+
+if TYPE_CHECKING:
+    from app.models.document import Document
+    from app.models.user import User
+
+
+class EcritureComptable(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin):
+    """Écriture générée automatiquement depuis un document comptable.
+
+    Les champs ``compte_tiers``, ``compte_tva`` et ``compte_ht`` correspondent
+    aux trois comptes visibles dans le journal Topaze. Ils sont stockés sur
+    l'écriture pour garder la photographie exacte du journal au moment où la
+    facture a été traitée.
+    """
+
+    __tablename__ = "ecritures_comptables"
+
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    entreprise_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("entreprises.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    validated_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=True,
+    )
+
+    type_ecriture: Mapped[TypeEcritureEnum] = mapped_column(
+        Enum(TypeEcritureEnum, name="type_ecriture_enum"),
+        nullable=False,
+    )
+
+    numero_piece: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    date_piece: Mapped[date | None] = mapped_column(
+        Date,
+        nullable=True,
+    )
+
+    tiers: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    # ---------------------------------------------------------
+    # COMPTES DU JOURNAL
+    # ---------------------------------------------------------
+
+    # Achat :
+    # compte_tiers = compte fournisseur 4...
+    #
+    # Vente :
+    # compte_tiers = compte client 3...
+    compte_tiers: Mapped[str | None] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+
+    compte_tva: Mapped[str | None] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+
+    compte_ht: Mapped[str | None] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+
+    # Exemple :
+    # TUNARUZ F25/231
+    libelle: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
+    # ---------------------------------------------------------
+    # MONTANTS EXTRAITS
+    # ---------------------------------------------------------
+    #
+    # IMPORTANT :
+    # On conserve les montants extraits de la facture.
+    #
+    # On ne recalcule pas HT / TVA / TTC pour les remplacer.
+    # Le calcul sert seulement comme contrôle.
+
+    montant_ht: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
+    )
+
+    taux_tva: Mapped[TauxTVAEnum | None] = mapped_column(
+        Enum(
+            TauxTVAEnum,
+            name="taux_tva_enum",
+        ),
+        nullable=True,
+    )
+
+    montant_tva: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
+    )
+
+    montant_ttc: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+    )
+
+    statut_validation: Mapped[StatutValidationEnum] = mapped_column(
+        Enum(
+            StatutValidationEnum,
+            name="statut_validation_enum",
+        ),
+        default=StatutValidationEnum.BROUILLON,
+    )
+
+    anomalie_detectee: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+    )
+
+    anomalie_details: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    doublon_potentiel_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("ecritures_comptables.id"),
+        nullable=True,
+    )
+
+    saisie_topaze: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+    )
+
+    document: Mapped["Document"] = relationship(
+        back_populates="ecritures",
+    )
+
+    validated_by_user: Mapped["User | None"] = relationship()
+
+    def __repr__(self) -> str:
+        return (
+            f"<EcritureComptable "
+            f"{self.type_ecriture} "
+            f"{self.montant_ttc} MAD>"
+        )

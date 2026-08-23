@@ -1,0 +1,103 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-comptaflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-comptaflow_db}
+    volumes:
+      - comptaflow_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-comptaflow} -d ${POSTGRES_DB:-comptaflow_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - comptaflow_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - comptaflow_ollama:/root/.ollama
+
+  migrate:
+    build: ./backend
+    command: ["alembic", "upgrade", "head"]
+    environment: &backend_environment
+      APP_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      STORAGE_PATH: /app/storage_local
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment: *backend_environment
+    volumes:
+      - comptaflow_storage:/app/storage_local
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    ports:
+      - "${API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build: ./backend
+    command: ["celery", "-A", "app.core.celery_app:celery_app", "worker", "--loglevel=INFO", "--concurrency=1"]
+    restart: unless-stopped
+    environment: *backend_environment
+    volumes:
+      - comptaflow_storage:/app/storage_local
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  comptaflow_pgdata:
+  comptaflow_redisdata:
+  comptaflow_storage:
+  comptaflow_ollama:

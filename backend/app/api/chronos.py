@@ -85,6 +85,11 @@ def list_chrono_documents(
         if document.id in output_by_document:
             continue
 
+        # Les doublons restent visibles dans Documents, mais ne doivent pas
+        # créer de deuxième ligne dans le chrono.
+        if document.est_doublon:
+            continue
+
         item = DocumentChronoOut.model_validate(document)
         item.entreprise_nom = company_name
         item.saisie_topaze = document.saisie_topaze
