@@ -12,9 +12,10 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.document import Document
 from app.models.ecriture import EcritureComptable
+from app.models.entreprise import Entreprise
 from app.models.enums import CategorieDocumentEnum, StatutValidationEnum
 from app.models.user import User
-from app.services import export_service
+from app.services import audit_service, export_service
 
 router = APIRouter(prefix="/export", tags=["export"])
 
@@ -115,6 +116,13 @@ def export_registre(
             ),
         )
 
+    entreprise_existe = db.execute(select(Entreprise.id).where(
+        Entreprise.id == entreprise_id,
+        Entreprise.cabinet_id == current_user.cabinet_id,
+    )).scalar_one_or_none()
+    if entreprise_existe is None:
+        raise HTTPException(status_code=404, detail="Entreprise introuvable dans ce cabinet.")
+
     lignes, totaux = _recuperer_lignes_et_totaux(
         db=db,
         cabinet_id=current_user.cabinet_id,
@@ -137,6 +145,16 @@ def export_registre(
     else:
         contenu = export_service.generer_pdf(lignes, titre, totaux)
         nom_fichier = f"registre_{suffixe}.pdf"
+
+    audit_service.enregistrer(
+        db, user=current_user, action=audit_service.AuditAction.EXPORT_GENERATED,
+        entreprise_id=entreprise_id, resource_type="registre_comptable",
+        description=f"Export {normalized_format.upper()} du {titre}.",
+        metadata={"format": normalized_format, "categorie": categorie_value,
+                  "annee": annee, "mois": mois, "nombre_lignes": len(lignes)},
+        item_count=len(lignes),
+    )
+    db.commit()
 
     return Response(
         content=contenu,

@@ -80,6 +80,13 @@ export interface TvaConfiguration {
   prorata_applicable: boolean | null;
   prorata_deduction: string | number | null;
   retenue_applicable: boolean | null;
+  jour_limite_declaration: number | null;
+  delai_saisie_topaze_jours: number | null;
+  compte_tva_collectee: string | null;
+  compte_tva_recuperable_charges: string | null;
+  compte_tva_recuperable_immobilisations: string | null;
+  compte_tva_a_payer: string | null;
+  compte_credit_tva: string | null;
   notes: string | null;
 }
 
@@ -100,6 +107,18 @@ export interface TvaPeriodeV2 {
   credit_a_reporter: string | number;
   a_verifier: boolean;
   anomalies: string[];
+  statut_comptable: "calcul_en_cours" | "a_verifier" | "prete_topaze" | "saisie_topaze" | string;
+  statut_declaration: "a_preparer" | "a_verifier" | "prete_a_declarer" | "declaree" | "en_retard" | string;
+  date_limite_declaration: string | null;
+  declared_at: string | null;
+  declared_by: string | null;
+  declaration_date_reelle: string | null;
+  declaration_reference: string | null;
+  declaration_note: string | null;
+  justificatif_disponible: boolean;
+  topaze_entered_at: string | null;
+  topaze_entered_by: string | null;
+  topaze_batch_reference: string | null;
 }
 
 export interface TvaPeriodesAnnee {

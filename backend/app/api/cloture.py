@@ -19,7 +19,7 @@ from app.schemas.cloture import (
     AnnulationCloture, RegularisationClotureCreate, RegularisationClotureOut,
     RegularisationClotureUpdate, SyntheseClotureOut,
 )
-from app.services import cloture_service
+from app.services import cloture_service, workflow_comptable_service
 
 router = APIRouter(prefix="/accounting/cloture", tags=["accounting", "cloture"])
 _ROLES_VALIDATION = (RoleEnum.ADMIN_CABINET, RoleEnum.EXPERT_COMPTABLE, RoleEnum.CHEF_MISSION)
@@ -62,6 +62,12 @@ def create_item(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     _ensure_company(db, current_user.cabinet_id, entreprise_id)
+    workflow_comptable_service.verifier_dates_modifiables(
+        db,
+        cabinet_id=current_user.cabinet_id,
+        entreprise_id=entreprise_id,
+        target_dates=(payload.date_ecriture, payload.date_extourne),
+    )
     item = RegularisationCloture(
         cabinet_id=current_user.cabinet_id, entreprise_id=entreprise_id,
         created_by=current_user.id, **payload.model_dump(),
@@ -80,7 +86,19 @@ def update_item(
     item = _get(db, item_id, current_user, entreprise_id)
     if item.statut not in {"brouillon", "a_verifier"}:
         raise HTTPException(status_code=422, detail="Seul un brouillon ou un element a verifier peut etre modifie.")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    workflow_comptable_service.verifier_dates_modifiables(
+        db,
+        cabinet_id=item.cabinet_id,
+        entreprise_id=item.entreprise_id,
+        target_dates=(
+            item.date_ecriture,
+            item.date_extourne,
+            data.get("date_ecriture", item.date_ecriture),
+            data.get("date_extourne", item.date_extourne),
+        ),
+    )
+    for field, value in data.items():
         setattr(item, field, value)
     if item.date_ecriture.year != item.exercice:
         raise HTTPException(status_code=422, detail="La date d'ecriture doit appartenir a l'exercice.")
@@ -97,6 +115,10 @@ def validate_item(
     current_user: User = Depends(require_role(*_ROLES_VALIDATION)),
 ):
     item = _get(db, item_id, current_user, entreprise_id)
+    workflow_comptable_service.verifier_dates_modifiables(
+        db, cabinet_id=item.cabinet_id, entreprise_id=item.entreprise_id,
+        target_dates=(item.date_ecriture, item.date_extourne),
+    )
     if item.statut == "comptabilisee":
         return item
     cloture_service.valider_regularisation(db, item, current_user.id)
@@ -111,6 +133,10 @@ def generate_item(
     current_user: User = Depends(require_role(*_ROLES_VALIDATION)),
 ):
     item = _get(db, item_id, current_user, entreprise_id)
+    workflow_comptable_service.verifier_dates_modifiables(
+        db, cabinet_id=item.cabinet_id, entreprise_id=item.entreprise_id,
+        target_dates=(item.date_ecriture, item.date_extourne),
+    )
     try:
         cloture_service.generer_lignes(db, item)
         db.commit()
@@ -127,6 +153,10 @@ def cancel_item(
     db: Session = Depends(get_db), current_user: User = Depends(require_role(*_ROLES_VALIDATION)),
 ):
     item = _get(db, item_id, current_user, entreprise_id)
+    workflow_comptable_service.verifier_dates_modifiables(
+        db, cabinet_id=item.cabinet_id, entreprise_id=item.entreprise_id,
+        target_dates=(item.date_ecriture, item.date_extourne),
+    )
     cloture_service.annuler_regularisation(db, item, payload.motif)
     db.commit()
     db.refresh(item)

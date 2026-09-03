@@ -5,8 +5,8 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, JSON, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -31,8 +31,8 @@ class RegularisationCloture(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin)
     compte_credit: Mapped[str | None] = mapped_column(String(30), nullable=True)
     statut: Mapped[str] = mapped_column(String(20), nullable=False, default="brouillon")
     source: Mapped[str] = mapped_column(String(50), nullable=False, default="manuel")
-    anomalies: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    donnees_calcul: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    anomalies: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    donnees_calcul: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     a_extourner: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     date_extourne: Mapped[date | None] = mapped_column(Date, nullable=True)
     report_source_id: Mapped[uuid.UUID | None] = mapped_column(

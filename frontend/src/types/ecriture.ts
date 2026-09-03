@@ -1,6 +1,9 @@
 export type StatutValidation =
+  | "calcul_en_cours"
   | "brouillon"
   | "a_verifier"
+  | "prete_topaze"
+  | "saisie_topaze"
   | "valide"
   | "rejete";
 
@@ -35,6 +38,10 @@ export interface Ecriture {
   validated_by: string | null;
   created_at: string;
   saisie_topaze: boolean;
+  ready_for_topaze_at: string | null;
+  topaze_entered_at: string | null;
+  topaze_entered_by: string | null;
+  topaze_batch_reference: string | null;
 
   nom_fichier_document: string | null;
   entreprise_nom: string | null;
@@ -64,4 +71,8 @@ export interface EntryUpdatePayload {
   taux_tva?: string | null;
   montant_tva?: string | null;
   montant_ttc?: string;
+  compte_tiers?: string | null;
+  compte_tva?: string | null;
+  compte_ht?: string | null;
+  libelle?: string | null;
 }

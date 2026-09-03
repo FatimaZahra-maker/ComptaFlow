@@ -3,6 +3,7 @@ import axios from "axios";
 import { Building2, Landmark, Plus, Trash2 } from "lucide-react";
 
 import { chooseAvailableEntreprise, listAvailableEntreprises } from "../api/entreprisesApi";
+import { getActiveEntrepriseId } from "../utils/activeEntreprise";
 import {
   createBankAccount,
   deactivateBankAccount,
@@ -45,7 +46,7 @@ export function ComptesBancairesPage() {
     listAvailableEntreprises("comptes_bancaires")
       .then((rows) => {
         setEntreprises(rows);
-        setEntrepriseId((value) => chooseAvailableEntreprise(rows, value));
+        setEntrepriseId((value) => chooseAvailableEntreprise(rows, value, getActiveEntrepriseId()));
       })
       .catch(() => setEntreprises([]));
   }, []);
@@ -142,7 +143,7 @@ export function ComptesBancairesPage() {
               <option value="">Sélectionner</option>
               {entreprises.map((item) => <option key={item.id} value={item.id}>{item.nom}</option>)}
             </select>
-            {entreprises.length === 0 && <p className="mt-2 text-xs text-amber-700">Aucune entreprise ne possÃ¨de encore de donnÃ©es dans ce module.</p>}
+            {entreprises.length === 0 && <p className="mt-2 text-xs text-amber-700">Aucune entreprise ne possède encore de données dans ce module.</p>}
           </label>
         </header>
 

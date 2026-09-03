@@ -100,3 +100,10 @@ class BilanV2Out(BaseModel):
     nombre_lignes: int
     nombre_comptes: int
     source_calcul: str
+    nature_etat: str = "bilan_provisoire_de_controle"
+    completude: str = "potentiellement_incomplet"
+    raisons_incompletude: list[str] = []
+    avertissement_limite: str = (
+        "Bilan provisoire calculé uniquement à partir des données présentes dans ComptaFlow. "
+        "Il ne remplace pas le bilan officiel produit dans Topaze."
+    )

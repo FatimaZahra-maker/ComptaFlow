@@ -20,6 +20,10 @@ class LigneGrandLivreOut(BaseModel):
     ecriture_id: uuid.UUID | None = None
     mouvement_bancaire_id: uuid.UUID | None = None
     regularisation_cloture_id: uuid.UUID | None = None
+    tva_periode_id: uuid.UUID | None = None
+    document_id: uuid.UUID | None = None
+    tiers: str | None = None
+    statut_topaze: str | None = None
 
 
 class CompteGrandLivreOut(BaseModel):
@@ -29,6 +33,8 @@ class CompteGrandLivreOut(BaseModel):
     total_debit: Decimal
     total_credit: Decimal
     solde_final: Decimal
+    solde_debiteur: Decimal
+    solde_crediteur: Decimal
     lignes: list[LigneGrandLivreOut]
 
 
@@ -63,6 +69,11 @@ class BalanceOut(BaseModel):
     total_solde_debiteur: Decimal
     total_solde_crediteur: Decimal
     equilibree: bool
+    ecart: Decimal
+    tolerance: Decimal
+    comptes_inconnus: int = 0
+    ecritures_non_saisies_topaze: int = 0
+    anomalies: list[str] = []
     lignes: list[LigneBalanceOut]
 
 

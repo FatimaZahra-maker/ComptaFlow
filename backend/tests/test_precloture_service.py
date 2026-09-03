@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 import uuid
@@ -256,3 +256,64 @@ def test_resume_couvre_tous_les_modules_meme_exercice_vide():
     result = calculer_precloture_snapshot(snapshot())
     assert set(result.resume) == {"documents", "ecritures", "banque", "devises", "tva", "cloture", "grand_livre_balance", "cpc", "bilan"}
     assert all(item.statut == "ok" for item in result.resume.values())
+
+
+def test_document_attendu_non_recu_apres_echeance_est_en_retard():
+    snap = snapshot()
+    expected = scoped(
+        snap,
+        type_document="achats",
+        periode_debut=date(YEAR, 1, 1),
+        periode_fin=date(YEAR, 12, 31),
+        date_limite_reception=date.today().replace(year=YEAR) - timedelta(days=1),
+        nombre_attendu=1,
+        complete_manuellement=False,
+    )
+    result = calculer_precloture_snapshot(snapshot(
+        cabinet_id=snap.cabinet_id,
+        entreprise_id=snap.entreprise_id,
+        documents_attendus=[expected],
+    ))
+    assert "documents_attendus_en_retard" in codes(result)
+
+
+def test_pre_ecriture_prete_non_saisie_apres_echeance_topaze_est_en_retard():
+    snap = snapshot()
+    item = entry(
+        snap,
+        statut_validation="prete_topaze",
+        topaze_entered_at=None,
+    )
+    work_period = scoped(
+        snap,
+        periode_debut=date(YEAR, 1, 1),
+        periode_fin=date(YEAR, 12, 31),
+        date_limite_saisie_topaze=date.today().replace(year=YEAR) - timedelta(days=1),
+    )
+    result = calculer_precloture_snapshot(snapshot(
+        cabinet_id=snap.cabinet_id,
+        entreprise_id=snap.entreprise_id,
+        ecritures=[item],
+        periodes_travail=[work_period],
+    ))
+    assert "saisie_topaze_en_retard" in codes(result)
+
+
+def test_declaration_tva_non_declaree_apres_echeance_est_en_retard():
+    snap = snapshot()
+    period = scoped(
+        snap,
+        annee=YEAR,
+        mois=6,
+        statut="provisoire",
+        a_verifier=False,
+        statut_declaration="prete_a_declarer",
+        date_limite_declaration=date.today().replace(year=YEAR) - timedelta(days=1),
+        tva_a_payer=Decimal("120.00"),
+    )
+    result = calculer_precloture_snapshot(snapshot(
+        cabinet_id=snap.cabinet_id,
+        entreprise_id=snap.entreprise_id,
+        tva_periodes=[period],
+    ))
+    assert "declaration_tva_en_retard" in codes(result)

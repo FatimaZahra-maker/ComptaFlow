@@ -1,0 +1,12 @@
+.home-actions > button.home-user {
+  display: flex;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+}
+
+.home-actions > button.home-user:hover,
+.home-actions > button.home-user:focus-visible {
+  background: transparent;
+  color: #092657;
+}

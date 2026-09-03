@@ -9,6 +9,7 @@ import {
 import { Layout } from "./components/Layout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
+import { AssistantConversationProvider } from "./components/assistant/AssistantConversationContext";
 
 const AchatsPage = lazy(() => import("./pages/AchatsPage").then((m) => ({ default: m.AchatsPage })));
 const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage").then((m) => ({ default: m.AdminUsersPage })));
@@ -19,6 +20,8 @@ const GrandLivrePage = lazy(() => import("./pages/GrandLivrePage").then((m) => (
 const BalancePage = lazy(() => import("./pages/BalancePage").then((m) => ({ default: m.BalancePage })));
 const BilanPage = lazy(() => import("./pages/BilanPage").then((m) => ({ default: m.BilanPage })));
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const HomePage = lazy(() => import("./pages/HomePage").then((m) => ({ default: m.HomePage })));
+const CompanySelectionPage = lazy(() => import("./pages/CompanySelectionPage").then((m) => ({ default: m.CompanySelectionPage })));
 const DocumentDetailPage = lazy(() => import("./pages/DocumentDetailPage").then((m) => ({ default: m.DocumentDetailPage })));
 const LoginPage = lazy(() => import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then((m) => ({ default: m.NotificationsPage })));
@@ -32,10 +35,13 @@ const TvaMensuellePage = lazy(() => import("./pages/TvaMensuellePage").then((m) 
 const UploadPage = lazy(() => import("./pages/UploadPage").then((m) => ({ default: m.UploadPage })));
 const VentesPage = lazy(() => import("./pages/VentesPage").then((m) => ({ default: m.VentesPage })));
 const PreCloturePage = lazy(() => import("./pages/PreCloturePage").then((m) => ({ default: m.PreCloturePage })));
+const AuditHistoryPage = lazy(() => import("./pages/AuditHistoryPage").then((m) => ({ default: m.AuditHistoryPage })));
+const AssistantPage = lazy(() => import("./pages/AssistantPage").then((m) => ({ default: m.AssistantPage })));
+const MessagesPage = lazy(() => import("./pages/MessagesPage").then((m) => ({ default: m.MessagesPage })));
 
-function PrivatePage({ children }: { children: ReactNode }) {
+function PrivatePage({ children, roles }: { children: ReactNode; roles?: string[] }) {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={roles}>
       <Layout>{children}</Layout>
     </ProtectedRoute>
   );
@@ -45,13 +51,15 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <AssistantConversationProvider>
         <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-slate-500">Chargement…</div>}>
         <Routes>
           {/* Route publique */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* La racine ouvre directement le tableau de bord. */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/accueil" replace />} />
+          <Route path="/accueil" element={<PrivatePage><HomePage /></PrivatePage>} />
+          <Route path="/entreprises/selection" element={<PrivatePage><CompanySelectionPage /></PrivatePage>} />
 
           <Route
             path="/dashboard"
@@ -134,6 +142,7 @@ export default function App() {
             element={<PrivatePage><RappelsPage /></PrivatePage>}
           />
           <Route path="/taches" element={<Navigate to="/rappels" replace />} />
+          <Route path="/messagerie" element={<PrivatePage><MessagesPage /></PrivatePage>} />
           <Route
             path="/notifications"
             element={<PrivatePage><NotificationsPage /></PrivatePage>}
@@ -144,7 +153,15 @@ export default function App() {
           />
           <Route
             path="/admin/utilisateurs"
-            element={<PrivatePage><AdminUsersPage /></PrivatePage>}
+            element={<PrivatePage roles={["admin_cabinet", "super_admin"]}><AdminUsersPage /></PrivatePage>}
+          />
+          <Route
+            path="/admin/historique"
+            element={<PrivatePage roles={["admin_cabinet", "super_admin"]}><AuditHistoryPage /></PrivatePage>}
+          />
+          <Route
+            path="/assistant"
+            element={<PrivatePage><AssistantPage /></PrivatePage>}
           />
           <Route
             path="/utilisateurs"
@@ -152,9 +169,10 @@ export default function App() {
           />
 
           {/* Toute URL inconnue revient sur une page fonctionnelle. */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/accueil" replace />} />
         </Routes>
         </Suspense>
+        </AssistantConversationProvider>
       </AuthProvider>
     </BrowserRouter>
   );

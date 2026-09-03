@@ -9,6 +9,11 @@ export interface LedgerFilters {
   entreprise_id: string;
   date_debut?: string;
   date_fin?: string;
+  compte_prefix?: string;
+  journal?: string;
+  statut_topaze?: string;
+  tiers?: string;
+  recherche?: string;
 }
 
 export async function getGrandLivre(

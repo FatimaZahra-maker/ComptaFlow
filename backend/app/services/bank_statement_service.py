@@ -44,6 +44,7 @@ _SCHEMA_PAGE = r"""{
   "banque": string | null,
   "titulaire_compte": string | null,
   "rib": string | null,
+  "iban": string | null,
   "periode_debut": "YYYY-MM-DD" | null,
   "periode_fin": "YYYY-MM-DD" | null,
   "solde_depart": number | null,
@@ -576,6 +577,7 @@ def normaliser_et_valider_releve(
         "banque": _first_non_empty(pages, "banque"),
         "titulaire_compte": _first_non_empty(pages, "titulaire_compte"),
         "rib": _first_non_empty(pages, "rib"),
+        "iban": _first_non_empty(pages, "iban"),
         "periode_debut": period_start,
         "periode_fin": period_end,
         # Compatibilité avec le classement Chronos existant.

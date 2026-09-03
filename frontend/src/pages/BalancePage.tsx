@@ -76,7 +76,8 @@ export function BalancePage() {
         </section>
 
         {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-        {entreprises.length === 0 && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Aucune entreprise ne possÃ¨de encore de donnÃ©es dans ce module.</div>}
+        {entreprises.length === 0 && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Aucune entreprise ne possède encore de données dans ce module.</div>}
+        {data && data.anomalies.length > 0 && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p className="font-bold">Contrôles complémentaires</p><ul className="mt-2 list-disc pl-5">{data.anomalies.map((item) => <li key={item}>{item}</li>)}</ul><p className="mt-2 text-xs">Une balance équilibrée ne prouve pas que les comptes, tiers, périodes et pièces sont tous corrects.</p></div>}
 
         <section className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
           <div className="rounded-xl bg-white p-4 shadow-sm"><p className="text-xs uppercase text-gray-400">Comptes</p><p className="mt-1 text-2xl font-bold">{data?.nombre_comptes ?? 0}</p></div>

@@ -14,6 +14,13 @@ class TvaConfigurationUpdate(BaseModel):
     prorata_applicable: bool | None = None
     prorata_deduction: Decimal | None = Field(default=None, ge=0, le=1)
     retenue_applicable: bool | None = None
+    jour_limite_declaration: int | None = Field(default=None, ge=1, le=31)
+    delai_saisie_topaze_jours: int | None = Field(default=None, ge=0, le=365)
+    compte_tva_collectee: str | None = Field(default=None, max_length=30)
+    compte_tva_recuperable_charges: str | None = Field(default=None, max_length=30)
+    compte_tva_recuperable_immobilisations: str | None = Field(default=None, max_length=30)
+    compte_tva_a_payer: str | None = Field(default=None, max_length=30)
+    compte_credit_tva: str | None = Field(default=None, max_length=30)
     notes: str | None = Field(default=None, max_length=2000)
 
     @model_validator(mode="after")
@@ -76,6 +83,34 @@ class TvaPeriodeOut(BaseModel):
     validee_at: datetime | None = None
     a_verifier: bool
     anomalies: list[str]
+    statut_comptable: str
+    statut_declaration: str
+    date_limite_declaration: date | None = None
+    declared_at: datetime | None = None
+    declared_by: uuid.UUID | None = None
+    declaration_date_reelle: date | None = None
+    declaration_reference: str | None = None
+    declaration_note: str | None = None
+    justificatif_disponible: bool = False
+    topaze_entered_at: datetime | None = None
+    topaze_entered_by: uuid.UUID | None = None
+    topaze_batch_reference: str | None = None
+
+
+class TvaDeclarationCreate(BaseModel):
+    date_declaration: date
+    reference: str | None = Field(default=None, max_length=150)
+    justificatif_document_id: uuid.UUID | None = None
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class TvaDeadlineUpdate(BaseModel):
+    date_limite: date
+
+
+class TvaTopazeMark(BaseModel):
+    saisie: bool = True
+    reference_lot: str | None = Field(default=None, max_length=100)
 
 
 class TvaPeriodesAnneeOut(BaseModel):

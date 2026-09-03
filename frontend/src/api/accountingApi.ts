@@ -51,9 +51,10 @@ export async function rejectEntry(id: string): Promise<Ecriture> {
   return response.data;
 }
 
-export async function toggleSaisieTopaze(id: string): Promise<Ecriture> {
+export async function toggleSaisieTopaze(id: string, saisie?: boolean, referenceLot?: string): Promise<Ecriture> {
   const response = await apiClient.patch<Ecriture>(
     `/accounting/entries/${id}/saisie`,
+    saisie === undefined ? undefined : { saisie, reference_lot: referenceLot || null },
   );
   return response.data;
 }
@@ -226,6 +227,57 @@ export async function recalculerTvaV2(params: {
     "/accounting/tva-v2/recalculer",
     null,
     { params },
+  );
+  return response.data;
+}
+
+export async function marquerTvaDeclaree(
+  periodId: string,
+  entrepriseId: string,
+  payload: { date_declaration: string; reference?: string; note?: string },
+): Promise<import("../types/registre").TvaPeriodeV2> {
+  const response = await apiClient.post<import("../types/registre").TvaPeriodeV2>(
+    `/accounting/tva-v2/periodes/${periodId}/declarer`,
+    payload,
+    { params: { entreprise_id: entrepriseId } },
+  );
+  return response.data;
+}
+
+export async function modifierEcheanceTva(
+  periodId: string,
+  entrepriseId: string,
+  dateLimite: string,
+): Promise<import("../types/registre").TvaPeriodeV2> {
+  const response = await apiClient.patch<import("../types/registre").TvaPeriodeV2>(
+    `/accounting/tva-v2/periodes/${periodId}/echeance`,
+    { date_limite: dateLimite },
+    { params: { entreprise_id: entrepriseId } },
+  );
+  return response.data;
+}
+
+export async function modifierConfigurationTva(
+  entrepriseId: string,
+  payload: Partial<import("../types/registre").TvaConfiguration>,
+): Promise<import("../types/registre").TvaConfiguration> {
+  const response = await apiClient.put<import("../types/registre").TvaConfiguration>(
+    `/accounting/tva-v2/configuration/${entrepriseId}`,
+    payload,
+  );
+  return response.data;
+}
+
+export async function marquerCentralisationTvaTopaze(
+  periodId: string,
+  entrepriseId: string,
+  saisie: boolean,
+  referenceLot?: string,
+): Promise<import("../types/registre").TvaPeriodeV2> {
+  const response = await apiClient.patch<import("../types/registre").TvaPeriodeV2>(
+    `/accounting/tva-v2/periodes/${periodId}/saisie-topaze`,
+    { saisie, reference_lot: referenceLot },
+    { params: { entreprise_id: entrepriseId } },
   );
   return response.data;
 }

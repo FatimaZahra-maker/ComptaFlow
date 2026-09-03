@@ -7,6 +7,10 @@ from pydantic import BaseModel, ConfigDict
 from app.models.enums import StatutDocumentEnum
 
 
+class DocumentEntrepriseUpdate(BaseModel):
+    entreprise_id: uuid.UUID
+
+
 class DocumentOut(BaseModel):
     """Ce que l'API renvoie apres un upload ou une consultation."""
     id: uuid.UUID

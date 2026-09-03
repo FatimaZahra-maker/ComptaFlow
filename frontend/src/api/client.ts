@@ -9,7 +9,7 @@ export const apiClient = axios.create({
 
 // Attache automatiquement le token JWT (s'il existe) à chaque requête sortante
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem("comptaflow_token");
+  const token = localStorage.getItem("comptaflow_token") ?? sessionStorage.getItem("comptaflow_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -23,6 +23,7 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem("comptaflow_token");
+      sessionStorage.removeItem("comptaflow_token");
       window.location.href = "/login";
     }
     return Promise.reject(error);

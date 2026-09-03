@@ -25,6 +25,7 @@ import {
   listDocuments,
   retraiterDocument,
   uploadDocument,
+  auditUploadBatch,
 } from "../api/documentsApi";
 
 import type { Document } from "../types/document";
@@ -163,6 +164,7 @@ export function UploadPage() {
     setCurrentUploadName(null);
 
     const failedFiles: string[] = [];
+    const importedDocumentIds: string[] = [];
     let importedCount = 0;
 
     try {
@@ -176,13 +178,17 @@ export function UploadPage() {
         });
 
         try {
-          await uploadDocument(file);
+          const imported = await uploadDocument(file);
+          importedDocumentIds.push(imported.id);
           importedCount += 1;
         } catch (requestError) {
           failedFiles.push(`${file.name} : ${getErrorMessage(requestError)}`);
         }
       }
 
+      if (importedDocumentIds.length > 1) {
+        await auditUploadBatch(importedDocumentIds);
+      }
       await refresh();
 
       const messages: string[] = [];

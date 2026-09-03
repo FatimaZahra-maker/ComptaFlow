@@ -11,6 +11,11 @@ export interface GrandLivreLigne {
   origine: string;
   ecriture_id: string | null;
   mouvement_bancaire_id: string | null;
+  regularisation_cloture_id: string | null;
+  tva_periode_id: string | null;
+  document_id: string | null;
+  tiers: string | null;
+  statut_topaze: string | null;
 }
 
 export interface GrandLivreCompte {
@@ -20,6 +25,8 @@ export interface GrandLivreCompte {
   total_debit: string;
   total_credit: string;
   solde_final: string;
+  solde_debiteur: string;
+  solde_crediteur: string;
   lignes: GrandLivreLigne[];
 }
 
@@ -54,6 +61,11 @@ export interface Balance {
   total_solde_debiteur: string;
   total_solde_crediteur: string;
   equilibree: boolean;
+  ecart: string;
+  tolerance: string;
+  comptes_inconnus: number;
+  ecritures_non_saisies_topaze: number;
+  anomalies: string[];
   lignes: BalanceLigne[];
 }
 

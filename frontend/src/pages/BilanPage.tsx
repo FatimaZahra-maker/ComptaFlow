@@ -126,9 +126,9 @@ export function BilanPage() {
             <Building2 size={22} />
             <span className="text-sm font-semibold">États de synthèse</span>
           </div>
-          <h1 className="mt-1 text-3xl font-bold text-gray-950">Bilan</h1>
+          <h1 className="mt-1 text-3xl font-bold text-gray-950">Bilan provisoire de contrôle</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Bilan technique construit depuis le Grand Livre validé et relié au résultat net du CPC.
+            État de préparation construit depuis les mêmes lignes comptables que la Balance et le CPC.
           </p>
         </header>
 
@@ -200,6 +200,8 @@ export function BilanPage() {
             {!data.resultat_deja_comptabilise && Number(data.resultat_non_affecte) !== 0 && <p className="mt-2 text-sm">Résultat non affecté présenté séparément : {money(data.resultat_non_affecte)}. Aucune ligne fictive n'a été créée.</p>}
           </section>
         )}
+
+        {data && <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><p className="font-semibold">{data.avertissement_limite}</p><p className="mt-1">Complétude : <strong>{data.completude === "complet" ? "complet selon les contrôles configurés" : "potentiellement incomplet"}</strong></p>{data.raisons_incompletude.length > 0 && <p className="mt-1 text-xs">{data.raisons_incompletude.join(" · ")}</p>}</div>}
 
         {data?.statut === "a_verifier" && data.anomalies.length > 0 && (
           <section className="mb-5 rounded-xl border border-amber-200 bg-white p-4 text-sm text-amber-900 shadow-sm">

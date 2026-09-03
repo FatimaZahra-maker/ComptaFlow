@@ -1,0 +1,35 @@
+\babel@toc {french}{}\relax 
+\contentsline {chapter}{\numberline {1}Comment utiliser cette fiche}{1}{chapter.1}%
+\contentsline {section}{\numberline {1.1}Périmètre}{1}{section.1.1}%
+\contentsline {section}{\numberline {1.2}Trois questions à poser pour chaque fichier}{1}{section.1.2}%
+\contentsline {chapter}{\numberline {2}Vue d’ensemble de l’architecture}{2}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Architecture d’exécution}{2}{section.2.1}%
+\contentsline {section}{\numberline {2.2}Règle d’isolation multi-tenant}{2}{section.2.2}%
+\contentsline {chapter}{\numberline {3}Flux fonctionnels à connaître}{3}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Connexion et autorisation}{3}{section.3.1}%
+\contentsline {section}{\numberline {3.2}Import et traitement d’un document}{4}{section.3.2}%
+\contentsline {section}{\numberline {3.3}Facture vers pré-écriture et lignes comptables}{5}{section.3.3}%
+\contentsline {section}{\numberline {3.4}Rapprochement bancaire}{6}{section.3.4}%
+\contentsline {section}{\numberline {3.5}Du frontend à l’écran}{6}{section.3.5}%
+\contentsline {chapter}{\numberline {4}Backend : rôle de chaque fichier}{7}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Point d’entrée et cœur technique}{7}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Modèles SQLAlchemy}{7}{section.4.2}%
+\contentsline {section}{\numberline {4.3}Schémas Pydantic}{9}{section.4.3}%
+\contentsline {section}{\numberline {4.4}Routes FastAPI}{10}{section.4.4}%
+\contentsline {section}{\numberline {4.5}Services métier}{11}{section.4.5}%
+\contentsline {subsection}{\numberline {4.5.1}Services documentaires, OCR et IA}{11}{subsection.4.5.1}%
+\contentsline {subsection}{\numberline {4.5.2}Services comptables}{12}{subsection.4.5.2}%
+\contentsline {subsection}{\numberline {4.5.3}Services banque, devises et organisation}{13}{subsection.4.5.3}%
+\contentsline {section}{\numberline {4.6}Tâches, utilitaires et scripts}{13}{section.4.6}%
+\contentsline {section}{\numberline {4.7}Alembic et évolution de la base}{14}{section.4.7}%
+\contentsline {section}{\numberline {4.8}Tests backend}{15}{section.4.8}%
+\contentsline {chapter}{\numberline {5}Frontend : rôle de chaque fichier}{17}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Entrée, contexte et composants}{17}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Client HTTP et modules API}{17}{section.5.2}%
+\contentsline {section}{\numberline {5.3}Types TypeScript}{18}{section.5.3}%
+\contentsline {section}{\numberline {5.4}Pages React}{19}{section.5.4}%
+\contentsline {section}{\numberline {5.5}Utilitaires, styles et ressources}{20}{section.5.5}%
+\contentsline {chapter}{\numberline {6}Configuration, déploiement et documentation}{21}{chapter.6}%
+\contentsline {chapter}{\numberline {7}Carte de dépendances pour réviser rapidement}{23}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Questions de soutenance et réponses courtes}{23}{section.7.1}%
+\contentsline {section}{\numberline {7.2}Ordre conseillé pour relire le code}{24}{section.7.2}%

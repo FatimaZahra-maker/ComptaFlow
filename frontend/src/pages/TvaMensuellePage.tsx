@@ -1,8 +1,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { getTvaMensuelle, recalculerTvaV2 } from "../api/accountingApi";
+import { getTvaMensuelle, marquerCentralisationTvaTopaze, marquerTvaDeclaree, modifierConfigurationTva, modifierEcheanceTva, recalculerTvaV2 } from "../api/accountingApi";
 import { chooseAvailableEntreprise, listAvailableEntreprises } from "../api/entreprisesApi";
+import { getActiveEntrepriseId } from "../utils/activeEntreprise";
 import type { Entreprise } from "../types/entreprise";
-import type { TvaAnnuelle, TvaMensuelle, TvaPeriodesAnnee } from "../types/registre";
+import type { TvaAnnuelle, TvaConfiguration, TvaMensuelle, TvaPeriodesAnnee } from "../types/registre";
 
 const MOIS_LABELS = [
   "Janvier",
@@ -68,13 +69,77 @@ export function TvaMensuellePage() {
   const [error, setError] = useState<string | null>(null);
   const [moisOuvert, setMoisOuvert] = useState<number | null>(null);
 
+  async function markDeclared(periodId: string) {
+    if (!entrepriseId) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const declarationDate = window.prompt("Date réelle de déclaration (AAAA-MM-JJ)", today);
+    if (!declarationDate) return;
+    const reference = window.prompt("Référence de déclaration (facultative)") ?? undefined;
+    try {
+      await marquerTvaDeclaree(periodId, entrepriseId, { date_declaration: declarationDate, reference });
+      await refresh();
+    } catch {
+      setError("Impossible de marquer cette période comme déclarée. Vérifiez les anomalies et vos droits.");
+    }
+  }
+
+  async function updateDeadline(periodId: string, current: string | null) {
+    if (!entrepriseId) return;
+    const deadline = window.prompt(
+      "Date limite validée par le cabinet (AAAA-MM-JJ)",
+      current ?? "",
+    );
+    if (!deadline) return;
+    try {
+      await modifierEcheanceTva(periodId, entrepriseId, deadline);
+      await refresh();
+    } catch {
+      setError("Impossible de modifier l’échéance de déclaration TVA.");
+    }
+  }
+
+  async function configureVatAccounts() {
+    if (!entrepriseId) return;
+    const current = tvaV2?.configuration;
+    const fields = [
+      ["compte_tva_collectee", "Compte TVA collectée"],
+      ["compte_tva_recuperable_charges", "Compte TVA récupérable sur charges"],
+      ["compte_tva_recuperable_immobilisations", "Compte TVA récupérable sur immobilisations"],
+      ["compte_tva_a_payer", "Compte TVA à payer"],
+      ["compte_credit_tva", "Compte crédit de TVA"],
+    ] as const;
+    const payload: Partial<TvaConfiguration> = {};
+    for (const [field, label] of fields) {
+      const value = window.prompt(`${label} (numéro exact du plan de l’entreprise)`, current?.[field] ?? "");
+      if (value === null) return;
+      payload[field] = value.trim() || null;
+    }
+    try {
+      await modifierConfigurationTva(entrepriseId, payload);
+      await refresh();
+    } catch {
+      setError("Impossible d’enregistrer les comptes TVA. Vérifiez qu’ils appartiennent au plan comptable de l’entreprise.");
+    }
+  }
+
+  async function markVatTopaze(periodId: string, alreadyEntered: boolean) {
+    if (!entrepriseId) return;
+    const reference = alreadyEntered ? undefined : window.prompt("Référence du lot ou journal Topaze (facultative)") ?? undefined;
+    try {
+      await marquerCentralisationTvaTopaze(periodId, entrepriseId, !alreadyEntered, reference);
+      await refresh();
+    } catch {
+      setError("Impossible de modifier le statut Topaze de cette centralisation TVA.");
+    }
+  }
+
   useEffect(() => {
     setDonnees(null);
     setTvaV2(null);
     listAvailableEntreprises("tva", annee)
       .then((data) => {
         setEntreprises(data);
-        setEntrepriseId((current) => chooseAvailableEntreprise(data, current));
+        setEntrepriseId((current) => chooseAvailableEntreprise(data, current, getActiveEntrepriseId()));
       })
       .catch(() => setError("Impossible de charger les entreprises."));
   }, [annee]);
@@ -229,14 +294,14 @@ export function TvaMensuellePage() {
 
             {tvaV2 && (
               <div className="mb-6 overflow-hidden rounded-xl border bg-white shadow-sm">
-                <div className="border-b px-5 py-4">
-                  <h2 className="text-sm font-semibold text-gray-900">Périodes TVA V2</h2>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Périodicité : {tvaV2.configuration?.periodicite ?? "non configurée"}. Les retenues sans règle explicite restent à vérifier.
-                  </p>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
+                  <div><h2 className="text-sm font-semibold text-gray-900">Périodes TVA V2</h2>
+                    <p className="mt-1 text-xs text-gray-500">Périodicité : {tvaV2.configuration?.periodicite ?? "non configurée"}. Les comptes de centralisation proviennent du plan de l’entreprise.</p>
+                  </div>
+                  <button type="button" onClick={() => void configureVatAccounts()} className="rounded-lg border border-blue-300 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">Configurer les comptes TVA</button>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1180px] text-sm">
+                  <table className="w-full min-w-[1320px] text-sm">
                     <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
                       <tr>
                         <th className="p-3 text-left">Période</th>
@@ -249,6 +314,8 @@ export function TvaMensuellePage() {
                         <th className="p-3 text-right">À payer</th>
                         <th className="p-3 text-right">Crédit à reporter</th>
                         <th className="p-3 text-center">Statut</th>
+                        <th className="p-3 text-center">Échéance déclarative</th>
+                        <th className="p-3 text-center">Déclaration</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -264,11 +331,26 @@ export function TvaMensuellePage() {
                           <td className="p-3 text-right">{formatMontant(period.tva_a_payer)}</td>
                           <td className="p-3 text-right">{formatMontant(period.credit_a_reporter)}</td>
                           <td className="p-3 text-center">
-                            <span className={`rounded-full px-2 py-1 text-xs ${period.a_verifier ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-700"}`}>
-                              {period.a_verifier ? "À vérifier" : period.statut}
+                            <span className={`rounded-full px-2 py-1 text-xs ${period.a_verifier ? "bg-amber-100 text-amber-800" : period.statut_comptable === "saisie_topaze" ? "bg-indigo-100 text-indigo-800" : "bg-emerald-100 text-emerald-700"}`}>
+                              {period.statut_comptable.replaceAll("_", " ")}
                             </span>
                             {period.anomalies.length > 0 && (
                               <p className="mt-1 max-w-[220px] text-[10px] text-amber-700">{period.anomalies.join(" · ")}</p>
+                            )}
+                            {!period.a_verifier && ["prete_topaze", "saisie_topaze"].includes(period.statut_comptable) && (
+                              <button type="button" onClick={() => void markVatTopaze(period.id, period.statut_comptable === "saisie_topaze")} className="mt-2 block w-full rounded border border-indigo-300 px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">{period.statut_comptable === "saisie_topaze" ? "Annuler saisie Topaze" : "Marquer saisie Topaze"}</button>
+                            )}
+                          </td>
+                          <td className="p-3 text-center">
+                            <p className="text-xs text-gray-600">{period.date_limite_declaration ?? "Non configurée"}</p>
+                            <button type="button" onClick={() => void updateDeadline(period.id, period.date_limite_declaration)} className="mt-2 rounded border border-blue-300 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50">Définir l’échéance</button>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`rounded-full px-2 py-1 text-xs ${period.statut_declaration === "declaree" ? "bg-emerald-100 text-emerald-700" : period.statut_declaration === "en_retard" ? "bg-red-100 text-red-700" : "bg-blue-50 text-blue-700"}`}>
+                              {period.statut_declaration.replaceAll("_", " ")}
+                            </span>
+                            {period.statut_declaration !== "declaree" && !period.a_verifier && (
+                              <button type="button" onClick={() => void markDeclared(period.id)} className="mt-2 block w-full rounded border border-emerald-300 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">Marquer comme déclarée</button>
                             )}
                           </td>
                         </tr>

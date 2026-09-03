@@ -5,8 +5,8 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, JSON, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -17,6 +17,14 @@ class TvaConfigurationEntreprise(Base, UUIDMixin, TimestampMixin, CabinetScopedM
     __tablename__ = "tva_configurations_entreprise"
     __table_args__ = (
         UniqueConstraint("cabinet_id", "entreprise_id", name="uq_tva_configuration_tenant"),
+        CheckConstraint(
+            "jour_limite_declaration IS NULL OR (jour_limite_declaration BETWEEN 1 AND 31)",
+            name="ck_tva_configuration_jour_limite",
+        ),
+        CheckConstraint(
+            "delai_saisie_topaze_jours IS NULL OR delai_saisie_topaze_jours >= 0",
+            name="ck_tva_configuration_delai_topaze",
+        ),
     )
 
     entreprise_id: Mapped[uuid.UUID] = mapped_column(
@@ -27,6 +35,15 @@ class TvaConfigurationEntreprise(Base, UUIDMixin, TimestampMixin, CabinetScopedM
     prorata_applicable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     prorata_deduction: Mapped[Decimal | None] = mapped_column(Numeric(7, 6), nullable=True)
     retenue_applicable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # Échéance propre à l'entreprise/régime. Aucune date fiscale n'est déduite
+    # ou codée en dur par l'application.
+    jour_limite_declaration: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    delai_saisie_topaze_jours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    compte_tva_collectee: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    compte_tva_recuperable_charges: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    compte_tva_recuperable_immobilisations: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    compte_tva_a_payer: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    compte_credit_tva: Mapped[str | None] = mapped_column(String(30), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -63,8 +80,28 @@ class TvaPeriode(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     a_verifier: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    anomalies: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    anomalies: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     source_calcul: Mapped[str] = mapped_column(String(50), nullable=False, default="lignes_comptables_validees")
+    statut_comptable: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="calcul_en_cours"
+    )
+    statut_declaration: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="a_preparer"
+    )
+    date_limite_declaration: Mapped[date | None] = mapped_column(Date, nullable=True)
+    declared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    declared_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    declaration_date_reelle: Mapped[date | None] = mapped_column(Date, nullable=True)
+    declaration_reference: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    declaration_receipt_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    declaration_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    topaze_entered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    topaze_entered_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    topaze_batch_reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
 
 class TvaRegularisation(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin):

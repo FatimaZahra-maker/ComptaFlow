@@ -13,6 +13,7 @@ from app.services.available_company_service import (
     construire_requete,
     lister_entreprises_disponibles,
 )
+from app.schemas.entreprise import EntrepriseDisponibleOut
 
 
 def compiled(module, *, exercice=None):
@@ -152,6 +153,7 @@ def test_compteurs_registres_sont_agreges_sans_n_plus_un():
         id=entreprise_id,
         nom="Entreprise test",
         ice=None,
+        is_active=True,
         creee_automatiquement=False,
     )
 
@@ -190,3 +192,4 @@ def test_compteurs_registres_sont_agreges_sans_n_plus_un():
     assert rows[0].ecritures_brouillon == 2
     assert rows[0].ecritures_a_verifier == 3
     assert rows[0].ecritures_validees == 5
+    assert EntrepriseDisponibleOut.model_validate(rows[0]).is_active is True

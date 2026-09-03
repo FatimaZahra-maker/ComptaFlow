@@ -104,7 +104,7 @@ export function CpcPage() {
             <span className="text-sm font-semibold">États de synthèse</span>
           </div>
           <h1 className="mt-1 text-3xl font-bold text-gray-950">Compte de Produits et Charges</h1>
-          <p className="mt-1 text-sm text-gray-500">CPC calculé exclusivement depuis les lignes validées du Grand Livre en MAD.</p>
+          <p className="mt-1 text-sm text-gray-500">CPC provisoire de contrôle, calculé exclusivement depuis les lignes comptables admissibles du Grand Livre en MAD. Il ne remplace pas l’état officiel produit dans Topaze.</p>
         </header>
 
         <section className="mb-5 grid grid-cols-1 gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm md:grid-cols-[1fr_180px_auto]">

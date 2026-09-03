@@ -1,36 +1,41 @@
+\babel@toc {french}{}\relax 
 \babel@toc {english}{}\relax 
-\babel@toc {english}{}\relax 
-\babel@toc {english}{}\relax 
+\babel@toc {french}{}\relax 
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {2.1}{\ignorespaces Organigramme fonctionnel simplifié de SEGURIBAT}}{7}{figure.caption.9}%
+\contentsline {figure}{\numberline {2.1}{\ignorespaces Organigramme fonctionnel simplifié de SEGURIBAT}}{8}{figure.caption.10}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {3.1}{\ignorespaces Processus actuel de traitement d'une pièce comptable au sein de SEGURIBAT}}{10}{figure.caption.11}%
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Processus actuel de traitement d'une pièce comptable au sein de SEGURIBAT}}{11}{figure.caption.12}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {4.1}{\ignorespaces Diagramme général des cas d'utilisation}}{17}{figure.caption.14}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {5.1}{\ignorespaces Activité principale de traitement d'un document}}{19}{figure.caption.15}%
-\contentsline {figure}{\numberline {5.2}{\ignorespaces Diagramme de séquence du traitement d'une pièce comptable}}{20}{figure.caption.16}%
-\contentsline {figure}{\numberline {5.3}{\ignorespaces MCD Merise du cœur documentaire, comptable et bancaire}}{22}{figure.caption.18}%
-\contentsline {figure}{\numberline {5.4}{\ignorespaces Passage de la conception Merise à l'implémentation}}{27}{figure.caption.20}%
-\contentsline {figure}{\numberline {5.5}{\ignorespaces Architecture en couches de l'application}}{28}{figure.caption.21}%
-\contentsline {figure}{\numberline {5.6}{\ignorespaces Diagramme des composants techniques}}{29}{figure.caption.22}%
-\contentsline {figure}{\numberline {5.7}{\ignorespaces Organisation du code du projet}}{30}{figure.caption.23}%
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Diagramme général des cas d'utilisation}}{22}{figure.caption.19}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {6.1}{\ignorespaces Pipeline complet de traitement d'une pièce comptable}}{34}{figure.caption.25}%
+\contentsline {figure}{\numberline {6.1}{\ignorespaces Activité principale de traitement d'un document}}{24}{figure.caption.20}%
+\contentsline {figure}{\numberline {6.2}{\ignorespaces Diagramme de séquence du traitement d'une pièce comptable}}{25}{figure.caption.21}%
+\contentsline {figure}{\numberline {6.3}{\ignorespaces MCD Merise du cœur documentaire, comptable et bancaire}}{27}{figure.caption.23}%
+\contentsline {figure}{\numberline {6.4}{\ignorespaces Passage de la conception Merise à l'implémentation}}{32}{figure.caption.25}%
+\contentsline {figure}{\numberline {6.5}{\ignorespaces Architecture en couches de l'application}}{34}{figure.caption.26}%
+\contentsline {figure}{\numberline {6.6}{\ignorespaces Diagramme des composants techniques}}{35}{figure.caption.27}%
+\contentsline {figure}{\numberline {6.7}{\ignorespaces Organisation du code du projet}}{36}{figure.caption.28}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {7.1}{\ignorespaces Tableau de bord de ComptaFlow}}{38}{figure.caption.26}%
-\contentsline {figure}{\numberline {7.2}{\ignorespaces Interface d'import d'un document}}{39}{figure.caption.27}%
-\contentsline {figure}{\numberline {7.3}{\ignorespaces Suivi des documents dans les chronos}}{39}{figure.caption.28}%
-\contentsline {figure}{\numberline {7.4}{\ignorespaces Contrôle d'un document et de son écriture}}{39}{figure.caption.29}%
-\contentsline {figure}{\numberline {7.5}{\ignorespaces Plan comptable propre à une entreprise}}{40}{figure.caption.30}%
-\contentsline {figure}{\numberline {7.6}{\ignorespaces Configuration des comptes bancaires}}{40}{figure.caption.31}%
-\contentsline {figure}{\numberline {7.7}{\ignorespaces Mouvements et rapprochements bancaires}}{41}{figure.caption.32}%
-\contentsline {figure}{\numberline {7.8}{\ignorespaces Consultation du Grand Livre}}{41}{figure.caption.33}%
-\contentsline {figure}{\numberline {7.9}{\ignorespaces État comptable et contrôles de cohérence}}{42}{figure.caption.34}%
-\contentsline {figure}{\numberline {7.10}{\ignorespaces Tableau de pré-clôture}}{42}{figure.caption.35}%
-\contentsline {figure}{\numberline {7.11}{\ignorespaces Gestion des tâches et rappels}}{42}{figure.caption.36}%
+\contentsline {figure}{\numberline {7.1}{\ignorespaces Pipeline complet de traitement d'une pièce comptable}}{41}{figure.caption.31}%
 \addvspace {10\p@ }
+\contentsline {figure}{\numberline {8.1}{\ignorespaces Écran d'authentification sécurisé de ComptaFlow}}{45}{figure.caption.32}%
+\contentsline {figure}{\numberline {8.2}{\ignorespaces Accueil à deux parcours et aide contextuelle sur le choix d'une entreprise}}{46}{figure.caption.33}%
+\contentsline {figure}{\numberline {8.3}{\ignorespaces Recherche et sélection du dossier d'une entreprise}}{47}{figure.caption.34}%
+\contentsline {figure}{\numberline {8.4}{\ignorespaces Tableau de bord du dossier comptable sélectionné}}{48}{figure.caption.35}%
+\contentsline {figure}{\numberline {8.5}{\ignorespaces Interface d'import d'une pièce comptable}}{48}{figure.caption.36}%
+\contentsline {figure}{\numberline {8.6}{\ignorespaces Consultation et suivi des documents dans les chronos}}{49}{figure.caption.37}%
+\contentsline {figure}{\numberline {8.7}{\ignorespaces Contrôle d'un document et de sa pré-écriture comptable}}{50}{figure.caption.38}%
+\contentsline {figure}{\numberline {8.8}{\ignorespaces Configuration des comptes bancaires d'une entreprise}}{50}{figure.caption.39}%
+\contentsline {figure}{\numberline {8.9}{\ignorespaces Rapprochement des mouvements bancaires}}{51}{figure.caption.40}%
+\contentsline {figure}{\numberline {8.10}{\ignorespaces Planification et suivi visuel des tâches}}{52}{figure.caption.41}%
+\contentsline {figure}{\numberline {8.11}{\ignorespaces Consultation du Grand Livre}}{53}{figure.caption.42}%
+\contentsline {figure}{\numberline {8.12}{\ignorespaces Consultation des états comptables}}{53}{figure.caption.43}%
+\contentsline {figure}{\numberline {8.13}{\ignorespaces TVA comptable et préparation de la centralisation}}{54}{figure.caption.44}%
+\contentsline {figure}{\numberline {8.14}{\ignorespaces Contrôles de pré-clôture}}{55}{figure.caption.45}%
+\contentsline {figure}{\numberline {8.15}{\ignorespaces Assistant ComptaFlow en contexte multi-entreprise}}{56}{figure.caption.46}%
+\contentsline {figure}{\numberline {8.16}{\ignorespaces Journal d'audit filtrable réservé aux administrateurs}}{57}{figure.caption.47}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }

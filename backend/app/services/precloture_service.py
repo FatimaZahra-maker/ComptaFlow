@@ -35,6 +35,7 @@ from app.models.regularisation_cloture import RegularisationCloture
 from app.models.tva_periode import (
     TvaConfigurationEntreprise, TvaCreditUtilisation, TvaPeriode, TvaRegularisation,
 )
+from app.models.workflow_comptable import DocumentAttenduConfiguration, PeriodeTravail
 from app.services import bilan_service, cpc_service, tva_comptable_service
 from app.services.etat_comptable_service import MONEY, ZERO, controler_lignes_validees, decimal_exploitable
 from app.services.plan_comptable_service import normaliser_texte
@@ -105,6 +106,8 @@ class PreClotureSnapshot:
     tva_regularisations: list[object] = field(default_factory=list)
     tva_credits: list[object] = field(default_factory=list)
     clotures: list[object] = field(default_factory=list)
+    documents_attendus: list[object] = field(default_factory=list)
+    periodes_travail: list[object] = field(default_factory=list)
 
 
 def _value(value: object | None) -> str:
@@ -225,7 +228,11 @@ def _ecritures_et_lignes(snapshot: PreClotureSnapshot, ecritures: list[object], 
         status = _value(getattr(entry, "statut_validation", None))
         kind = _value(getattr(entry, "type_ecriture", None))
         entry_lines = [line for line in lines_by_entry.get(_id(entry), []) if bool(getattr(line, "est_validee", False))]
-        if status == StatutValidationEnum.VALIDE.value and not entry_lines:
+        if status in {
+            StatutValidationEnum.PRETE_TOPAZE.value,
+            StatutValidationEnum.SAISIE_TOPAZE.value,
+            StatutValidationEnum.VALIDE.value,
+        } and not entry_lines:
             anomalies.append(_anomalie(snapshot, code="ecriture_validee_sans_lignes", module="ecritures", niveau="bloquant", titre="Ecriture validee sans lignes", description="Une ecriture validee n'alimente pas le Grand Livre.", objet_type="ecriture", objet=entry, route=route))
         if entry_lines:
             debit = sum((_money(getattr(line, "debit", None)) for line in entry_lines), ZERO)
@@ -369,7 +376,7 @@ def _devises(
 def _tva(snapshot: PreClotureSnapshot, lignes: list[object], ecritures: list[object]) -> list[AnomalieControle]:
     anomalies: list[AnomalieControle] = []
     current_lines = [line for line in lignes if _annee(getattr(line, "date_ecriture", None)) == snapshot.exercice]
-    current_entries = [entry for entry in ecritures if _annee(getattr(entry, "date_piece", None)) == snapshot.exercice and _value(getattr(entry, "statut_validation", None)) == StatutValidationEnum.VALIDE.value]
+    current_entries = [entry for entry in ecritures if _annee(getattr(entry, "date_piece", None)) == snapshot.exercice and _value(getattr(entry, "statut_validation", None)) in {StatutValidationEnum.PRETE_TOPAZE.value, StatutValidationEnum.SAISIE_TOPAZE.value, StatutValidationEnum.VALIDE.value}]
     synthesis = tva_comptable_service.construire_synthese_tva(entreprise_id=snapshot.entreprise_id, annee=snapshot.exercice, lignes=current_lines, ecritures=current_entries)
     for month in synthesis.mensualites:
         if month.a_verifier:
@@ -485,6 +492,63 @@ def _etat_cpc_bilan(snapshot: PreClotureSnapshot, lignes: list[object]) -> tuple
     return cpc_anomalies, bilan_anomalies
 
 
+def _retards_operationnels(snapshot: PreClotureSnapshot, ecritures: list[object]) -> list[AnomalieControle]:
+    anomalies: list[AnomalieControle] = []
+    today = date.today()
+    configs = _scope(snapshot.documents_attendus, snapshot)
+    for config in configs:
+        received = 0
+        for document in _scope(snapshot.documents, snapshot):
+            year, month = getattr(document, "annee", None), getattr(document, "mois", None) or 1
+            if year is None:
+                continue
+            marker = date(year, month, 1)
+            if (_value(getattr(document, "categorie", None)) == _value(config.type_document)
+                    and config.periode_debut.replace(day=1) <= marker <= config.periode_fin.replace(day=1)
+                    and _value(getattr(document, "statut", None)) != StatutDocumentEnum.ERREUR.value):
+                received += 1
+        expected = getattr(config, "nombre_attendu", None)
+        missing = max(expected - received, 0) if expected is not None else None
+        complete = bool(getattr(config, "complete_manuellement", False)) or missing == 0
+        if not complete and today > config.date_limite_reception:
+            anomalies.append(_anomalie(
+                snapshot, code="documents_attendus_en_retard", module="documents", niveau="bloquant",
+                titre="Documents attendus en retard",
+                description=f"{config.type_document}: échéance dépassée de {(today - config.date_limite_reception).days} jour(s).",
+                objet_type="configuration_document", objet=config, route="/pre-cloture",
+                metadata={"recus": received, "manquants": missing, "date_limite": config.date_limite_reception},
+            ))
+
+    periods = _scope(snapshot.periodes_travail, snapshot)
+    for entry in ecritures:
+        if _value(getattr(entry, "statut_validation", None)) != StatutValidationEnum.PRETE_TOPAZE.value:
+            continue
+        entry_date = getattr(entry, "date_piece", None)
+        deadline = next((period.date_limite_saisie_topaze for period in periods
+                         if entry_date and period.periode_debut <= entry_date <= period.periode_fin
+                         and period.date_limite_saisie_topaze is not None), None)
+        if deadline and today > deadline and getattr(entry, "topaze_entered_at", None) is None:
+            anomalies.append(_anomalie(
+                snapshot, code="saisie_topaze_en_retard", module="ecritures", niveau="bloquant",
+                titre="Saisie Topaze en retard",
+                description=f"Pré-écriture non saisie dans Topaze avec {(today - deadline).days} jour(s) de retard.",
+                objet_type="ecriture", objet=entry, route="/ecritures",
+                metadata={"date_limite": deadline, "montant": str(getattr(entry, "montant_ttc", ZERO))},
+            ))
+    for period in _scope(snapshot.tva_periodes, snapshot):
+        deadline = getattr(period, "date_limite_declaration", None)
+        if (getattr(period, "annee", None) == snapshot.exercice and deadline and today > deadline
+                and _value(getattr(period, "statut_declaration", None)) != "declaree"):
+            anomalies.append(_anomalie(
+                snapshot, code="declaration_tva_en_retard", module="tva", niveau="bloquant",
+                titre="Déclaration TVA en retard",
+                description=f"Période {period.mois:02d}/{period.annee}: {(today - deadline).days} jour(s) de retard.",
+                objet_type="periode_tva", objet=period, route="/tva-mensuelle",
+                metadata={"date_limite": deadline, "tva_a_payer": str(getattr(period, "tva_a_payer", ZERO))},
+            ))
+    return anomalies
+
+
 def calculer_precloture_snapshot(snapshot: PreClotureSnapshot) -> PreClotureResultat:
     ecritures = _scope(snapshot.ecritures, snapshot)
     lignes = _scope(snapshot.lignes, snapshot)
@@ -500,6 +564,7 @@ def calculer_precloture_snapshot(snapshot: PreClotureSnapshot) -> PreClotureResu
     anomalies.extend(_devises(snapshot, ecritures, mouvements, allocations))
     anomalies.extend(_tva(snapshot, [line for line in lignes if bool(getattr(line, "est_validee", False))], ecritures))
     anomalies.extend(_cloture(snapshot, lignes))
+    anomalies.extend(_retards_operationnels(snapshot, ecritures))
     gl_anomalies, _ = _grand_livre_balance(snapshot, [line for line in lignes if bool(getattr(line, "est_validee", False))], sources)
     anomalies.extend(gl_anomalies)
     cpc_anomalies, bilan_anomalies = _etat_cpc_bilan(snapshot, lignes)
@@ -537,7 +602,18 @@ def charger_snapshot(db: Session, *, cabinet_id: uuid.UUID, entreprise_id: uuid.
     regularisations = db.execute(select(TvaRegularisation).where(TvaRegularisation.cabinet_id == cabinet_id, TvaRegularisation.entreprise_id == entreprise_id, TvaRegularisation.date_regularisation >= start_previous, TvaRegularisation.date_regularisation <= end)).scalars().all()
     credits = db.execute(select(TvaCreditUtilisation).where(TvaCreditUtilisation.cabinet_id == cabinet_id, TvaCreditUtilisation.entreprise_id == entreprise_id)).scalars().all()
     closures = db.execute(select(RegularisationCloture).where(RegularisationCloture.cabinet_id == cabinet_id, RegularisationCloture.entreprise_id == entreprise_id, RegularisationCloture.exercice.in_([exercice - 1, exercice]))).scalars().all()
-    return PreClotureSnapshot(cabinet_id=cabinet_id, entreprise_id=entreprise_id, exercice=exercice, documents=list(documents), ecritures=list(entries), lignes=list(lines), mouvements=list(movements), allocations=list(allocations), comptes_bancaires=list(bank_accounts), comptes_plan=list(plan), tva_configuration=config, tva_periodes=list(periods), tva_regularisations=list(regularisations), tva_credits=list(credits), clotures=list(closures))
+    expected_documents = db.execute(select(DocumentAttenduConfiguration).where(
+        DocumentAttenduConfiguration.cabinet_id == cabinet_id,
+        DocumentAttenduConfiguration.entreprise_id == entreprise_id,
+        DocumentAttenduConfiguration.periode_debut <= end,
+        DocumentAttenduConfiguration.periode_fin >= date(exercice, 1, 1),
+    )).scalars().all()
+    work_periods = db.execute(select(PeriodeTravail).where(
+        PeriodeTravail.cabinet_id == cabinet_id,
+        PeriodeTravail.entreprise_id == entreprise_id,
+        PeriodeTravail.exercice == exercice,
+    )).scalars().all()
+    return PreClotureSnapshot(cabinet_id=cabinet_id, entreprise_id=entreprise_id, exercice=exercice, documents=list(documents), ecritures=list(entries), lignes=list(lines), mouvements=list(movements), allocations=list(allocations), comptes_bancaires=list(bank_accounts), comptes_plan=list(plan), tva_configuration=config, tva_periodes=list(periods), tva_regularisations=list(regularisations), tva_credits=list(credits), clotures=list(closures), documents_attendus=list(expected_documents), periodes_travail=list(work_periods))
 
 
 def calculer_precloture(db: Session, *, cabinet_id: uuid.UUID, entreprise_id: uuid.UUID, exercice: int) -> PreClotureResultat:

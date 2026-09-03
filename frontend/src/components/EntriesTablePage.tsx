@@ -19,6 +19,7 @@ import {
 } from "../api/accountingApi";
 import { openDocumentFile } from "../api/documentsApi";
 import { chooseAvailableEntreprise, listAvailableEntreprises } from "../api/entreprisesApi";
+import { getActiveEntrepriseId } from "../utils/activeEntreprise";
 import { AnomalyBadge } from "./AnomalyBadge";
 import {
   exportRowsToCsv,
@@ -35,15 +36,21 @@ import type {
 import type { Entreprise } from "../types/entreprise";
 
 const STATUS_LABELS: Record<string, string> = {
+  calcul_en_cours: "Calcul en cours",
   brouillon: "Brouillon",
   a_verifier: "À vérifier",
-  valide: "Validée",
+  prete_topaze: "Prête pour Topaze",
+  saisie_topaze: "Saisie dans Topaze",
+  valide: "Validée (ancien)",
   rejete: "Rejetée",
 };
 
 const STATUS_CLASSES: Record<string, string> = {
+  calcul_en_cours: "bg-blue-100 text-blue-700",
   brouillon: "bg-slate-100 text-slate-700",
   a_verifier: "bg-orange-100 text-orange-700",
+  prete_topaze: "bg-emerald-100 text-emerald-800",
+  saisie_topaze: "bg-indigo-100 text-indigo-800",
   valide: "bg-green-100 text-green-700",
   rejete: "bg-red-100 text-red-700",
 };
@@ -148,7 +155,7 @@ export function EntriesTablePage({
     listAvailableEntreprises(module)
       .then((items) => {
         setCompanies(items);
-        setCompanyId((current) => chooseAvailableEntreprise(items, current));
+        setCompanyId((current) => chooseAvailableEntreprise(items, current, getActiveEntrepriseId()));
       })
       .catch(() => setError("Impossible de charger les entreprises."));
   }, [typeEcriture]);
@@ -172,6 +179,8 @@ export function EntriesTablePage({
 
   const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
   const visibleEntries = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const canMarkTopaze = (entry: Ecriture) => ["prete_topaze", "saisie_topaze", "valide"].includes(entry.statut_validation);
+  const canRerunControls = (entry: Ecriture) => ["brouillon", "a_verifier", "calcul_en_cours"].includes(entry.statut_validation);
 
   const periodLabel = year === ""
     ? "Toutes les années"
@@ -261,7 +270,7 @@ export function EntriesTablePage({
               <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tiers, pièce ou fichier..." className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-green-500 focus:ring-4 focus:ring-green-500/10" />
             </div>
             <select value={companyId} onChange={(event) => setCompanyId(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm"><option value="">Toutes les entreprises</option>{companies.map((company) => <option key={company.id} value={company.id}>{company.nom}</option>)}</select>
-            <select value={status} onChange={(event) => setStatus(event.target.value as StatutValidation | "")} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm"><option value="">Tous les statuts</option><option value="brouillon">Brouillon</option><option value="a_verifier">À vérifier</option><option value="valide">Validée</option><option value="rejete">Rejetée</option></select>
+            <select value={status} onChange={(event) => setStatus(event.target.value as StatutValidation | "")} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm"><option value="">Tous les statuts</option><option value="calcul_en_cours">Calcul en cours</option><option value="a_verifier">À vérifier</option><option value="prete_topaze">Prêtes pour Topaze</option><option value="saisie_topaze">Saisies dans Topaze</option><option value="rejete">Rejetées</option></select>
             <select
               value={year}
               onChange={(event) => setYear(event.target.value ? Number(event.target.value) : "")}
@@ -288,7 +297,7 @@ export function EntriesTablePage({
               <select value={quarter} onChange={(event) => setQuarter(Number(event.target.value))} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm"><option value={1}>1er trimestre</option><option value={2}>2e trimestre</option><option value={3}>3e trimestre</option><option value={4}>4e trimestre</option></select>
             ) : <div className="flex items-center rounded-lg border border-green-200 bg-green-50 px-3 text-sm font-semibold text-green-700">Toute l’année</div>}
           </div>
-          {companies.length === 0 && !loading && <p className="mt-3 text-sm text-amber-700">Aucune entreprise ne possÃ¨de encore de donnÃ©es dans ce module.</p>}
+          {companies.length === 0 && !loading && <p className="mt-3 text-sm text-amber-700">Aucune entreprise ne possède encore de données dans ce module.</p>}
         </section>
 
         <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -301,7 +310,39 @@ export function EntriesTablePage({
               <thead className="border-b bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Entreprise</th><th className="px-4 py-3">{typeEcriture === "vente" ? "Client" : typeEcriture === "achat" ? "Fournisseur" : "Tiers"}</th><th className="px-4 py-3">{typeEcriture === "vente" ? "Compte client" : typeEcriture === "achat" ? "Compte fournisseur" : "Compte tiers"}</th><th className="px-4 py-3">Compte TVA</th><th className="px-4 py-3">{typeEcriture === "vente" ? "Compte produit" : "Compte HT"}</th><th className="px-4 py-3">Libellé</th><th className="px-4 py-3">N° pièce</th><th className="px-4 py-3">Catégorie</th><th className="px-4 py-3 text-right">HT</th><th className="px-4 py-3 text-right">TVA</th><th className="px-4 py-3 text-right">TTC</th><th className="px-4 py-3">Validation</th><th className="px-4 py-3 text-center">Saisie</th><th className="px-4 py-3">Actions</th></tr></thead>
               <tbody>
                 {loading && <tr><td colSpan={15} className="px-4 py-10 text-center text-slate-400">Chargement...</td></tr>}
-                {!loading && visibleEntries.map((entry) => <tr key={entry.id} className="border-b last:border-0 hover:bg-slate-50/70"><td className="px-4 py-3">{formatDate(entry.date_piece)}</td><td className="px-4 py-3 font-medium">{entry.entreprise_nom ?? "—"}</td><td className="px-4 py-3">{entry.tiers ?? "—"}</td><td className="px-4 py-3 font-mono text-xs">{entry.compte_tiers ?? "—"}</td><td className="px-4 py-3 font-mono text-xs">{entry.compte_tva ?? "—"}</td><td className="px-4 py-3 font-mono text-xs">{entry.compte_ht ?? "—"}</td><td className="max-w-[260px] truncate px-4 py-3" title={entry.libelle ?? undefined}>{entry.libelle ?? "—"}</td><td className="px-4 py-3">{entry.numero_piece ?? "—"}</td><td className="px-4 py-3 capitalize">{entry.categorie_document ?? entry.type_ecriture}</td><td className="px-4 py-3 text-right">{formatMoney(entry.montant_ht)}</td><td className="px-4 py-3 text-right">{formatMoney(entry.montant_tva)}</td><td className="px-4 py-3 text-right font-bold">{formatMoney(entry.montant_ttc)}</td><td className="px-4 py-3"><div className="flex items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_CLASSES[entry.statut_validation]}`}>{STATUS_LABELS[entry.statut_validation]}</span><AnomalyBadge detected={entry.anomalie_detectee} details={entry.anomalie_details} /></div></td><td className="px-4 py-3 text-center"><input type="checkbox" checked={entry.saisie_topaze} disabled={currentAction === `saisie-${entry.id}`} onChange={() => void runAction(`saisie-${entry.id}`, () => toggleSaisieTopaze(entry.id), "Statut de saisie mis à jour.")} className="h-4 w-4 accent-green-600" /></td><td className="px-4 py-3"><div className="flex gap-1 whitespace-nowrap"><button type="button" onClick={() => navigate(`/documents/${entry.document_id}`)} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"><FileSearch size={14} /> Vérifier</button><button type="button" onClick={() => void openDocumentFile(entry.document_id)} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"><ExternalLink size={14} /> Fichier</button>{entry.statut_validation !== "valide" && <button type="button" onClick={() => void runAction(`valider-${entry.id}`, () => validateEntry(entry.id), "Écriture validée.")} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-50"><CheckCircle2 size={14} /> Valider</button>}{entry.statut_validation !== "rejete" && <button type="button" onClick={() => void runAction(`rejeter-${entry.id}`, () => rejectEntry(entry.id), "Écriture rejetée.")} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"><XCircle size={14} /> Rejeter</button>}</div></td></tr>)}
+                {!loading && visibleEntries.map((entry) => (
+                  <tr key={entry.id} className="border-b last:border-0 hover:bg-slate-50/70">
+                    <td className="px-4 py-3">{formatDate(entry.date_piece)}</td>
+                    <td className="px-4 py-3 font-medium">{entry.entreprise_nom ?? "—"}</td>
+                    <td className="px-4 py-3">{entry.tiers ?? "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{entry.compte_tiers ?? "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{entry.compte_tva ?? "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{entry.compte_ht ?? "—"}</td>
+                    <td className="max-w-[260px] truncate px-4 py-3" title={entry.libelle ?? undefined}>{entry.libelle ?? "—"}</td>
+                    <td className="px-4 py-3">{entry.numero_piece ?? "—"}</td>
+                    <td className="px-4 py-3 capitalize">{entry.categorie_document ?? entry.type_ecriture}</td>
+                    <td className="px-4 py-3 text-right">{formatMoney(entry.montant_ht)}</td>
+                    <td className="px-4 py-3 text-right">{formatMoney(entry.montant_tva)}</td>
+                    <td className="px-4 py-3 text-right font-bold">{formatMoney(entry.montant_ttc)}</td>
+                    <td className="px-4 py-3"><div className="flex items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_CLASSES[entry.statut_validation]}`}>{STATUS_LABELS[entry.statut_validation]}</span><AnomalyBadge detected={entry.anomalie_detectee} details={entry.anomalie_details} /></div></td>
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={entry.saisie_topaze}
+                        disabled={!canMarkTopaze(entry) || currentAction === `saisie-${entry.id}`}
+                        title={canMarkTopaze(entry) ? "Marquer la saisie manuelle dans Topaze" : "Les contrôles doivent réussir avant la saisie Topaze"}
+                        onChange={() => void runAction(`saisie-${entry.id}`, () => toggleSaisieTopaze(entry.id), "Statut de saisie Topaze mis à jour.")}
+                        className="h-4 w-4 accent-green-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      />
+                    </td>
+                    <td className="px-4 py-3"><div className="flex gap-1 whitespace-nowrap">
+                      <button type="button" onClick={() => navigate(`/documents/${entry.document_id}`)} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"><FileSearch size={14} /> Vérifier</button>
+                      <button type="button" onClick={() => void openDocumentFile(entry.document_id)} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"><ExternalLink size={14} /> Fichier</button>
+                      {canRerunControls(entry) && <button type="button" onClick={() => void runAction(`valider-${entry.id}`, () => validateEntry(entry.id), "Contrôles relancés.")} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-50"><CheckCircle2 size={14} /> Relancer les contrôles</button>}
+                      {entry.statut_validation !== "rejete" && <button type="button" onClick={() => void runAction(`rejeter-${entry.id}`, () => rejectEntry(entry.id), "Pré-écriture rejetée.")} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"><XCircle size={14} /> Rejeter</button>}
+                    </div></td>
+                  </tr>
+                ))}
                 {!loading && entries.length === 0 && <tr><td colSpan={15} className="px-4 py-12 text-center text-slate-400">{emptyMessage}</td></tr>}
               </tbody>
             </table>

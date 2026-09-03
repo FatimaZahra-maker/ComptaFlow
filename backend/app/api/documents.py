@@ -17,6 +17,7 @@ import logging
 import mimetypes
 import re
 import uuid
+from datetime import datetime, timezone
 
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,7 @@ from fastapi.responses import (
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
+from pydantic import BaseModel, Field
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -49,6 +51,7 @@ from app.core.deps import (
 
 from app.models.document import Document
 from app.models.ecriture import EcritureComptable
+from app.models.entreprise import Entreprise
 from app.models.enums import (
     RoleEnum,
     StatutDocumentEnum,
@@ -59,7 +62,7 @@ from app.models.mouvement_bancaire import (
 )
 from app.models.user import User
 
-from app.schemas.document import DocumentOut
+from app.schemas.document import DocumentEntrepriseUpdate, DocumentOut
 from app.schemas.document_detail import (
     DocumentDetailOut,
 )
@@ -71,7 +74,7 @@ from app.schemas.mouvement_bancaire import (
 from app.tasks.document_processing import (
     process_document,
 )
-from app.services import audit_service, rapprochement_bancaire_service
+from app.services import audit_service, rapprochement_bancaire_service, workflow_comptable_service
 
 
 router = APIRouter(
@@ -93,6 +96,10 @@ ALLOWED_MIME_TYPES = {
 
 MAX_FILE_SIZE_MB = 20
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+
+
+class DocumentUploadBatchAudit(BaseModel):
+    document_ids: list[uuid.UUID] = Field(min_length=2, max_length=100)
 
 _EXTENSIONS_PAR_MIME = {
     "application/pdf": {".pdf"},
@@ -968,6 +975,16 @@ def upload_document(
 
     try:
         db.add(document)
+        db.flush()
+        audit_service.enregistrer(
+            db, user=current_user,
+            action=audit_service.AuditAction.DOCUMENTS_UPLOADED,
+            resource_type="document", resource_id=document.id,
+            description=f"Import du document {original_filename}.",
+            metadata={"filenames": [original_filename], "mime_type": mime_reel},
+            item_count=1, resource_ids=[document.id],
+            correlation_id=str(uuid.uuid4()),
+        )
         db.commit()
         db.refresh(document)
 
@@ -985,6 +1002,36 @@ def upload_document(
     )
 
     return document
+
+
+@router.post("/upload/batch-audit", status_code=204)
+def audit_upload_batch(
+    payload: DocumentUploadBatchAudit,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    documents = db.execute(select(Document).where(
+        Document.cabinet_id == current_user.cabinet_id,
+        Document.id.in_(payload.document_ids),
+    )).scalars().all()
+    if len(documents) != len(set(payload.document_ids)):
+        raise HTTPException(status_code=404, detail="Un document importé est introuvable dans ce cabinet.")
+    correlation_id = str(uuid.uuid4())
+    audit_service.enregistrer(
+        db, user=current_user, action=audit_service.AuditAction.DOCUMENTS_UPLOADED,
+        resource_type="document", description=f"Import groupé de {len(documents)} documents.",
+        metadata={
+            "filenames": [item.nom_fichier_original for item in documents],
+            "invoice_numbers": [
+                (item.donnees_extraites or {}).get("numero_piece")
+                for item in documents if isinstance(item.donnees_extraites, dict)
+            ],
+        },
+        item_count=len(documents), resource_ids=[item.id for item in documents],
+        correlation_id=correlation_id,
+    )
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.get(
@@ -1069,6 +1116,14 @@ def telecharger_fichier_original(
         or "application/octet-stream"
     )
 
+    audit_service.enregistrer(
+        db, user=current_user, action=audit_service.AuditAction.DOCUMENT_OPENED,
+        entreprise_id=document.entreprise_id, resource_type="document",
+        resource_id=document.id,
+        description=f"Consultation du fichier original {document.nom_fichier_original}.",
+    )
+    db.commit()
+
     return FileResponse(
         path=file_path,
 
@@ -1094,13 +1149,10 @@ def toggle_document_saisie(
         document_id,
         current_user.cabinet_id,
     )
+    workflow_comptable_service.verifier_document_modifiable(db, document)
 
-    document.saisie_topaze = (
-        not document.saisie_topaze
-    )
-
-    # Synchronisation avec l'ancien champ présent
-    # dans les écritures comptables.
+    ancien_statut_topaze = bool(document.saisie_topaze)
+    target = not document.saisie_topaze
     entries = db.execute(
         select(
             EcritureComptable
@@ -1111,10 +1163,34 @@ def toggle_document_saisie(
     ).scalars().all()
 
     for entry in entries:
-        entry.saisie_topaze = (
-            document.saisie_topaze
+        try:
+            workflow_comptable_service.verifier_periode_modifiable(db, entry)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if target and entry.statut_validation not in {
+            StatutValidationEnum.PRETE_TOPAZE,
+            StatutValidationEnum.SAISIE_TOPAZE,
+            StatutValidationEnum.VALIDE,
+        }:
+            raise HTTPException(status_code=422, detail="Le document comporte une pré-écriture qui n'est pas prête pour Topaze.")
+        entry.saisie_topaze = target
+        entry.statut_validation = (
+            StatutValidationEnum.SAISIE_TOPAZE if target else StatutValidationEnum.PRETE_TOPAZE
         )
+        entry.ready_for_topaze_at = entry.ready_for_topaze_at or datetime.now(timezone.utc)
+        entry.topaze_entered_at = datetime.now(timezone.utc) if target else None
+        entry.topaze_entered_by = current_user.id if target else None
+    document.saisie_topaze = target
 
+    audit_service.enregistrer(
+        db, user=current_user,
+        action=audit_service.AuditAction.DOCUMENT_MARKED_TOPAZE,
+        entreprise_id=document.entreprise_id, resource_type="document",
+        resource_id=document.id,
+        description="Modification du statut de saisie Topaze du document.",
+        avant={"saisie_topaze": ancien_statut_topaze},
+        apres={"saisie_topaze": bool(document.saisie_topaze)},
+    )
     db.commit()
 
     return {
@@ -1146,6 +1222,7 @@ def validate_document(
         document_id,
         current_user.cabinet_id,
     )
+    workflow_comptable_service.verifier_document_modifiable(db, document)
 
     entry = _get_first_entry(
         db,
@@ -1154,21 +1231,25 @@ def validate_document(
 
     ancien_statut = document.statut.value if hasattr(document.statut, "value") else str(document.statut)
     if entry is not None:
-        entry.statut_validation = (
-            StatutValidationEnum.VALIDE
-        )
-
-        entry.validated_by = (
-            current_user.id
-        )
-
-    document.statut = (
-        StatutDocumentEnum.VALIDE
-    )
+        try:
+            workflow_comptable_service.verifier_periode_modifiable(db, entry)
+            anomalies = workflow_comptable_service.controler_et_transitionner(
+                db, entry, document=document, user=current_user, actor_type="user"
+            )
+        except ValueError as exc:
+            db.rollback()
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if anomalies:
+            db.commit()
+            raise HTTPException(status_code=422, detail="Contrôles non satisfaits : " + " | ".join(item["message"] for item in anomalies))
+    else:
+        document.statut = StatutDocumentEnum.VALIDE
 
     audit_service.enregistrer(
-        db, user=current_user, action="document.validate",
+        db, user=current_user, action=audit_service.AuditAction.DOCUMENT_VALIDATED,
+        entreprise_id=document.entreprise_id,
         resource_type="document", resource_id=document.id,
+        description="Relance des contrôles du document et de sa pré-écriture associée.",
         avant={"statut": ancien_statut}, apres={"statut": StatutDocumentEnum.VALIDE.value},
     )
 
@@ -1199,6 +1280,7 @@ def reject_document(
         document_id,
         current_user.cabinet_id,
     )
+    workflow_comptable_service.verifier_document_modifiable(db, document)
 
     entry = _get_first_entry(
         db,
@@ -1207,6 +1289,10 @@ def reject_document(
 
     ancien_statut = document.statut.value if hasattr(document.statut, "value") else str(document.statut)
     if entry is not None:
+        try:
+            workflow_comptable_service.verifier_periode_modifiable(db, entry)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         entry.statut_validation = (
             StatutValidationEnum.REJETE
         )
@@ -1222,8 +1308,10 @@ def reject_document(
     )
 
     audit_service.enregistrer(
-        db, user=current_user, action="document.reject",
+        db, user=current_user, action=audit_service.AuditAction.DOCUMENT_REJECTED,
+        entreprise_id=document.entreprise_id,
         resource_type="document", resource_id=document.id,
+        description="Rejet du document pour vérification ou correction.",
         avant={"statut": ancien_statut}, apres={"statut": StatutDocumentEnum.TRAITE.value},
     )
 
@@ -1284,6 +1372,14 @@ def update_bank_movement(
     data = payload.model_dump(
         exclude_unset=True
     )
+    workflow_comptable_service.verifier_mouvement_modifiable(
+        db,
+        movement,
+        nouvelle_date=data.get("date_operation"),
+    )
+    avant_mouvement = {
+        key: getattr(movement, key) for key in data
+    }
 
     required_fields = {
         "date_operation",
@@ -1331,6 +1427,18 @@ def update_bank_movement(
         StatutDocumentEnum.TRAITE
     )
 
+    apres_mouvement = {key: getattr(movement, key) for key in data}
+    avant_modifie, apres_modifie = audit_service.valeurs_modifiees(
+        avant_mouvement, apres_mouvement
+    )
+    audit_service.enregistrer(
+        db, user=current_user,
+        action=audit_service.AuditAction.BANK_MOVEMENT_UPDATED,
+        entreprise_id=movement.entreprise_id,
+        resource_type="mouvement_bancaire", resource_id=movement.id,
+        description="Modification d'un mouvement bancaire extrait.",
+        avant=avant_modifie, apres=apres_modifie,
+    )
     db.commit()
     db.refresh(movement)
 
@@ -1417,6 +1525,15 @@ def export_document_data(
             f"{base_name}.xlsx"
         )
 
+    audit_service.enregistrer(
+        db, user=current_user, action=audit_service.AuditAction.EXPORT_GENERATED,
+        entreprise_id=document.entreprise_id, resource_type="document",
+        resource_id=document.id,
+        description=f"Export {normalized_format.upper()} des données extraites.",
+        metadata={"format": normalized_format},
+    )
+    db.commit()
+
     return Response(
         content=content,
 
@@ -1430,6 +1547,54 @@ def export_document_data(
             )
         },
     )
+
+
+@router.patch("/{document_id}/entreprise", response_model=DocumentDetailOut)
+def attribuer_document_entreprise(
+    document_id: uuid.UUID,
+    payload: DocumentEntrepriseUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Attribue manuellement un document puis relance son traitement sûr."""
+    document = _get_document_or_404(db, document_id, current_user.cabinet_id)
+    workflow_comptable_service.verifier_document_modifiable(db, document)
+    entreprise = db.execute(select(Entreprise).where(
+        Entreprise.id == payload.entreprise_id,
+        Entreprise.cabinet_id == current_user.cabinet_id,
+        Entreprise.is_active.is_(True),
+        Entreprise.creee_automatiquement.is_(False),
+    )).scalar_one_or_none()
+    if entreprise is None:
+        raise HTTPException(status_code=404, detail="Entreprise confirmée introuvable dans votre cabinet.")
+
+    ancien_entreprise_id = document.entreprise_id
+    _delete_accounting_data(db, document.id)
+    donnees = dict(document.donnees_extraites or {})
+    donnees["_entreprise_forcee_id"] = str(entreprise.id)
+    donnees["source_identification_entreprise"] = "attribution_manuelle"
+    document.donnees_extraites = donnees
+    document.entreprise_id = entreprise.id
+    document.statut = StatutDocumentEnum.EN_ATTENTE
+    document.message_erreur = None
+    document.type_erreur = None
+    document.error_code = None
+    document.saisie_topaze = False
+    audit_service.enregistrer(
+        db,
+        user=current_user,
+        action=audit_service.AuditAction.DOCUMENT_UPDATED,
+        entreprise_id=entreprise.id,
+        resource_type="document",
+        resource_id=document.id,
+        description="Attribution manuelle du document à une entreprise confirmée.",
+        avant={"entreprise_id": ancien_entreprise_id},
+        apres={"entreprise_id": entreprise.id, "retraitement": True},
+    )
+    db.commit()
+    db.refresh(document)
+    process_document.delay(str(document.id))
+    return _build_document_detail(db, document)
 
 
 @router.post(
@@ -1448,6 +1613,7 @@ def retraiter_document(
         document_id,
         current_user.cabinet_id,
     )
+    workflow_comptable_service.verifier_document_modifiable(db, document)
 
     file_path = Path(
         document.chemin_stockage
@@ -1461,6 +1627,14 @@ def retraiter_document(
                 "Retraitement impossible."
             ),
         )
+
+    avant_retraitement = {
+        "statut": document.statut,
+        "categorie": document.categorie,
+        "entreprise_id": document.entreprise_id,
+        "saisie_topaze": document.saisie_topaze,
+    }
+    entreprise_id_audit = document.entreprise_id
 
     _delete_accounting_data(
         db,
@@ -1484,6 +1658,15 @@ def retraiter_document(
 
     document.saisie_topaze = False
 
+    audit_service.enregistrer(
+        db, user=current_user,
+        action=audit_service.AuditAction.DOCUMENT_REPROCESSED,
+        entreprise_id=entreprise_id_audit, resource_type="document",
+        resource_id=document.id,
+        description="Relance du traitement OCR/IA du document.",
+        avant=avant_retraitement,
+        apres={"statut": StatutDocumentEnum.EN_ATTENTE, "saisie_topaze": False},
+    )
     db.commit()
     db.refresh(document)
 
@@ -1525,6 +1708,7 @@ def delete_document(
         document_id,
         current_user.cabinet_id,
     )
+    workflow_comptable_service.verifier_document_modifiable(db, document)
 
     physical_path = document.chemin_stockage
 
@@ -1535,8 +1719,10 @@ def delete_document(
         )
 
         audit_service.enregistrer(
-            db, user=current_user, action="document.delete",
+            db, user=current_user, action=audit_service.AuditAction.DOCUMENT_DELETED,
+            entreprise_id=document.entreprise_id,
             resource_type="document", resource_id=document.id,
+            description=f"Suppression contrôlée du document {document.nom_fichier_original}.",
             avant={"nom_fichier": document.nom_fichier_original}, apres=None,
         )
         db.delete(document)

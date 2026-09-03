@@ -34,6 +34,10 @@ class EcritureOut(BaseModel):
     validated_by: uuid.UUID | None = None
     created_at: datetime
     saisie_topaze: bool = False
+    ready_for_topaze_at: datetime | None = None
+    topaze_entered_at: datetime | None = None
+    topaze_entered_by: uuid.UUID | None = None
+    topaze_batch_reference: str | None = None
 
     # Métadonnées utiles aux tableaux frontend. Elles proviennent des jointures
     # avec Document et Entreprise et ne sont pas stockées deux fois.
@@ -66,3 +70,12 @@ class EcritureUpdate(BaseModel):
     taux_tva: TauxTVAEnum | None = None
     montant_tva: Decimal | None = Field(default=None, ge=0)
     montant_ttc: Decimal | None = Field(default=None, ge=0)
+    compte_tiers: str | None = Field(default=None, max_length=30)
+    compte_tva: str | None = Field(default=None, max_length=30)
+    compte_ht: str | None = Field(default=None, max_length=30)
+    libelle: str | None = Field(default=None, max_length=500)
+
+
+class TopazeMarkRequest(BaseModel):
+    saisie: bool = True
+    reference_lot: str | None = Field(default=None, max_length=100)

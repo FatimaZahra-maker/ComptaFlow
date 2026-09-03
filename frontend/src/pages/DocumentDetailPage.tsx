@@ -30,6 +30,7 @@ import {
 import { updateEntry } from "../api/accountingApi";
 import { getDocumentDetail } from "../api/documentDetailApi";
 import {
+  assignDocumentEntreprise,
   deleteDocument,
   downloadDocumentData,
   fetchDocumentFile,
@@ -365,7 +366,7 @@ export function DocumentDetailPage() {
     }
 
     return Object.entries(detail.donnees_extraites)
-      .filter(([key]) => key !== "lignes_bancaires")
+      .filter(([key]) => key !== "lignes_bancaires" && !key.startsWith("_"))
       .map(([key, value]) => ({
         key,
         label: humanizeFieldName(key),
@@ -475,6 +476,20 @@ export function DocumentDetailPage() {
       showSuccess("Le document a été validé.");
     } catch {
       showError("La validation a échoué. Vérifiez vos droits.");
+    } finally {
+      setCurrentAction(null);
+    }
+  }
+
+  async function handleAssignEntreprise(entrepriseId: string) {
+    if (!detail || !entrepriseId || entrepriseId === detail.entreprise_id) return;
+    setCurrentAction("assign-company");
+    try {
+      const updated = await assignDocumentEntreprise(detail.id, entrepriseId);
+      setDetail(updated);
+      showSuccess("Entreprise attribuée. Le retraitement sécurisé du document a été lancé.");
+    } catch {
+      showError("L’attribution de l’entreprise a échoué.");
     } finally {
       setCurrentAction(null);
     }
@@ -692,6 +707,18 @@ export function DocumentDetailPage() {
                   ? `/${String(detail.mois).padStart(2, "0")}`
                   : ""}
               </p>
+              <label className="mt-3 flex max-w-xl items-center gap-2 text-xs font-bold text-slate-600">
+                Attribuer à
+                <select
+                  value={entreprises.some((item) => item.id === detail.entreprise_id && !item.creee_automatiquement) ? detail.entreprise_id ?? "" : ""}
+                  onChange={(event) => void handleAssignEntreprise(event.target.value)}
+                  disabled={currentAction === "assign-company"}
+                  className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium outline-none focus:border-blue-500"
+                >
+                  <option value="">Choisir une entreprise confirmée…</option>
+                  {entreprises.filter((item) => item.is_active !== false && !item.creee_automatiquement).map((item) => <option key={item.id} value={item.id}>{item.nom}</option>)}
+                </select>
+              </label>
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2">

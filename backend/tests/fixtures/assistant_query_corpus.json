@@ -1,0 +1,602 @@
+[
+  {
+    "question": "Liste les entreprises du cabinet",
+    "domain": "entreprises",
+    "operation": "list",
+    "entity": "entreprise"
+  },
+  {
+    "question": "Combien d'entreprises sont accessibles ?",
+    "domain": "entreprises",
+    "operation": "count",
+    "entity": "entreprise"
+  },
+  {
+    "question": "Affiche les sociétés disponibles",
+    "domain": "entreprises",
+    "operation": "list",
+    "entity": "entreprise"
+  },
+  {
+    "question": "Montre les dossiers clients du cabinet",
+    "domain": "entreprises",
+    "operation": "list",
+    "entity": "entreprise"
+  },
+  {
+    "question": "Explique les entreprises disponibles",
+    "domain": "entreprises",
+    "operation": "explain",
+    "entity": "entreprise"
+  },
+  {
+    "question": "Liste les documents importés",
+    "domain": "documents",
+    "operation": "list",
+    "entity": "document"
+  },
+  {
+    "question": "Combien de pièces sont disponibles ?",
+    "domain": "documents",
+    "operation": "count",
+    "entity": "document"
+  },
+  {
+    "question": "Affiche les fichiers PDF importés",
+    "domain": "documents",
+    "operation": "list",
+    "entity": "document"
+  },
+  {
+    "question": "Montre les documents du mois",
+    "domain": "documents",
+    "operation": "list",
+    "entity": "document"
+  },
+  {
+    "question": "Explique le statut des documents",
+    "domain": "documents",
+    "operation": "explain",
+    "entity": "document"
+  },
+  {
+    "question": "Liste les factures achat",
+    "domain": "factures_achat",
+    "operation": "list",
+    "entity": "facture"
+  },
+  {
+    "question": "Combien de factures achat avons-nous ?",
+    "domain": "factures_achat",
+    "operation": "count",
+    "entity": "facture"
+  },
+  {
+    "question": "Total des factures achat",
+    "domain": "factures_achat",
+    "operation": "sum",
+    "entity": "facture"
+  },
+  {
+    "question": "Compare les factures achat de janvier et février",
+    "domain": "factures_achat",
+    "operation": "compare",
+    "entity": "facture"
+  },
+  {
+    "question": "Explique les factures achat à vérifier",
+    "domain": "factures_achat",
+    "operation": "explain",
+    "entity": "facture"
+  },
+  {
+    "question": "Liste les factures vente",
+    "domain": "factures_vente",
+    "operation": "list",
+    "entity": "facture"
+  },
+  {
+    "question": "Combien de factures vente avons-nous ?",
+    "domain": "factures_vente",
+    "operation": "count",
+    "entity": "facture"
+  },
+  {
+    "question": "Total des factures vente",
+    "domain": "factures_vente",
+    "operation": "sum",
+    "entity": "facture"
+  },
+  {
+    "question": "Compare les factures vente de mars et avril",
+    "domain": "factures_vente",
+    "operation": "compare",
+    "entity": "facture"
+  },
+  {
+    "question": "Explique les factures vente validées",
+    "domain": "factures_vente",
+    "operation": "explain",
+    "entity": "facture"
+  },
+  {
+    "question": "Liste les relevés bancaires",
+    "domain": "releves_bancaires",
+    "operation": "list",
+    "entity": "document"
+  },
+  {
+    "question": "Combien de relevés bancaires sont importés ?",
+    "domain": "releves_bancaires",
+    "operation": "count",
+    "entity": "document"
+  },
+  {
+    "question": "Affiche les documents banque",
+    "domain": "releves_bancaires",
+    "operation": "list",
+    "entity": "document"
+  },
+  {
+    "question": "Montre les relevés bancaires de 2026",
+    "domain": "releves_bancaires",
+    "operation": "list",
+    "entity": "document"
+  },
+  {
+    "question": "Explique le statut des relevés bancaires",
+    "domain": "releves_bancaires",
+    "operation": "explain",
+    "entity": "document"
+  },
+  {
+    "question": "Liste les données extraites OCR",
+    "domain": "donnees_extraites",
+    "operation": "list",
+    "entity": "document"
+  },
+  {
+    "question": "Combien d'extractions OCR sont disponibles ?",
+    "domain": "donnees_extraites",
+    "operation": "count",
+    "entity": "document"
+  },
+  {
+    "question": "Affiche les informations extraites",
+    "domain": "donnees_extraites",
+    "operation": "list",
+    "entity": "document"
+  },
+  {
+    "question": "Montre les champs extraits des pièces",
+    "domain": "donnees_extraites",
+    "operation": "list",
+    "entity": "document"
+  },
+  {
+    "question": "Explique les données extraites à vérifier",
+    "domain": "donnees_extraites",
+    "operation": "explain",
+    "entity": "document"
+  },
+  {
+    "question": "Liste les chronos numériques",
+    "domain": "chronos",
+    "operation": "list",
+    "entity": "generic"
+  },
+  {
+    "question": "Combien de chronos sont disponibles ?",
+    "domain": "chronos",
+    "operation": "count",
+    "entity": "generic"
+  },
+  {
+    "question": "Affiche le classement chrono",
+    "domain": "chronos",
+    "operation": "list",
+    "entity": "generic"
+  },
+  {
+    "question": "Montre les classeurs numériques",
+    "domain": "chronos",
+    "operation": "list",
+    "entity": "generic"
+  },
+  {
+    "question": "Explique le classement des chronos",
+    "domain": "chronos",
+    "operation": "explain",
+    "entity": "generic"
+  },
+  {
+    "question": "Liste les pré-écritures comptables",
+    "domain": "ecritures",
+    "operation": "list",
+    "entity": "ecriture"
+  },
+  {
+    "question": "Combien d'écritures comptables sont en brouillon ?",
+    "domain": "ecritures",
+    "operation": "count",
+    "entity": "ecriture"
+  },
+  {
+    "question": "Total des pré-écritures comptables",
+    "domain": "ecritures",
+    "operation": "sum",
+    "entity": "ecriture"
+  },
+  {
+    "question": "Compare les écritures comptables de mai et juin",
+    "domain": "ecritures",
+    "operation": "compare",
+    "entity": "ecriture"
+  },
+  {
+    "question": "Explique les pré-écritures à vérifier",
+    "domain": "ecritures",
+    "operation": "explain",
+    "entity": "ecriture"
+  },
+  {
+    "question": "Liste les lignes comptables",
+    "domain": "lignes_ecriture",
+    "operation": "list",
+    "entity": "ligne"
+  },
+  {
+    "question": "Combien de lignes d'écriture sont validées ?",
+    "domain": "lignes_ecriture",
+    "operation": "count",
+    "entity": "ligne"
+  },
+  {
+    "question": "Total débit des lignes comptables",
+    "domain": "lignes_ecriture",
+    "operation": "sum",
+    "entity": "ligne"
+  },
+  {
+    "question": "Compare les lignes comptables de juillet et août",
+    "domain": "lignes_ecriture",
+    "operation": "compare",
+    "entity": "ligne"
+  },
+  {
+    "question": "Explique les lignes débit crédit",
+    "domain": "lignes_ecriture",
+    "operation": "explain",
+    "entity": "ligne"
+  },
+  {
+    "question": "Liste les tiers achat fournisseurs",
+    "domain": "fournisseurs",
+    "operation": "list",
+    "entity": "tiers"
+  },
+  {
+    "question": "Combien de tiers achat fournisseurs ?",
+    "domain": "fournisseurs",
+    "operation": "count",
+    "entity": "tiers"
+  },
+  {
+    "question": "Affiche les tiers achat",
+    "domain": "fournisseurs",
+    "operation": "list",
+    "entity": "tiers"
+  },
+  {
+    "question": "Montre les fournisseurs du dossier",
+    "domain": "fournisseurs",
+    "operation": "list",
+    "entity": "tiers"
+  },
+  {
+    "question": "Explique les tiers achat fournisseurs",
+    "domain": "fournisseurs",
+    "operation": "explain",
+    "entity": "tiers"
+  },
+  {
+    "question": "Liste les tiers vente clients",
+    "domain": "clients",
+    "operation": "list",
+    "entity": "tiers"
+  },
+  {
+    "question": "Combien de tiers vente clients ?",
+    "domain": "clients",
+    "operation": "count",
+    "entity": "tiers"
+  },
+  {
+    "question": "Affiche les tiers vente",
+    "domain": "clients",
+    "operation": "list",
+    "entity": "tiers"
+  },
+  {
+    "question": "Montre les clients du dossier",
+    "domain": "clients",
+    "operation": "list",
+    "entity": "tiers"
+  },
+  {
+    "question": "Explique les tiers vente clients",
+    "domain": "clients",
+    "operation": "explain",
+    "entity": "tiers"
+  },
+  {
+    "question": "Liste les mouvements bancaires",
+    "domain": "mouvements_bancaires",
+    "operation": "list",
+    "entity": "mouvement"
+  },
+  {
+    "question": "Combien d'opérations bancaires ?",
+    "domain": "mouvements_bancaires",
+    "operation": "count",
+    "entity": "mouvement"
+  },
+  {
+    "question": "Total des mouvements bancaires",
+    "domain": "mouvements_bancaires",
+    "operation": "sum",
+    "entity": "mouvement"
+  },
+  {
+    "question": "Compare les mouvements bancaires de janvier et février",
+    "domain": "mouvements_bancaires",
+    "operation": "compare",
+    "entity": "mouvement"
+  },
+  {
+    "question": "Explique les opérations bancaires non rapprochées",
+    "domain": "mouvements_bancaires",
+    "operation": "explain",
+    "entity": "mouvement"
+  },
+  {
+    "question": "Liste les rapprochements bancaires",
+    "domain": "rapprochements",
+    "operation": "list",
+    "entity": "generic"
+  },
+  {
+    "question": "Combien de rapprochements confirmés ?",
+    "domain": "rapprochements",
+    "operation": "count",
+    "entity": "generic"
+  },
+  {
+    "question": "Affiche le lettrage bancaire",
+    "domain": "rapprochements",
+    "operation": "list",
+    "entity": "generic"
+  },
+  {
+    "question": "Compare les rapprochements de mars et avril",
+    "domain": "rapprochements",
+    "operation": "compare",
+    "entity": "generic"
+  },
+  {
+    "question": "Explique les rapprochements ambigus",
+    "domain": "rapprochements",
+    "operation": "explain",
+    "entity": "generic"
+  },
+  {
+    "question": "Liste les allocations de montant affecté",
+    "domain": "allocations",
+    "operation": "list",
+    "entity": "allocation"
+  },
+  {
+    "question": "Combien d'affectations bancaires ?",
+    "domain": "allocations",
+    "operation": "count",
+    "entity": "allocation"
+  },
+  {
+    "question": "Total du montant affecté des allocations",
+    "domain": "allocations",
+    "operation": "sum",
+    "entity": "allocation"
+  },
+  {
+    "question": "Compare les allocations de mai et juin",
+    "domain": "allocations",
+    "operation": "compare",
+    "entity": "allocation"
+  },
+  {
+    "question": "Explique les affectations paiement facture",
+    "domain": "allocations",
+    "operation": "explain",
+    "entity": "allocation"
+  },
+  {
+    "question": "Liste les paiements et règlements",
+    "domain": "paiements",
+    "operation": "list",
+    "entity": "allocation"
+  },
+  {
+    "question": "Combien de factures restent à payer ?",
+    "domain": "paiements",
+    "operation": "count",
+    "entity": "allocation"
+  },
+  {
+    "question": "Total des règlements payés",
+    "domain": "paiements",
+    "operation": "sum",
+    "entity": "allocation"
+  },
+  {
+    "question": "Compare les paiements de juillet et août",
+    "domain": "paiements",
+    "operation": "compare",
+    "entity": "allocation"
+  },
+  {
+    "question": "Explique les factures partiellement réglées",
+    "domain": "paiements",
+    "operation": "explain",
+    "entity": "allocation"
+  },
+  {
+    "question": "Liste les comptes bancaires",
+    "domain": "comptes_bancaires",
+    "operation": "list",
+    "entity": "compte"
+  },
+  {
+    "question": "Combien de comptes bancaires actifs ?",
+    "domain": "comptes_bancaires",
+    "operation": "count",
+    "entity": "compte"
+  },
+  {
+    "question": "Affiche les IBAN et RIB des comptes bancaires",
+    "domain": "comptes_bancaires",
+    "operation": "list",
+    "entity": "compte"
+  },
+  {
+    "question": "Montre les banques configurées",
+    "domain": "comptes_bancaires",
+    "operation": "list",
+    "entity": "compte"
+  },
+  {
+    "question": "Explique les comptes bancaires du dossier",
+    "domain": "comptes_bancaires",
+    "operation": "explain",
+    "entity": "compte"
+  },
+  {
+    "question": "Liste le plan comptable",
+    "domain": "plan_comptable",
+    "operation": "list",
+    "entity": "compte"
+  },
+  {
+    "question": "Combien de comptes comptables actifs ?",
+    "domain": "plan_comptable",
+    "operation": "count",
+    "entity": "compte"
+  },
+  {
+    "question": "Affiche les numéros de compte CGNC",
+    "domain": "plan_comptable",
+    "operation": "list",
+    "entity": "compte"
+  },
+  {
+    "question": "Montre le plan comptable du dossier",
+    "domain": "plan_comptable",
+    "operation": "list",
+    "entity": "compte"
+  },
+  {
+    "question": "Explique les comptes comptables fournisseurs",
+    "domain": "plan_comptable",
+    "operation": "explain",
+    "entity": "compte"
+  },
+  {
+    "question": "Liste la TVA comptable",
+    "domain": "tva",
+    "operation": "list",
+    "entity": "etat"
+  },
+  {
+    "question": "Combien de mois de TVA sont à vérifier ?",
+    "domain": "tva",
+    "operation": "count",
+    "entity": "etat"
+  },
+  {
+    "question": "Total de TVA collectée",
+    "domain": "tva",
+    "operation": "sum",
+    "entity": "etat"
+  },
+  {
+    "question": "Compare la TVA de janvier et février",
+    "domain": "tva",
+    "operation": "compare",
+    "entity": "etat"
+  },
+  {
+    "question": "Explique le crédit TVA",
+    "domain": "tva",
+    "operation": "explain",
+    "entity": "etat"
+  },
+  {
+    "question": "Liste les tâches et rappels",
+    "domain": "taches",
+    "operation": "list",
+    "entity": "tache"
+  },
+  {
+    "question": "Combien de tâches sont en retard ?",
+    "domain": "taches",
+    "operation": "count",
+    "entity": "tache"
+  },
+  {
+    "question": "Affiche les échéances à faire",
+    "domain": "taches",
+    "operation": "list",
+    "entity": "tache"
+  },
+  {
+    "question": "Montre les rappels du mois",
+    "domain": "taches",
+    "operation": "list",
+    "entity": "tache"
+  },
+  {
+    "question": "Explique les tâches prioritaires",
+    "domain": "taches",
+    "operation": "explain",
+    "entity": "tache"
+  },
+  {
+    "question": "Liste le journal d'audit",
+    "domain": "audit",
+    "operation": "list",
+    "entity": "evenement_audit"
+  },
+  {
+    "question": "Combien d'événements dans l'historique ?",
+    "domain": "audit",
+    "operation": "count",
+    "entity": "evenement_audit"
+  },
+  {
+    "question": "Affiche les traces d'audit",
+    "domain": "audit",
+    "operation": "list",
+    "entity": "evenement_audit"
+  },
+  {
+    "question": "Montre le journal d'activité",
+    "domain": "audit",
+    "operation": "list",
+    "entity": "evenement_audit"
+  },
+  {
+    "question": "Explique qui a modifié un document",
+    "domain": "audit",
+    "operation": "explain",
+    "entity": "evenement_audit"
+  }
+]

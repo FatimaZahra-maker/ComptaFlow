@@ -79,6 +79,7 @@ from app.services import exchange_rate_service
 from app.services import plan_comptable_service
 from app.services import rapprochement_bancaire_service
 from app.services import ligne_comptable_service
+from app.services import workflow_comptable_service
 
 
 # ============================================================
@@ -1461,6 +1462,13 @@ def creer_ecriture_depuis_document(
         except ValueError:
             date_piece = None
 
+    workflow_comptable_service.verifier_date_modifiable(
+        db,
+        cabinet_id=document.cabinet_id,
+        entreprise_id=document.entreprise_id,
+        target_date=date_piece or workflow_comptable_service.date_document(document),
+    )
+
     # --------------------------------------------------------
     # ÉCRITURE EXISTANTE
     # --------------------------------------------------------
@@ -1898,6 +1906,16 @@ def creer_ecriture_depuis_document(
         generation_lignes.lignes
     )
 
+    # Les documents sans anomalie passent automatiquement à PRETE_TOPAZE.
+    # Une correction ultérieure relancera exactement le même contrôle.
+    workflow_comptable_service.controler_et_transitionner(
+        db,
+        ecriture,
+        document=document,
+        actor_type="celery",
+    )
+    donnees["workflow_comptable_statut"] = ecriture.statut_validation.value
+
     # Les métadonnées du moteur comptable restent visibles
     # dans le document pour audit / interface / futur apprentissage.
     document.donnees_extraites = dict(donnees)
@@ -1963,6 +1981,22 @@ def creer_mouvements_bancaires(
         )
         else []
     )
+
+    # Préflight complet avant la suppression/recréation des mouvements : une
+    # seule ligne appartenant à une période verrouillée bloque tout le lot.
+    workflow_comptable_service.verifier_document_modifiable(db, document)
+    for raw_line in lignes_extraites:
+        value = raw_line.get("date_operation") if isinstance(raw_line, dict) else None
+        try:
+            operation_date = date_type.fromisoformat(str(value))
+        except (TypeError, ValueError):
+            operation_date = document.created_at.date()
+        workflow_comptable_service.verifier_date_modifiable(
+            db,
+            cabinet_id=document.cabinet_id,
+            entreprise_id=document.entreprise_id,
+            target_date=operation_date,
+        )
 
     # --------------------------------------------------------
     # ANTI-DOUBLON

@@ -47,9 +47,10 @@ class LigneComptable(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin):
             name="ck_ligne_comptable_un_seul_sens",
         ),
         CheckConstraint(
-            "((ecriture_id IS NOT NULL AND mouvement_bancaire_id IS NULL AND regularisation_cloture_id IS NULL) "
-            "OR (ecriture_id IS NULL AND mouvement_bancaire_id IS NOT NULL AND regularisation_cloture_id IS NULL) "
-            "OR (ecriture_id IS NULL AND mouvement_bancaire_id IS NULL AND regularisation_cloture_id IS NOT NULL))",
+            "((ecriture_id IS NOT NULL AND mouvement_bancaire_id IS NULL AND regularisation_cloture_id IS NULL AND tva_periode_id IS NULL) "
+            "OR (ecriture_id IS NULL AND mouvement_bancaire_id IS NOT NULL AND regularisation_cloture_id IS NULL AND tva_periode_id IS NULL) "
+            "OR (ecriture_id IS NULL AND mouvement_bancaire_id IS NULL AND regularisation_cloture_id IS NOT NULL AND tva_periode_id IS NULL) "
+            "OR (ecriture_id IS NULL AND mouvement_bancaire_id IS NULL AND regularisation_cloture_id IS NULL AND tva_periode_id IS NOT NULL))",
             name="ck_ligne_comptable_source_unique",
         ),
         UniqueConstraint(
@@ -66,6 +67,11 @@ class LigneComptable(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin):
             "regularisation_cloture_id",
             "ordre",
             name="uq_ligne_comptable_cloture_ordre",
+        ),
+        UniqueConstraint(
+            "tva_periode_id",
+            "ordre",
+            name="uq_ligne_comptable_tva_periode_ordre",
         ),
         Index(
             "ix_ligne_comptable_grand_livre",
@@ -106,6 +112,13 @@ class LigneComptable(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin):
     regularisation_cloture_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("regularisations_cloture.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
+    tva_periode_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tva_periodes.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )

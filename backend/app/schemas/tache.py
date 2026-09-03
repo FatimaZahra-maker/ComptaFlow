@@ -7,7 +7,7 @@ plutôt que côté frontend, pour que la définition du retard soit unique
 et cohérente partout (page dédiée, notifications, tableau de bord).
 """
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -20,6 +20,7 @@ class TacheCreate(BaseModel):
     titre: str = Field(min_length=1, max_length=255)
     description: str | None = None
     date_echeance: date
+    heure_echeance: time | None = None
     priorite: PrioriteTacheEnum = PrioriteTacheEnum.NORMALE
     recurrence: RecurrenceTacheEnum = RecurrenceTacheEnum.AUCUNE
 
@@ -28,6 +29,7 @@ class TacheUpdate(BaseModel):
     titre: str | None = None
     description: str | None = None
     date_echeance: date | None = None
+    heure_echeance: time | None = None
     statut: StatutTacheEnum | None = None
     priorite: PrioriteTacheEnum | None = None
     recurrence: RecurrenceTacheEnum | None = None
@@ -47,6 +49,7 @@ class TacheOut(BaseModel):
     titre: str
     description: str | None
     date_echeance: date
+    heure_echeance: time | None
     statut: str
     priorite: str
     recurrence: str

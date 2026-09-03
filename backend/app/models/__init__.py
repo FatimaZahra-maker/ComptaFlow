@@ -9,6 +9,12 @@ from app.models.ecriture import EcritureComptable
 from app.models.mouvement_bancaire import MouvementBancaire
 from app.models.tache import Tache
 from app.models.audit_log import AuditLog
+from app.models.cabinet_message import CabinetMessage
+from app.models.workflow_comptable import (
+    AnomalieComptable,
+    DocumentAttenduConfiguration,
+    PeriodeTravail,
+)
 from app.models.compte_comptable_entreprise import CompteComptableEntreprise
 from app.models.taux_change_bam import TauxChangeBAM
 from app.models.ligne_comptable import LigneComptable
@@ -33,6 +39,10 @@ __all__ = [
     "MouvementBancaire",
     "Tache",
     "AuditLog",
+    "CabinetMessage",
+    "AnomalieComptable",
+    "DocumentAttenduConfiguration",
+    "PeriodeTravail",
     "CompteComptableEntreprise",
     "TauxChangeBAM",
     "LigneComptable",

@@ -49,6 +49,7 @@ class EntrepriseDisponible:
     id: uuid.UUID
     nom: str
     ice: str | None
+    is_active: bool
     creee_automatiquement: bool
     ecritures_brouillon: int = 0
     ecritures_a_verifier: int = 0
@@ -229,6 +230,7 @@ def lister_entreprises_disponibles(
         id=company.id,
         nom=company.nom,
         ice=company.ice,
+        is_active=company.is_active,
         creee_automatiquement=company.creee_automatiquement,
         ecritures_brouillon=counts.get(company.id, {}).get("brouillon", 0),
         ecritures_a_verifier=counts.get(company.id, {}).get("a_verifier", 0),

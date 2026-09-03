@@ -23,6 +23,7 @@ from app.schemas.plan_comptable import (
     ImportPlanComptableResult,
 )
 from app.services.plan_comptable_service import creer_ou_mettre_a_jour_compte
+from app.services import audit_service
 
 
 router = APIRouter(
@@ -112,6 +113,14 @@ def ajouter_compte(
             **payload.model_dump(),
             source="manuel",
         )
+        db.flush()
+        audit_service.enregistrer(
+            db, user=current_user, action=audit_service.AuditAction.ACCOUNT_CREATED,
+            entreprise_id=entreprise_id, resource_type="compte_comptable",
+            resource_id=compte.id, description=f"Création du compte {compte.numero_compte}.",
+            apres={"numero_compte": compte.numero_compte, "libelle": compte.libelle,
+                   "type_usage": compte.type_usage},
+        )
         db.commit()
         db.refresh(compte)
         return compte
@@ -148,6 +157,7 @@ def modifier_compte(
         raise HTTPException(status_code=404, detail="Compte introuvable.")
 
     data = payload.model_dump(exclude_unset=True)
+    avant = {key: getattr(compte, key) for key in data}
 
     try:
         compte, _ = creer_ou_mettre_a_jour_compte(
@@ -163,6 +173,14 @@ def modifier_compte(
             est_divers=data.get("est_divers", compte.est_divers),
             is_active=data.get("is_active", compte.is_active),
             source="manuel",
+        )
+        apres = {key: getattr(compte, key) for key in data}
+        avant_modifie, apres_modifie = audit_service.valeurs_modifiees(avant, apres)
+        audit_service.enregistrer(
+            db, user=current_user, action=audit_service.AuditAction.ACCOUNT_UPDATED,
+            entreprise_id=entreprise_id, resource_type="compte_comptable",
+            resource_id=compte.id, description=f"Modification du compte {compte.numero_compte}.",
+            avant=avant_modifie, apres=apres_modifie,
         )
         db.commit()
         db.refresh(compte)
@@ -199,6 +217,13 @@ def importer_plan_comptable(
             else:
                 mis_a_jour += 1
 
+        audit_service.enregistrer(
+            db, user=current_user, action=audit_service.AuditAction.ACCOUNT_PLAN_IMPORTED,
+            entreprise_id=entreprise_id, resource_type="plan_comptable",
+            description=f"Import de {len(payload.comptes)} comptes comptables.",
+            metadata={"crees": crees, "mis_a_jour": mis_a_jour},
+            item_count=len(payload.comptes),
+        )
         db.commit()
 
     except ValueError as exc:
@@ -235,5 +260,11 @@ def desactiver_compte(
         raise HTTPException(status_code=404, detail="Compte introuvable.")
 
     compte.is_active = False
+    audit_service.enregistrer(
+        db, user=current_user, action=audit_service.AuditAction.ACCOUNT_DEACTIVATED,
+        entreprise_id=entreprise_id, resource_type="compte_comptable",
+        resource_id=compte.id, description=f"Désactivation du compte {compte.numero_compte}.",
+        avant={"is_active": True}, apres={"is_active": False},
+    )
     db.commit()
     return None

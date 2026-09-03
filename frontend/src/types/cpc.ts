@@ -40,4 +40,6 @@ export interface Cpc {
   nombre_lignes: number;
   nombre_comptes: number;
   source_calcul: string;
+  nature_etat: string;
+  avertissement_limite: string;
 }

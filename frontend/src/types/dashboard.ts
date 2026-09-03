@@ -10,8 +10,11 @@ export interface DocumentsParStatut {
 }
 
 export interface EcrituresParStatutValidation {
+  calcul_en_cours: number;
   brouillon: number;
   a_verifier: number;
+  prete_topaze: number;
+  saisie_topaze: number;
   valide: number;
   rejete: number;
 }

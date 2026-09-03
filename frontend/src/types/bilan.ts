@@ -50,4 +50,8 @@ export interface Bilan {
   nombre_lignes: number;
   nombre_comptes: number;
   source_calcul: string;
+  nature_etat: string;
+  completude: "complet" | "potentiellement_incomplet" | string;
+  raisons_incompletude: string[];
+  avertissement_limite: string;
 }

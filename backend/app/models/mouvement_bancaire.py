@@ -44,7 +44,7 @@ class MouvementBancaire(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin):
         index=True,
     )
 
-    date_operation: Mapped[date] = mapped_column(Date, nullable=False)
+    date_operation: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     libelle: Mapped[str] = mapped_column(String(500), nullable=False)
     reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
 

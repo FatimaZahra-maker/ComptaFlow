@@ -53,7 +53,7 @@ def create_user(
     db.add(nouvel_utilisateur)
     db.flush()
     audit_service.enregistrer(
-        db, user=current_user, action="user.create", resource_type="user",
+        db, user=current_user, action=audit_service.AuditAction.USER_CREATED, resource_type="user",
         resource_id=nouvel_utilisateur.id,
         apres={"email": nouvel_utilisateur.email, "role": nouvel_utilisateur.role.value},
     )
@@ -98,7 +98,7 @@ def deactivate_user(
 
     utilisateur.is_active = False
     audit_service.enregistrer(
-        db, user=current_user, action="user.deactivate", resource_type="user",
+        db, user=current_user, action=audit_service.AuditAction.USER_DEACTIVATED, resource_type="user",
         resource_id=utilisateur.id,
         avant={"is_active": True}, apres={"is_active": False},
     )

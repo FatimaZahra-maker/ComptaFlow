@@ -14,6 +14,9 @@ class EntrepriseOut(BaseModel):
     id: uuid.UUID
     nom: str
     ice: str | None
+    identifiant_fiscal: str | None = None
+    rc: str | None = None
+    is_active: bool
     creee_automatiquement: bool
 
 

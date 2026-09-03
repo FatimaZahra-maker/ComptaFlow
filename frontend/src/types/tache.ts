@@ -12,6 +12,7 @@ export interface Tache {
   titre: string;
   description: string | null;
   date_echeance: string;
+  heure_echeance: string | null;
   statut: StatutTache;
   priorite: PrioriteTache;
   recurrence: RecurrenceTache;
@@ -24,6 +25,7 @@ export interface TacheCreatePayload {
   titre: string;
   description?: string;
   date_echeance: string;
+  heure_echeance?: string;
   priorite?: PrioriteTache;
   recurrence?: RecurrenceTache;
 }
@@ -31,6 +33,7 @@ export interface TacheUpdatePayload {
   titre?: string;
   description?: string | null;
   date_echeance?: string;
+  heure_echeance?: string | null;
   statut?: StatutTache;
   priorite?: PrioriteTache;
   recurrence?: RecurrenceTache;

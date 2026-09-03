@@ -1,0 +1,715 @@
+\documentclass[11pt,a4paper]{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=1.65cm,headheight=15pt]{geometry}
+\usepackage[table]{xcolor}
+\usepackage{array,longtable,booktabs,tabularx}
+\usepackage{enumitem}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit,calc}
+\usepackage{fancyhdr}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{listings}
+
+\definecolor{Navy}{HTML}{17324D}
+\definecolor{Green}{HTML}{176B4D}
+\definecolor{LightGreen}{HTML}{EAF5F0}
+\definecolor{LightBlue}{HTML}{EDF3F8}
+\definecolor{SoftGray}{HTML}{F4F6F8}
+\definecolor{Orange}{HTML}{A65316}
+\definecolor{Red}{HTML}{9B2C2C}
+
+\hypersetup{colorlinks=true,linkcolor=Navy,urlcolor=Green,pdftitle={Fiche de révision ComptaFlow}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\setlist[itemize]{leftmargin=1.5em,itemsep=2pt,topsep=3pt}
+\setlist[enumerate]{leftmargin=1.7em,itemsep=2pt,topsep=3pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{Navy}{ComptaFlow — fiche de révision}}
+\fancyhead[R]{\small\textcolor{Navy}{Architecture et fichiers}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newcommand{\fichier}[1]{\path{#1}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\actif}{\textcolor{Green}{\textbf{Actif}}}
+\newcommand{\support}{\textcolor{Navy}{\textbf{Support}}}
+\newcommand{\historique}{\textcolor{Orange}{\textbf{Ancien}}}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+\newenvironment{fichiertable}[1]{%
+  \renewcommand{\arraystretch}{1.16}%
+  \begin{longtable}{@{}L{0.28\textwidth} L{0.54\textwidth} L{0.10\textwidth}@{}}
+  \caption{#1}\\
+  \rowcolor{Navy}\color{white}\textbf{Fichier} & \color{white}\textbf{Rôle et fonctionnement} & \color{white}\textbf{État}\\
+  \endfirsthead
+  \rowcolor{Navy}\color{white}\textbf{Fichier} & \color{white}\textbf{Rôle et fonctionnement} & \color{white}\textbf{État}\\
+  \endhead
+}{\end{longtable}}
+
+\tikzset{
+  flow/.style={rectangle,rounded corners=4pt,draw=Navy,thick,fill=LightBlue,align=center,minimum height=9mm,text width=3.1cm,font=\small},
+  service/.style={rectangle,rounded corners=4pt,draw=Green,thick,fill=LightGreen,align=center,minimum height=9mm,text width=3.1cm,font=\small},
+  store/.style={cylinder,shape border rotate=90,aspect=0.25,draw=Navy,thick,fill=SoftGray,align=center,minimum height=10mm,text width=2.5cm,font=\small},
+  decision/.style={diamond,draw=Orange,thick,fill=orange!8,align=center,aspect=2,text width=2.5cm,font=\small},
+  arrow/.style={-{Stealth[length=2.4mm]},thick,draw=Navy},
+  async/.style={-{Stealth[length=2.4mm]},thick,dashed,draw=Green}
+}
+
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,backgroundcolor=\color{SoftGray},rulecolor=\color{Navy}}
+
+\begin{document}
+\pagenumbering{gobble}
+
+\begin{titlepage}
+  \centering
+  \vspace*{2.1cm}
+  {\Huge\bfseries\textcolor{Navy}{Fiche de révision ComptaFlow}\par}
+  \vspace{0.5cm}
+  {\Large Comprendre l’architecture, les flux et le rôle de chaque fichier\par}
+  \vspace{1.2cm}
+  \begin{tikzpicture}[node distance=8mm]
+    \node[flow] (front) {Frontend\\React + TypeScript};
+    \node[flow,right=of front] (api) {API\\FastAPI};
+    \node[service,right=of api] (metier) {Services métier\\Python};
+    \node[store,right=of metier] (db) {PostgreSQL};
+    \draw[arrow] (front) -- (api);
+    \draw[arrow] (api) -- (metier);
+    \draw[arrow] (metier) -- (db);
+  \end{tikzpicture}
+  \vfill
+  {\large RADOUI Fatima Zahra\par}
+  {\large Génie informatique — ENSA de Berrechid\par}
+  \vspace{0.5cm}
+  {\large Version fondée sur le code réel du dépôt — août 2026\par}
+\end{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+
+\chapter{Comment utiliser cette fiche}
+
+Cette fiche sert à préparer une soutenance, expliquer le projet à un enseignant et retrouver rapidement le chemin d’une fonctionnalité dans le code. Elle ne se contente pas de reprendre les noms des fichiers : elle indique qui appelle qui, quelles données circulent et où sont appliquées les règles importantes.
+
+\section{Périmètre}
+
+Sont décrits individuellement : les fichiers applicatifs du backend et du frontend, les modèles, schémas, routes, services, tâches Celery, migrations Alembic, scripts, tests, fichiers Docker et fichiers de configuration. Sont exclus de l’inventaire détaillé : \fichier{node_modules/}, \fichier{__pycache__/}, \fichier{.git/}, les fichiers importés dans \fichier{storage_local/}, les captures, les résultats JSON de benchmark et les fichiers temporaires produits par LaTeX. Ces éléments sont des dépendances, des données ou des artefacts, pas du code à apprendre.
+
+\section{Trois questions à poser pour chaque fichier}
+
+\begin{enumerate}
+  \item \textbf{Qui l’appelle ?} Une route, une page React, une tâche Celery, Alembic ou un test.
+  \item \textbf{Que transforme-t-il ?} Une requête HTTP, un document, un objet SQLAlchemy, des lignes comptables ou un état React.
+  \item \textbf{Que renvoie-t-il ou persiste-t-il ?} Un schéma Pydantic, une réponse JSON, un fichier exporté ou une modification PostgreSQL.
+\end{enumerate}
+
+\begin{tabularx}{\textwidth}{L{0.23\textwidth}Y}
+\rowcolor{Navy}\color{white}\textbf{Couche} & \color{white}\textbf{Idée à retenir}\\
+\textbf{Page React} & Affiche l’état, collecte les actions et appelle un fichier de \fichier{frontend/src/api/}.\\
+\textbf{API TypeScript} & Traduit une action d’interface en requête HTTP Axios typée.\\
+\textbf{Route FastAPI} & Authentifie, contrôle le rôle et le périmètre, valide l’entrée puis appelle les services.\\
+\textbf{Service métier} & Contient les règles comptables, documentaires ou bancaires réutilisables.\\
+\textbf{Modèle SQLAlchemy} & Décrit la table persistée, ses clés étrangères et ses contraintes.\\
+\textbf{Schéma Pydantic} & Définit le contrat JSON d’entrée ou de sortie de l’API.\\
+\textbf{Migration Alembic} & Fait évoluer physiquement PostgreSQL de manière versionnée.\\
+\textbf{Test} & Prouve une règle isolée et protège contre une régression.\\
+\end{tabularx}
+
+\chapter{Vue d’ensemble de l’architecture}
+
+\section{Architecture d’exécution}
+
+\begin{figure}[ht]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[node distance=11mm and 9mm]
+  \node[flow] (user) {Utilisateur\\Navigateur};
+  \node[flow,right=of user] (react) {React / TypeScript\\Vite};
+  \node[flow,right=of react] (fastapi) {FastAPI\\routes + sécurité};
+  \node[service,right=of fastapi] (services) {Services métier\\règles déterministes};
+  \node[store,right=of services] (pg) {PostgreSQL};
+  \node[service,below=of fastapi] (celery) {Worker Celery\\traitement asynchrone};
+  \node[store,left=of celery] (redis) {Redis\\broker + résultats};
+  \node[service,right=of celery] (extract) {Groq Vision / texte\\PaddleOCR / Ollama};
+  \node[store,right=of extract] (storage) {Stockage local\\PDF et images};
+  \draw[arrow] (user) -- node[above,font=\scriptsize]{actions} (react);
+  \draw[arrow] (react) -- node[above,font=\scriptsize]{HTTP + JWT} (fastapi);
+  \draw[arrow] (fastapi) -- (services);
+  \draw[arrow] (services) -- (pg);
+  \draw[async] (fastapi) -- (redis);
+  \draw[async] (redis) -- (celery);
+  \draw[arrow] (celery) -- (extract);
+  \draw[arrow] (celery) -- (storage);
+  \draw[arrow] (celery) |- (pg);
+\end{tikzpicture}
+}
+\caption{Composants actifs et circulation principale}
+\end{figure}
+
+\textbf{Lecture du schéma.} Le navigateur ne parle jamais directement à PostgreSQL. Une page appelle Axios ; Axios ajoute le JWT ; FastAPI vérifie l’identité et le rôle. La route filtre d’abord par \code{cabinet\_id}, puis par \code{entreprise\_id} lorsque la donnée appartient à un dossier comptable. Pour un traitement lourd, FastAPI dépose seulement une tâche dans Redis et rend la main. Celery reprend le travail et écrit progressivement les résultats en base.
+
+\section{Règle d’isolation multi-tenant}
+
+\begin{center}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[node distance=10mm]
+  \node[flow] (jwt) {JWT\\user.id};
+  \node[flow,right=of jwt] (user) {User\\cabinet\_id + rôle};
+  \node[decision,right=of user] (scope) {Objet dans le même cabinet ?};
+  \node[service,right=of scope] (company) {Filtre entreprise\_id\\si donnée comptable};
+  \node[flow,right=of company] (ok) {Action autorisée};
+  \node[flow,below=of scope,draw=Red,fill=red!7] (deny) {401 / 403 / 404};
+  \draw[arrow] (jwt) -- (user);
+  \draw[arrow] (user) -- (scope);
+  \draw[arrow] (scope) -- node[above,font=\scriptsize]{oui} (company);
+  \draw[arrow] (company) -- (ok);
+  \draw[arrow] (scope) -- node[right,font=\scriptsize]{non} (deny);
+\end{tikzpicture}
+}
+\end{center}
+
+Le \code{cabinet\_id} vient de l’utilisateur authentifié, jamais d’un cabinet arbitraire envoyé par le navigateur. Pour les comptes, écritures, mouvements, rapprochements et états, le filtre \code{entreprise\_id} complète ce premier périmètre.
+
+\chapter{Flux fonctionnels à connaître}
+
+\section{Connexion et autorisation}
+
+\begin{center}
+\begin{tikzpicture}[node distance=8mm]
+  \node[flow] (login) {\fichier{LoginPage.tsx}\\email + mot de passe};
+  \node[flow,below=of login] (authapi) {\fichier{authApi.ts}\\POST /auth/login};
+  \node[flow,below=of authapi] (route) {\fichier{api/auth.py}\\vérifie utilisateur};
+  \node[service,below=of route] (security) {\fichier{core/security.py}\\bcrypt + JWT HS256};
+  \node[flow,below=of security] (ctx) {\fichier{AuthContext.tsx}\\stocke le token};
+  \node[flow,below=of ctx] (client) {\fichier{api/client.ts}\\Bearer sur chaque appel};
+  \node[service,below=of client] (deps) {\fichier{core/deps.py}\\401 identité / 403 rôle};
+  \draw[arrow] (login)--(authapi); \draw[arrow] (authapi)--(route); \draw[arrow] (route)--(security);
+  \draw[arrow] (security)--(ctx); \draw[arrow] (ctx)--(client); \draw[arrow] (client)--(deps);
+\end{tikzpicture}
+\end{center}
+
+Le mot de passe n’est jamais stocké en clair. Après connexion, le frontend conserve le JWT dans \code{localStorage}. L’intercepteur Axios l’ajoute au header \code{Authorization}. Si le backend répond 401, l’intercepteur supprime le token et redirige vers la page de connexion.
+
+\section{Import et traitement d’un document}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=7mm]
+  \node[flow] (upload) {1. \fichier{UploadPage.tsx}\\sélection du fichier};
+  \node[flow,below=of upload] (docapi) {2. \fichier{documentsApi.ts}\\multipart/form-data};
+  \node[flow,below=of docapi] (route) {3. \fichier{api/documents.py}\\format, taille, signature, hash};
+  \node[store,below=of route] (save) {4. Document + fichier\\statut en attente};
+  \node[service,below=of save] (queue) {5. Redis / Celery\\\code{process\_document}\\\code{.delay(...)}};
+  \node[service,below=of queue] (vision) {6. Groq Vision\\chemin prioritaire};
+  \node[decision,below=of vision] (usable) {Résultat exploitable ?};
+  \node[service,below left=9mm and 11mm of usable] (ocr) {PDF natif ou\\PaddleOCR};
+  \node[service,below right=9mm and 11mm of usable] (rules) {Normalisation, règles,\\entreprise et comptes};
+  \node[store,below=20mm of usable] (result) {Document enrichi +\\pré-écriture ou mouvements};
+  \draw[arrow] (upload)--(docapi); \draw[arrow] (docapi)--(route); \draw[arrow] (route)--(save); \draw[async] (save)--(queue); \draw[arrow] (queue)--(vision); \draw[arrow] (vision)--(usable);
+  \draw[arrow] (usable)--node[above left,font=\scriptsize]{non}(ocr); \draw[arrow] (usable)--node[above right,font=\scriptsize]{oui}(rules);
+  \draw[arrow] (ocr)--(rules); \draw[arrow] (rules)--(result);
+\end{tikzpicture}
+\caption{Chaîne documentaire simplifiée}
+\end{figure}
+
+\textbf{Étapes clés dans \fichier{tasks/document_processing.py}.}
+\begin{enumerate}
+  \item ouvrir une session SQLAlchemy indépendante du cycle HTTP ;
+  \item tenter l’extraction Vision sur les pages préparées ;
+  \item en repli, lire le texte natif du PDF ou exécuter PaddleOCR ;
+  \item reconnaître un relevé bancaire ou une pièce classique ;
+  \item compléter sans écraser silencieusement les valeurs extraites ;
+  \item identifier l’entreprise gérée et le sens achat/vente ;
+  \item classer le document dans le chrono principal et sa période ;
+  \item créer ou mettre à jour une pré-écriture, ou recréer les mouvements bancaires ;
+  \item enregistrer le statut final, les erreurs structurées et les métriques utiles.
+\end{enumerate}
+
+\section{Facture vers pré-écriture et lignes comptables}
+
+\begin{center}
+\begin{tikzpicture}[node distance=7mm and 8mm]
+  \node[flow] (data) {Données extraites\\HT, TVA, TTC, tiers};
+  \node[service,right=of data] (accounting) {\fichier{accounting_service.py}\\prépare la pré-écriture};
+  \node[service,right=of accounting] (plan) {\fichier{plan_comptable_service.py}\\compte exact du dossier};
+  \node[decision,below=of accounting] (safe) {Comptes et montants sûrs ?};
+  \node[flow,below left=of safe] (review) {Statut à vérifier\\aucun compte inventé};
+  \node[flow,below right=of safe] (draft) {Pré-écriture\\brouillon};
+  \node[service,below=of draft] (lines) {\fichier{ligne_comptable_service.py}\\débit / crédit};
+  \node[flow,below=of lines] (validation) {Validation humaine};
+  \node[store,below=of validation] (states) {Grand Livre, Balance,\\TVA, CPC, Bilan};
+  \draw[arrow](data)--(accounting); \draw[arrow](accounting)--(plan); \draw[arrow](accounting)--(safe);
+  \draw[arrow](safe)--node[above left,font=\scriptsize]{non}(review); \draw[arrow](safe)--node[above right,font=\scriptsize]{oui}(draft);
+  \draw[arrow](draft)--(lines); \draw[arrow](lines)--(validation); \draw[arrow](validation)--(states);
+\end{tikzpicture}
+\end{center}
+
+L’IA peut proposer une \emph{nature économique}; elle ne choisit pas arbitrairement un numéro complet. Python traduit la nature en famille CGNC, puis le service du plan comptable cherche un compte actif propre à l’entreprise. Zéro ou plusieurs candidats sûrs entraînent une vérification humaine. Seules les lignes marquées validées alimentent les états.
+
+\section{Rapprochement bancaire}
+
+\begin{center}
+\begin{tikzpicture}[node distance=8mm and 9mm]
+  \node[flow] (movement) {Mouvement bancaire\\débit ou crédit};
+  \node[service,right=of movement] (candidate) {Candidats\\montant, date, tiers};
+  \node[decision,right=of candidate] (match) {Correspondance unique ?};
+  \node[flow,below left=of match] (human) {Proposition ou\\validation humaine};
+  \node[service,below right=of match] (allocation) {Allocation\\montant affecté};
+  \node[flow,below=of allocation] (partial) {Simple, partielle, multiple\\ou virement interne};
+  \node[service,below=of partial] (banklines) {Lignes banque +\\écart de change éventuel};
+  \draw[arrow](movement)--(candidate); \draw[arrow](candidate)--(match);
+  \draw[arrow](match)--node[above left,font=\scriptsize]{non}(human); \draw[arrow](match)--node[above right,font=\scriptsize]{oui}(allocation);
+  \draw[arrow](human)--(allocation); \draw[arrow](allocation)--(partial); \draw[arrow](partial)--(banklines);
+\end{tikzpicture}
+\end{center}
+
+La table d’allocation porte le montant affecté : cela permet plusieurs paiements pour une facture et plusieurs factures pour un paiement. Le service interdit d’affecter plus que le solde restant. Les virements internes lient deux mouvements opposés sans les compter deux fois.
+
+\section{Du frontend à l’écran}
+
+\begin{center}
+\begin{tikzpicture}[node distance=8mm]
+  \node[flow] (route) {\fichier{App.tsx}\\route lazy};
+  \node[flow,right=of route] (page) {Page React\\state + effets};
+  \node[flow,right=of page] (api) {Module API TS\\Axios};
+  \node[flow,right=of api] (json) {Réponse JSON\\schéma Pydantic};
+  \node[flow,below=of page] (types) {Types TS\\contrat local};
+  \node[flow,right=of types] (render) {Rendu, filtres, actions\\et gestion d’erreur};
+  \draw[arrow](route)--(page); \draw[arrow](page)--(api); \draw[arrow](api)--(json);
+  \draw[arrow](json)|-(types); \draw[arrow](types)--(render); \draw[arrow](render)-|(page);
+\end{tikzpicture}
+\end{center}
+
+\chapter{Backend : rôle de chaque fichier}
+
+\section{Point d’entrée et cœur technique}
+
+\begin{fichiertable}{Point d’entrée et fichiers backend/app/core/}
+\fichier{backend/app/__init__.py} & Marque \fichier{app} comme package Python. Il ne porte pas de règle métier. & \support\\
+\fichier{backend/app/main.py} & Crée l’application FastAPI, configure CORS, branche tous les routers, ajoute un identifiant de requête et mesure la durée HTTP. Expose aussi \code{/health}, \code{/ready} et la racine. & \actif\\
+\fichier{backend/app/core/__init__.py} & Marque le répertoire \fichier{core} comme package. & \support\\
+\fichier{backend/app/core/config.py} & Charge les paramètres depuis l’environnement : base, secret JWT, Redis, stockage, Ollama, Groq et CORS. La propriété \code{cors\_origins} transforme la chaîne en liste. & \actif\\
+\fichier{backend/app/core/database.py} & Crée l’engine SQLAlchemy, \code{SessionLocal}, la classe \code{Base} et la dépendance \code{get\_db} qui ouvre puis ferme une session par requête. & \actif\\
+\fichier{backend/app/core/security.py} & Centralise bcrypt et les JWT HS256 de huit heures : hachage, vérification, création et décodage. & \actif\\
+\fichier{backend/app/core/deps.py} & Résout l’utilisateur depuis le Bearer token, refuse les comptes inactifs et fabrique les contrôles RBAC avec \code{require\_role}. & \actif\\
+\fichier{backend/app/core/celery_app.py} & Configure Celery avec Redis comme broker et backend, accusé tardif, prélecture 1 et préchauffage Ollama au démarrage du worker. & \actif\\
+\fichier{backend/app/core/exceptions.py} & Définit la hiérarchie d’erreurs du pipeline : définitives, transitoires, fichier illisible et OCR vide. Elle permet de décider si Celery doit réessayer. & \actif\\
+\fichier{backend/app/core/logging_config.py} & Configure les logs de l’API et du worker et injecte le \code{request\_id} dans chaque ligne pour suivre une opération. & \actif\\
+\end{fichiertable}
+
+\section{Modèles SQLAlchemy}
+
+Un modèle décrit ce qui est réellement persisté. Les mixins de \fichier{base.py} ajoutent UUID, dates et, pour la majorité des objets métier, \code{cabinet\_id}.
+
+\begin{fichiertable}{Fichiers backend/app/models/}
+\fichier{models/__init__.py} & Importe les modèles pour construire une métadonnée SQLAlchemy complète, notamment pour Alembic. & \support\\
+\fichier{models/base.py} & Fournit \code{UUIDMixin}, \code{TimestampMixin} et \code{CabinetScopedMixin}. Les modèles héritent ainsi des mêmes colonnes techniques. & \actif\\
+\fichier{models/enums.py} & Source commune des valeurs contrôlées : rôles, catégories et statuts documentaires, types d’écriture, TVA, tâches et mouvements. & \actif\\
+\fichier{models/cabinet.py} & Tenant principal : identité du cabinet, état actif, relations vers utilisateurs et entreprises. & \actif\\
+\fichier{models/user.py} & Utilisateur authentifiable : email unique, hash du mot de passe, identité, rôle, activité et dernier accès ; appartient à un cabinet. & \actif\\
+\fichier{models/entreprise.py} & Dossier comptable suivi : nom, ICE, IF, RC, forme, adresse et indicateur de création automatique. & \actif\\
+\fichier{models/chrono.py} & Conteneur documentaire principal d’une entreprise. La période et la catégorie sont portées par les documents, pas par plusieurs chronos physiques. & \actif\\
+\fichier{models/document.py} & Métadonnées du fichier, hash SHA-256, stockage, classement, statut, OCR, JSON extrait, erreurs et relations vers pré-écritures et mouvements. Entreprise et chrono peuvent être nuls. & \actif\\
+\fichier{models/ecriture.py} & Objet de pré-écriture : type, pièce, tiers, comptes proposés, montants, devise, statut de validation, anomalies et suivi de saisie. Le nom physique de table reste \code{ecritures\_comptables}. & \actif\\
+\fichier{models/ligne_comptable.py} & Lignes débit/crédit issues d’une facture, d’un mouvement ou d’une régularisation ; portent journal, compte, origine, ordre et validation. & \actif\\
+\fichier{models/compte_comptable_entreprise.py} & Plan comptable propre au dossier : numéro, famille CGNC, usage, nature, tiers, source et activation. L’unicité est scoppée par entreprise. & \actif\\
+\fichier{models/compte_bancaire_entreprise.py} & Comptes bancaires configurés avec banque, RIB/IBAN/BIC, devise et compte comptable exact. & \actif\\
+\fichier{models/mouvement_bancaire.py} & Une opération extraite d’un relevé : sens, montant, solde, devise, compte bancaire, contrepartie, rapprochement et éventuel virement lié. & \actif\\
+\fichier{models/rapprochement_bancaire_allocation.py} & Association plusieurs-à-plusieurs entre mouvement et pré-écriture ; porte montant affecté, score, confirmation et éventuel écart de change. & \actif\\
+\fichier{models/taux_change_bam.py} & Cache partagé des cours BAM par date et devise, avec unité de cotation, cours achat/vente et URL source. & \actif\\
+\fichier{models/tva_periode.py} & Contient quatre modèles : configuration TVA du dossier, période calculée, régularisation et utilisation contrôlée d’un crédit antérieur. & \actif\\
+\fichier{models/regularisation_cloture.py} & Opération de clôture : exercice, nature, montant, comptes, statut, anomalies, extourne et traçabilité de validation/génération. & \actif\\
+\fichier{models/tache.py} & Tâche datée, éventuellement rattachée à une entreprise, avec créateur, responsable, statut, priorité et récurrence. & \actif\\
+\fichier{models/audit_log.py} & Journal d’actions sensibles : utilisateur, action, détails avant/après et adresse IP, isolés par cabinet. & \actif\\
+\end{fichiertable}
+
+\section{Schémas Pydantic}
+
+Les schémas sont les contrats JSON. Ils ne créent pas de tables. \code{Create}/\code{Update} valident une entrée ; \code{Out} contrôle ce que l’API expose.
+
+\begin{fichiertable}{Fichiers backend/app/schemas/}
+\fichier{schemas/__init__.py} & Déclare le package de schémas. & \support\\
+\fichier{schemas/auth.py} & Réponse de connexion contenant le jeton et son type. & \actif\\
+\fichier{schemas/user.py} & Création, modification, connexion et lecture d’un utilisateur. & \actif\\
+\fichier{schemas/cabinet.py} & Lecture et mise à jour des informations du cabinet. & \actif\\
+\fichier{schemas/entreprise.py} & Entreprise standard et entreprise disponible dans un module donné. & \actif\\
+\fichier{schemas/chrono.py} & Vue aplatie d’un document dans les chronos numériques. & \actif\\
+\fichier{schemas/document.py} & Résumé de document pour import et liste. & \actif\\
+\fichier{schemas/document_detail.py} & Détail combinant document, données extraites, résumé de pré-écriture et mouvements. & \actif\\
+\fichier{schemas/ecriture.py} & Sortie et correction autorisée d’une pré-écriture comptable. & \actif\\
+\fichier{schemas/mouvement_bancaire.py} & Mouvements, filtres, candidats, allocations, mises à jour et virements internes. & \actif\\
+\fichier{schemas/compte_bancaire.py} & Création, correction et lecture d’un compte bancaire d’entreprise. & \actif\\
+\fichier{schemas/plan_comptable.py} & Compte comptable, import en masse et bilan de l’import. & \actif\\
+\fichier{schemas/ledger.py} & Lignes et comptes du Grand Livre, Balance et résultat de reconstruction. & \actif\\
+\fichier{schemas/registre.py} & Registres, options de filtre et synthèses TVA historiques. & \actif\\
+\fichier{schemas/tva.py} & Configuration, périodes, régularisations et vue annuelle TVA V2. & \actif\\
+\fichier{schemas/cpc.py} & Détails du CPC, comparaison N/N-1 et contrôles de cohérence. & \actif\\
+\fichier{schemas/bilan.py} & Rubriques du Bilan, détails par compte et contrôle actif/passif. & \actif\\
+\fichier{schemas/controls.py} & Anomalies, résumés par module, score et statut de pré-clôture. & \actif\\
+\fichier{schemas/cloture.py} & Cycle des régularisations de clôture : création, validation, génération, annulation et synthèse. & \actif\\
+\fichier{schemas/dashboard.py} & Indicateurs de documents, pré-écritures, TVA et activité globale. & \actif\\
+\fichier{schemas/notification.py} & Liste des notifications et statistiques par type/entreprise. & \actif\\
+\fichier{schemas/rappel.py} & Pré-écritures non saisies et entreprises en retard. & \actif\\
+\fichier{schemas/tache.py} & Création, mise à jour et lecture d’une tâche. & \actif\\
+\fichier{schemas/rapport.py} & Synthèse mensuelle ou annuelle utilisée par la page Rapports et le PDF. & \actif\\
+\fichier{schemas/search.py} & Résultat unifié de recherche avec type, titre, sous-titre et route frontend. & \actif\\
+\fichier{schemas/system.py} & Informations techniques non secrètes sur l’instance et ses capacités. & \actif\\
+\end{fichiertable}
+
+\section{Routes FastAPI}
+
+Une route doit rester mince : dépendances, paramètres, portée multi-tenant, appel de service et réponse. Les grandes règles ne doivent pas être dupliquées ici.
+
+\begin{fichiertable}{Fichiers backend/app/api/}
+\fichier{api/__init__.py} & Déclare le package des routers. & \support\\
+\fichier{api/auth.py} & \code{POST /auth/login} : vérifie email, activité et mot de passe, actualise le dernier accès et retourne le JWT. & \actif\\
+\fichier{api/users.py} & Profil courant, liste, création et désactivation d’utilisateurs avec restrictions d’administration. & \actif\\
+\fichier{api/cabinet.py} & Lecture et mise à jour du cabinet courant, sans accepter un autre tenant. & \actif\\
+\fichier{api/entreprises.py} & Liste des entreprises du cabinet et sélection des entreprises possédant des données pour un module. & \actif\\
+\fichier{api/documents.py} & Import sécurisé, liste, détail, fichier original, correction, validation/rejet, export unitaire, retraitement et suppression. Gère aussi le stockage et la suppression cohérente des données associées. & \actif\\
+\fichier{api/chronos.py} & Recherche documentaire filtrée par entreprise, année, mois et catégorie ; fournit aussi les années disponibles. & \actif\\
+\fichier{api/accounting.py} & Router central des pré-écritures, banque, comptes bancaires, rapprochements, Grand Livre, Balance, registres, TVA, CPC, Bilan et pré-clôture. & \actif\\
+\fichier{api/plan_comptable.py} & CRUD et import du plan propre à chaque entreprise ; contrôle systématiquement le cabinet et le dossier. & \actif\\
+\fichier{api/exchange_rates.py} & Prévisualise le cours BAM applicable sans modifier une écriture. & \actif\\
+\fichier{api/tva.py} & Recalcule les périodes, configure le dossier, ajoute les régularisations et valide une période TVA. & \actif\\
+\fichier{api/cloture.py} & CRUD et cycle de vie des régularisations de clôture, puis synthèse annuelle. & \actif\\
+\fichier{api/dashboard.py} & Agrège des compteurs scoppés pour la période demandée. & \actif\\
+\fichier{api/search.py} & Recherche transversale dans entreprises, documents et pré-écritures du cabinet. & \actif\\
+\fichier{api/notifications.py} & Construit dynamiquement les alertes et leurs statistiques ; il ne s’agit pas d’une boîte de messages persistée. & \actif\\
+\fichier{api/rappels.py} & Expose les pré-écritures non saisies et les retards d’entreprise. & \actif\\
+\fichier{api/taches.py} & Liste, création, correction, achèvement avec récurrence et suppression des tâches. & \actif\\
+\fichier{api/rapports.py} & Génère une synthèse JSON ou son PDF pour une entreprise et une période. & \actif\\
+\fichier{api/export.py} & Exporte les registres validés en CSV/XLSX/PDF. L’endpoint Topaze reste volontairement 501, donc aucune intégration directe n’est annoncée. & \actif\\
+\fichier{api/system.py} & Retourne des informations d’environnement autorisées, sans dévoiler les secrets. & \actif\\
+\end{fichiertable}
+
+\section{Services métier}
+
+\subsection{Services documentaires, OCR et IA}
+
+\begin{fichiertable}{Services d’extraction et de classement}
+\fichier{services/__init__.py} & Déclare le package des services. & \support\\
+\fichier{services/preprocessing_service.py} & Extrait le texte natif d’un PDF ou transforme ses pages en images nettoyées et redimensionnées ; supprime ensuite les temporaires. & \actif\\
+\fichier{services/vision_service.py} & Chemin prioritaire Groq Vision : encode les images, appelle le modèle avec retries, parse le JSON, normalise catégories/natures et conserve les incohérences de montants. & \actif\\
+\fichier{services/ocr_service.py} & Charge PaddleOCR paresseusement dans le worker, sérialise l’accès par verrou et limite chaque page par un timeout. & \actif\\
+\fichier{services/groq_service.py} & Analyse textuelle Groq utilisée après extraction du texte ; parse et contrôle la réponse, sans fabriquer une TVA absente. & \actif\\
+\fichier{services/ai_service.py} & Repli local : extraction rapide, appel Ollama, nettoyage JSON et préchauffage du modèle. La présence de la clé Groq oriente le chemin principal. & \actif\\
+\fichier{services/regex_extraction_service.py} & Complète les champs manquants par expressions régulières et vérifie HT + TVA = TTC sans remplacer silencieusement les sources. & \actif\\
+\fichier{services/extraction_mapping_service.py} & Transforme les champs hétérogènes de l’extraction en dictionnaire métier stable attendu par les étapes suivantes. & \actif\\
+\fichier{services/document_classifier.py} & Classification heuristique par expressions et scores : facture, banque et autres catégories documentaires. & \actif\\
+\fichier{services/ml_classifier_service.py} & Charge, si disponible, un classifieur scikit-learn entraîné et retourne catégorie + confiance ; le pipeline peut continuer sans lui. & \actif\\
+\fichier{services/bank_statement_service.py} & Extrait une page ou un texte bancaire, conserve les lignes répétées, normalise dates/montants et vérifie la cohérence des soldes. & \actif\\
+\fichier{services/company_service.py} & Distingue entreprise gérée et tiers en comparant ICE/IF/RC et noms normalisés ; détermine achat/vente selon émetteur/destinataire. & \actif\\
+\fichier{services/chrono_service.py} & Obtient ou crée le chrono principal du dossier, sous portée cabinet + entreprise. & \actif\\
+\fichier{services/anomaly_service.py} & Détecte les doublons métier, relie un doublon potentiel et conserve les motifs au lieu de supprimer une opération silencieusement. & \actif\\
+\end{fichiertable}
+
+\subsection{Services comptables}
+
+\begin{fichiertable}{Services de préparation et d’états comptables}
+\fichier{services/accounting_rules_service.py} & Tables de correspondance entre nature économique et familles CGNC pour achats, ventes et TVA ; ne produit pas un compte exact du dossier. & \actif\\
+\fichier{services/plan_comptable_service.py} & Normalise et valide un compte, importe le plan et résout un compte exact uniquement lorsqu’un candidat compatible est déterminé sans ambiguïté. & \actif\\
+\fichier{services/accounting_service.py} & Orchestrateur de pré-comptabilité : contrôle les montants, le sens achat/vente, le tiers, les comptes HT/TVA/tiers, les devises, puis crée ou réutilise la pré-écriture ; crée aussi les mouvements d’un relevé. & \actif\\
+\fichier{services/ligne_comptable_service.py} & Construit et synchronise les lignes débit/crédit des factures, banques et clôtures ; produit Grand Livre et Balance à partir des lignes validées. & \actif\\
+\fichier{services/etat_comptable_service.py} & Contrôle l’équilibre et l’exploitabilité des lignes avant leur utilisation par les états. & \actif\\
+\fichier{services/tva_comptable_service.py} & Classe les comptes TVA, calcule les synthèses mensuelles/annuelles, gère le crédit reporté, les régularisations et la validation TVA V2. & \actif\\
+\fichier{services/cpc_service.py} & Classe les comptes 6/7 dans les rubriques CGNC, calcule les résultats et compare N à N-1 sans inventer de variation. & \actif\\
+\fichier{services/bilan_service.py} & Classe les comptes de bilan, traite amortissements/provisions, expose les comptes non classés et contrôle l’égalité actif/passif. & \actif\\
+\fichier{services/precloture_service.py} & Charge un snapshot du dossier et agrège les anomalies documents, écritures, banque, devises, TVA, clôture, CPC et Bilan ; calcule score et statut. & \actif\\
+\fichier{services/cloture_service.py} & Valide les comptes exacts d’une régularisation, empêche les faux équilibres et génère/annule les lignes de clôture. & \actif\\
+\fichier{services/rapport_service.py} & Agrège les indicateurs d’une entreprise pour une période et construit le schéma de rapport. & \actif\\
+\fichier{services/export_service.py} & Sérialise les registres en Excel, CSV ou PDF et génère les rapports PDF. Une fonction de format Topaze existe, mais l’API publique la bloque actuellement. & \actif\\
+\end{fichiertable}
+
+\subsection{Services banque, devises et organisation}
+
+\begin{fichiertable}{Autres services métier}
+\fichier{services/bank_account_service.py} & Normalise RIB/IBAN, cherche un compte bancaire compatible et l’affecte à un mouvement uniquement si l’identification est sûre. & \actif\\
+\fichier{services/rapprochement_bancaire_service.py} & Calcule candidats et scores, gère allocations simples/partielles/groupées, confirmation, annulation et virements internes. & \actif\\
+\fichier{services/exchange_rate_service.py} & Télécharge et parse les cours BAM, vérifie la date, met en cache, respecte l’unité de cotation et convertit séparément en MAD. & \actif\\
+\fichier{services/exchange_difference_service.py} & Calcule gain/perte de change lors d’une allocation, y compris au prorata d’un paiement partiel, puis prépare les lignes si les comptes existent. & \actif\\
+\fichier{services/available_company_service.py} & Construit des requêtes \code{EXISTS} pour ne proposer dans chaque module que les entreprises ayant des données pertinentes, sans N+1. & \actif\\
+\fichier{services/alertes_service.py} & Liste les pré-écritures non saisies et détecte les entreprises en retard. & \actif\\
+\fichier{services/tache_service.py} & Détermine le retard et recrée la prochaine occurrence lorsqu’une tâche récurrente est terminée. & \actif\\
+\fichier{services/audit_service.py} & Enregistre une action scoppée avec auteur et détails avant/après ; seulement les actions instrumentées sont tracées. & \actif\\
+\end{fichiertable}
+
+\section{Tâches, utilitaires et scripts}
+
+\begin{fichiertable}{Tâches et outils backend}
+\fichier{backend/app/tasks/__init__.py} & Déclare le package Celery. & \support\\
+\fichier{backend/app/tasks/document_processing.py} & Tâche principale \code{process\_document}. Orchestre extraction, fallbacks, classement, préparation comptable, banque, statuts et retry des erreurs transitoires (maximum trois). & \actif\\
+\fichier{backend/app/tasks/ai_enrichment.py} & Définit une tâche d’enrichissement différé. Aucun appel actuel à \code{enrichir\_document\_ia.delay} n’a été trouvé : ne pas la présenter comme une étape active. & \historique\\
+\fichier{backend/ocr_worker_standalone.py} & Prototype de sous-processus PaddleOCR persistant. Le fichier s’arrête après le signal \code{ready} et l’architecture retenue utilise désormais le thread de \fichier{ocr_service.py}. & \historique\\
+\fichier{backend/diag.py} & Diagnostic ponctuel de l’import et de l’encodage de \fichier{models/user.py}; utile lors d’un problème local, pas au runtime. & \support\\
+\fichier{backend/scripts/create_first_user.py} & CLI d’amorçage du premier utilisateur avec mot de passe haché. & \support\\
+\fichier{backend/scripts/configurer_cabinet_seguribat.py} & Configure les informations initiales du cabinet SEGURIBAT dans la base. & \support\\
+\fichier{backend/scripts/importer_plan_comptable_csv.py} & Importe un plan comptable CSV en appliquant les normalisations du service dédié. & \support\\
+\fichier{backend/scripts/repair_accounting_entries.py} & Répare/reconstruit des pré-écritures existantes avec les règles actuelles ; à exécuter consciemment sur une base sauvegardée. & \support\\
+\fichier{backend/scripts/train_categorie_classifier.py} & Entraîne le classifieur local de catégories à partir d’un corpus contrôlé. & \support\\
+\fichier{backend/benchmarks/benchmark_extraction.py} & Mesure durée, mémoire, résultats et diagnostics du pipeline sur des documents choisis. & \support\\
+\end{fichiertable}
+
+\section{Alembic et évolution de la base}
+
+\begin{fichiertable}{Configuration et migrations Alembic dans l’ordre}
+\fichier{backend/alembic.ini} & Configuration CLI et logs Alembic ; l’URL réelle est remplacée par \code{settings.DATABASE\_URL}. & \support\\
+\fichier{backend/alembic/env.py} & Charge tous les modèles et fournit \code{Base.metadata} à Alembic en mode online ou offline. & \actif\\
+\fichier{backend/alembic/script.py.mako} & Gabarit utilisé pour créer une nouvelle révision. & \support\\
+\fichier{backend/alembic/README} & Aide standard du dossier de migrations. & \support\\
+\fichier{ba0aefae0e94_initial_tables.py} & Socle initial : cabinets, utilisateurs, entreprises, chronos, documents et pré-écritures. & \actif\\
+\fichier{f29924d2e6e1_make_document_classification_fields_.py} & Ajuste la nullabilité des champs de classification pour autoriser un traitement progressif. & \actif\\
+\fichier{18e58386fcfa_ajout_type_erreur_et_error_code_sur_.py} & Ajoute type et code d’erreur structurés au document. & \actif\\
+\fichier{e8fd7f46f06e_ajout_saisie_topaze_sur_ecritures_.py} & Ajoute le suivi de saisie sur les pré-écritures. & \actif\\
+\fichier{21b970ad6d7e_ajout_table_taches_rappels_et_taches.py} & Première évolution liée aux tâches/rappels. & \actif\\
+\fichier{1cd6f5a62909_ht_tva_optionnels_et_mouvements_.py} & Autorise HT/TVA optionnels et prépare le support des mouvements bancaires. & \actif\\
+\fichier{65a34d21d0e5_create_taches_table.py} & Stabilise/crée la table des tâches utilisée actuellement. & \actif\\
+\fichier{a7c9e2b4d610_ajout_saisie_topaze_documents.py} & Ajoute le suivi de saisie au niveau du document. & \actif\\
+\fichier{b91f2d7c4a80_create_mouvements_bancaires_table.py} & Crée la table des mouvements issus des relevés. & \actif\\
+\fichier{c4f8a2d9e310_comptes_et_libelle_ecritures.py} & Ajoute les comptes proposés et le libellé aux pré-écritures. & \actif\\
+\fichier{d7e3a1f6b420_plan_comptable_par_entreprise.py} & Introduit le plan comptable propre à chaque dossier. & \actif\\
+\fichier{f1a6c9e4d230_rapprochement_bancaire.py} & Ajoute le premier rapprochement entre mouvement et pré-écriture. & \actif\\
+\fichier{g3b8d2f5c640_moteur_devises_bam.py} & Ajoute cours BAM et données de conversion séparées. & \actif\\
+\fichier{h4c9e6a7d510_lignes_comptables_grand_livre_balance.py} & Ajoute les lignes débit/crédit, le Grand Livre et la Balance. & \actif\\
+\fichier{c8a1d2e3f470_banque_v2_allocations_comptes.py} & Ajoute comptes bancaires, allocations multiples, paiements partiels et virements internes. & \actif\\
+\fichier{a9d4e7f2b681_devises_v2_ecarts_change.py} & Étend les devises et les écarts de change au rapprochement. & \actif\\
+\fichier{b0e5f8a3c792_tva_v2_periodes_credits_regularisations.py} & Ajoute configuration, périodes, crédits et régularisations TVA V2. & \actif\\
+\fichier{c1f6a9b4d803_ecritures_cloture_v1.py} & Ajoute les régularisations de clôture et leur lien avec les lignes. & \actif\\
+\end{fichiertable}
+
+\textbf{Chaîne complète des révisions :}
+\begin{lstlisting}
+ba0aefae0e94 -> f29924d2e6e1 -> 18e58386fcfa -> e8fd7f46f06e
+-> 21b970ad6d7e -> 1cd6f5a62909 -> 65a34d21d0e5 -> a7c9e2b4d610
+-> b91f2d7c4a80 -> c4f8a2d9e310 -> d7e3a1f6b420 -> f1a6c9e4d230
+-> g3b8d2f5c640 -> h4c9e6a7d510 -> c8a1d2e3f470 -> a9d4e7f2b681
+-> b0e5f8a3c792 -> c1f6a9b4d803
+\end{lstlisting}
+
+\section{Tests backend}
+
+\begin{fichiertable}{Fichiers backend/tests/}
+\fichier{test_accounting_rules.py} & Nature économique vers familles CGNC achat/vente/TVA et refus des natures inconnues. & \support\\
+\fichier{test_account_resolution_achat.py} & Résolution stricte des comptes d’achat, fournisseurs, ambiguïtés, isolation et cohérence des fallbacks Groq/Ollama. & \support\\
+\fichier{test_audit_service.py} & Portée cabinet et conservation avant/après dans l’audit. & \support\\
+\fichier{test_available_company_service.py} & Sélecteurs d’entreprises par module, exercices, \code{EXISTS}, isolation et absence de N+1. & \support\\
+\fichier{test_bank_statement_service.py} & Conservation des lignes bancaires répétées et signalement des lignes incomplètes. & \support\\
+\fichier{test_banque_v2_service.py} & RIB/IBAN, paiements partiels/groupés, frais, acomptes et équilibre des lignes. & \support\\
+\fichier{test_bilan_service.py} & Classement bilan, amortissements/provisions, résultat CPC et déséquilibre visible. & \support\\
+\fichier{test_cloture_service.py} & Types de régularisation, comptes exacts, extourne, report et isolation multi-tenant. & \support\\
+\fichier{test_company_service.py} & Identification entreprise/tiers, sens achat/vente, variations OCR et isolation cabinet. & \support\\
+\fichier{test_cpc_service.py} & Rubriques CGNC et résultats exploitation, financier, courant, non courant et net. & \support\\
+\fichier{test_document_file_security.py} & Cohérence extension/MIME/signature, limite de taille et confinement du chemin de stockage. & \support\\
+\fichier{test_document_retry_policy.py} & Prouve que seules les erreurs transitoires sont réessayées. & \support\\
+\fichier{test_etats_v2_service.py} & CPC/Bilan V2, N/N-1, clôture, comptes inconnus, équilibre et isolation. & \support\\
+\fichier{test_exchange_difference_service.py} & Gains/pertes de change, paiements partiels, comptes manquants et portée multi-tenant. & \support\\
+\fichier{test_exchange_rate_service.py} & Parser BAM, date, précision, unité 100, sens achat/vente et montant MAD bancaire réel. & \support\\
+\fichier{test_extraction_amount_integrity.py} & Interdit à Groq et au mapping de reconstruire ou remplacer silencieusement HT/TVA. & \support\\
+\fichier{test_ligne_comptable_service.py} & Schémas débit/crédit achat, vente, banque, équilibre et refus d’automatiser un paiement partiel ambigu. & \support\\
+\fichier{test_plan_comptable_service.py} & Normalisation, cohérence famille, tiers et usage banque. & \support\\
+\fichier{test_precloture_service.py} & Score et anomalies de tous les modules, ordre de priorité, exercice vide et isolation. & \support\\
+\fichier{test_rapprochement_bancaire_service.py} & Sens attendu, montant, date, tiers et score d’un candidat. & \support\\
+\fichier{test_tva_comptable_service.py} & Familles TVA, synthèse, crédit technique, reprises et écarts facture/lignes. & \support\\
+\fichier{test_tva_v2_service.py} & TVA à payer/crédit, report, régularisations, configuration, double usage et isolation. & \support\\
+\end{fichiertable}
+
+\chapter{Frontend : rôle de chaque fichier}
+
+\section{Entrée, contexte et composants}
+
+\begin{fichiertable}{Entrée et composants React}
+\fichier{frontend/src/main.tsx} & Monte le composant \code{App} dans le DOM sous \code{StrictMode} et charge les styles globaux. & \actif\\
+\fichier{frontend/src/App.tsx} & Déclare les routes, charge les pages à la demande, protège les routes privées et applique le layout. & \actif\\
+\fichier{frontend/src/index.css} & Styles globaux et directives Tailwind. & \actif\\
+\fichier{frontend/src/App.css} & Styles hérités du squelette Vite ; rôle limité si les pages reposent sur Tailwind. & \support\\
+\fichier{frontend/src/context/AuthContext.tsx} & État global de session : relit le JWT, charge l’utilisateur, connecte et déconnecte. & \actif\\
+\fichier{frontend/src/components/ProtectedRoute.tsx} & Attend la résolution de session puis redirige vers \code{/login} si aucun utilisateur n’est chargé. & \actif\\
+\fichier{frontend/src/components/Layout.tsx} & Coquille principale : navigation, entreprise active, recherche, notifications, tâches, identité et déconnexion. & \actif\\
+\fichier{frontend/src/components/ResizableSidebar.tsx} & Sidebar redimensionnable, bornée et persistée dans \code{localStorage}. & \actif\\
+\fichier{frontend/src/components/EntriesTablePage.tsx} & Tableau réutilisable des achats, ventes et pré-écritures : filtres, pagination, totaux, exports, validation, rejet et suivi de saisie. & \actif\\
+\fichier{frontend/src/components/AnomalyBadge.tsx} & Badge compact qui rend visibles les anomalies et leur détail. & \actif\\
+\end{fichiertable}
+
+\section{Client HTTP et modules API}
+
+\begin{fichiertable}{Fichiers frontend/src/api/}
+\fichier{api/client.ts} & Instance Axios, URL du backend, ajout automatique du JWT, déconnexion sur 401 et téléchargement de blobs. & \actif\\
+\fichier{api/authApi.ts} & Connexion et récupération de l’utilisateur courant. & \actif\\
+\fichier{api/usersApi.ts} & Liste, création et désactivation d’utilisateurs. & \actif\\
+\fichier{api/cabinetApi.ts} & Cabinet courant, mise à jour et informations système. & \actif\\
+\fichier{api/entreprisesApi.ts} & Liste complète, liste disponible par module et choix stable de l’entreprise sélectionnée. & \actif\\
+\fichier{api/documentsApi.ts} & Import, liste, ouverture, retraitement, suppression, validation/rejet, édition bancaire et export d’un document. & \actif\\
+\fichier{api/documentDetailApi.ts} & Charge la vue détaillée consolidée d’un document. & \actif\\
+\fichier{api/chronosApi.ts} & Documents du chrono et années disponibles avec filtres. & \actif\\
+\fichier{api/accountingApi.ts} & Pré-écritures, banque, rapprochements, comptes bancaires, registres et TVA ; c’est le client métier le plus large. & \actif\\
+\fichier{api/ledgerApi.ts} & Grand Livre, Balance et reconstruction contrôlée des lignes. & \actif\\
+\fichier{api/cpcApi.ts} & CPC d’une entreprise et d’un exercice. & \actif\\
+\fichier{api/bilanApi.ts} & Bilan d’une entreprise et d’un exercice. & \actif\\
+\fichier{api/controlsApi.ts} & Contrôles de pré-clôture et score du dossier. & \actif\\
+\fichier{api/clotureApi.ts} & Liste, création, validation et génération des régularisations. & \actif\\
+\fichier{api/dashboardApi.ts} & Indicateurs du tableau de bord pour une période optionnelle. & \actif\\
+\fichier{api/notificationsApi.ts} & Notifications calculées et statistiques. & \actif\\
+\fichier{api/rappelsApi.ts} & Alertes de saisie et retards. & \actif\\
+\fichier{api/tachesApi.ts} & CRUD, filtres et achèvement des tâches. & \actif\\
+\fichier{api/rapportsApi.ts} & Rapport JSON et téléchargement PDF. & \actif\\
+\fichier{api/searchApi.ts} & Recherche transversale utilisée par l’en-tête. & \actif\\
+\end{fichiertable}
+
+\section{Types TypeScript}
+
+Chaque fichier reflète un ou plusieurs schémas Pydantic. Si le backend change un champ, le type TypeScript et la page consommatrice doivent être vérifiés ensemble.
+
+\begin{fichiertable}{Fichiers frontend/src/types/}
+\fichier{types/auth.ts} & Requête de login, réponse JWT et utilisateur courant. & \actif\\
+\fichier{types/user.ts} & Rôles, utilisateur administrable et payload de création. & \actif\\
+\fichier{types/cabinet.ts} & Cabinet, mise à jour et informations système. & \actif\\
+\fichier{types/entreprise.ts} & Dossier comptable et indicateur de création automatique. & \actif\\
+\fichier{types/document.ts} & Résumé documentaire, statut et métadonnées. & \actif\\
+\fichier{types/documentDetail.ts} & Détail documentaire et résumé de pré-écriture associé. & \actif\\
+\fichier{types/chrono.ts} & Ligne affichée dans le chrono numérique. & \actif\\
+\fichier{types/ecriture.ts} & Statuts, types, pré-écriture, filtres et payload de correction. & \actif\\
+\fichier{types/mouvementBancaire.ts} & Mouvements, allocations, candidats, virements, comptes et filtres bancaires. & \actif\\
+\fichier{types/ledger.ts} & Grand Livre, Balance et résultat de reconstruction. & \actif\\
+\fichier{types/registre.ts} & Registres et vues TVA V1/V2. & \actif\\
+\fichier{types/cpc.ts} & Rubriques, détails, comparaison et contrôles CPC. & \actif\\
+\fichier{types/bilan.ts} & Rubriques et contrôles du Bilan. & \actif\\
+\fichier{types/controls.ts} & Niveaux, anomalies, modules et résultat de pré-clôture. & \actif\\
+\fichier{types/cloture.ts} & Types et cycle d’une régularisation de clôture. & \actif\\
+\fichier{types/dashboard.ts} & Compteurs et indicateurs synthétiques. & \actif\\
+\fichier{types/notification.ts} & Notification, liste et répartitions statistiques. & \actif\\
+\fichier{types/rappel.ts} & Pré-écritures non saisies et entreprises en retard. & \actif\\
+\fichier{types/tache.ts} & Statut, priorité, récurrence et payloads d’une tâche. & \actif\\
+\fichier{types/rapport.ts} & Structure de synthèse des rapports. & \actif\\
+\fichier{types/search.ts} & Résultat de recherche unifié et route cible. & \actif\\
+\end{fichiertable}
+
+\section{Pages React}
+
+\begin{fichiertable}{Fichiers frontend/src/pages/}
+\fichier{pages/LoginPage.tsx} & Formulaire de connexion ; transmet les identifiants et remet le JWT au contexte. & \actif\\
+\fichier{pages/DashboardPage.tsx} & Indicateurs, statuts et alertes synthétiques provenant du dashboard backend. & \actif\\
+\fichier{pages/UploadPage.tsx} & Glisser-déposer/import, validation locale des formats, liste des documents et actions de suivi. & \actif\\
+\fichier{pages/DocumentDetailPage.tsx} & Écran central de contrôle : fichier original, extraction, correction, pré-écriture, mouvements et décision humaine. & \actif\\
+\fichier{pages/ChronosPage.tsx} & Recherche et classement par entreprise, période et catégorie avec sidebar redimensionnable. & \actif\\
+\fichier{pages/RegistersPage.tsx} & Configure \fichier{EntriesTablePage.tsx} pour toutes les pré-écritures. & \actif\\
+\fichier{pages/AchatsPage.tsx} & Même tableau réutilisable filtré sur le type achat. & \actif\\
+\fichier{pages/VentesPage.tsx} & Même tableau réutilisable filtré sur le type vente. & \actif\\
+\fichier{pages/RelevesBancairesPage.tsx} & Mouvements, filtres, comptes, candidats, allocations, rapprochement et virements internes. & \actif\\
+\fichier{pages/ComptesBancairesPage.tsx} & Configuration des comptes bancaires du dossier et de leurs comptes comptables associés. & \actif\\
+\fichier{pages/RegistreComptablePage.tsx} & Consultation des registres validés et téléchargement CSV/XLSX/PDF. & \actif\\
+\fichier{pages/GrandLivrePage.tsx} & Consultation par compte, totaux et reconstruction contrôlée des lignes. & \actif\\
+\fichier{pages/BalancePage.tsx} & Solde débiteur/créditeur par compte et contrôle de l’équilibre global. & \actif\\
+\fichier{pages/TvaMensuellePage.tsx} & Synthèse TVA et recalcul des périodes TVA V2. & \actif\\
+\fichier{pages/CpcPage.tsx} & CPC, comparaison N/N-1 et anomalies de classement. & \actif\\
+\fichier{pages/BilanPage.tsx} & Actif/passif, rubriques, comptes non classés et contrôle d’équilibre. & \actif\\
+\fichier{pages/PreCloturePage.tsx} & Score, statut et anomalies par module avant clôture. & \actif\\
+\fichier{pages/CloturePage.tsx} & Régularisations, validation et génération des lignes de clôture. & \actif\\
+\fichier{pages/RappelsPage.tsx} & Alertes, pré-écritures non saisies, tâches et suivi opérationnel. & \actif\\
+\fichier{pages/NotificationsPage.tsx} & Liste et statistiques des notifications calculées. & \actif\\
+\fichier{pages/RapportsPage.tsx} & Choix entreprise/période, aperçu synthétique et PDF. & \actif\\
+\fichier{pages/AdminUsersPage.tsx} & Gestion des utilisateurs : liste, création et désactivation. & \actif\\
+\fichier{pages/CnssPage.tsx} & Ancien prototype avec données codées en dur et export local. Il n’est pas déclaré dans \fichier{App.tsx}. & \historique\\
+\fichier{pages/HomePage.tsx} & Ancienne page d’accueil non routée ; la racine redirige désormais vers le dashboard. & \historique\\
+\end{fichiertable}
+
+\section{Utilitaires, styles et ressources}
+
+\begin{fichiertable}{Autres fichiers frontend}
+\fichier{frontend/src/utils/tableExport.ts} & Fonctions génériques d’export CSV et tableur côté navigateur pour les tableaux affichés. & \actif\\
+\fichier{frontend/src/assets/hero.png} & Illustration de l’ancienne page d’accueil ; non nécessaire aux flux métier actuels. & \historique\\
+\fichier{frontend/src/assets/react.svg} & Logo du squelette React/Vite. & \historique\\
+\fichier{frontend/src/assets/vite.svg} & Logo du squelette Vite. & \historique\\
+\fichier{frontend/public/favicon.svg} & Icône de l’onglet navigateur. & \support\\
+\fichier{frontend/public/icons.svg} & Sprite/ressource d’icônes publiques. & \support\\
+\end{fichiertable}
+
+\chapter{Configuration, déploiement et documentation}
+
+\begin{fichiertable}{Fichiers d’infrastructure et de documentation}
+\fichier{requirements.txt} & Dépendances Python directes nécessaires au backend. & \support\\
+\fichier{requirements-lock.txt} & Versions Python verrouillées pour reproduire l’environnement. & \support\\
+\fichier{backend/current_env.txt} & Photographie des paquets installés lors d’un diagnostic ; information locale, pas source primaire des dépendances. & \historique\\
+\fichier{backend/Dockerfile} & Image du backend avec dépendances et commande d’exécution. & \support\\
+\fichier{frontend/Dockerfile} & Build multi-étapes du frontend puis service des fichiers statiques. & \support\\
+\fichier{docker-compose.yml} & Développement : PostgreSQL, Redis, API, worker et volumes, avec ports locaux décalés. & \support\\
+\fichier{docker-compose.prod.yml} & Variante de production avec configuration et politiques de redémarrage adaptées. & \support\\
+\fichier{frontend/nginx.conf} & Sert la SPA, redirige les routes vers \fichier{index.html} et ajoute des headers de sécurité. & \support\\
+\fichier{frontend/package.json} & Dépendances et commandes \code{dev}, \code{typecheck}, \code{build}, \code{lint}, \code{preview}. & \support\\
+\fichier{frontend/package-lock.json} & Verrou exact de l’arbre npm. & \support\\
+\fichier{frontend/index.html} & Coquille HTML contenant le point de montage \code{root}. & \support\\
+\fichier{frontend/vite.config.ts} & Active le plugin React de Vite. & \support\\
+\fichier{frontend/tsconfig.json} & Configuration TypeScript racine qui référence les variantes applicative et Node. & \support\\
+\fichier{frontend/tsconfig.app.json} & Règles TypeScript de l’application : ES2023, DOM, JSX, bundler et contrôles de code inutilisé. & \support\\
+\fichier{frontend/tsconfig.node.json} & Configuration TypeScript des fichiers exécutés par Node, notamment Vite. & \support\\
+\fichier{frontend/tailwind.config.js} & Indique à Tailwind quels fichiers analyser pour générer les classes utilisées. & \support\\
+\fichier{frontend/postcss.config.js} & Branche Tailwind et Autoprefixer dans PostCSS. & \support\\
+\fichier{frontend/README.md} & Documentation héritée du frontend ; à lire après la documentation racine. & \support\\
+\fichier{backend/pytest.ini} & Ajoute \fichier{backend} au chemin Python et cible \fichier{tests/}. & \support\\
+\fichier{README.md} & Présentation générale et instructions principales du dépôt. & \support\\
+\fichier{README_FINAL_INSTALL.md} & Procédure d’installation détaillée de l’environnement final. & \support\\
+\fichier{DEPLOYMENT.md} & Consignes de déploiement et prérequis d’exploitation. & \support\\
+\fichier{STATUS_FINAL.txt} & Instantané de statut du projet ; peut devenir obsolète par rapport au code. & \historique\\
+\fichier{AGENTS.md} & Règles de contribution et invariants comptables/multi-tenant du dépôt. & \support\\
+\fichier{rapport_comptaflow.tex} & Source LaTeX du rapport académique principal. & \support\\
+\fichier{GUIDE_RAPPORT_LATEX.md} & Instructions de compilation et de maintenance du rapport. & \support\\
+\fichier{fiche_revision_comptaflow.tex} & Présente fiche, séparée du rapport afin de ne pas alourdir le document de soutenance. & \support\\
+\end{fichiertable}
+
+\chapter{Carte de dépendances pour réviser rapidement}
+
+\begin{tabularx}{\textwidth}{L{0.20\textwidth}Y}
+\rowcolor{Navy}\color{white}\textbf{Si je modifie…} & \color{white}\textbf{Je vérifie aussi…}\\
+Un champ de table & modèle SQLAlchemy, nouvelle migration, schémas Pydantic, service, route, type TypeScript, page et tests.\\
+Une réponse API & schéma \code{Out}, fonction TypeScript correspondante, type TypeScript et rendu de la page.\\
+Une règle de compte & \fichier{accounting_rules_service.py}, \fichier{plan_comptable_service.py}, \fichier{accounting_service.py}, génération des lignes et tests.\\
+Le pipeline OCR/IA & prétraitement, Vision, OCR, Groq texte, regex, mapping, tâche Celery, statuts et tests d’intégrité.\\
+Le rapprochement & modèles mouvement/allocation, service banque, lignes comptables, API, types, page Banque et tests Banque V2.\\
+Un état comptable & uniquement lignes validées, service de calcul, schéma, endpoint, client TS, page et tests d’équilibre/isolation.\\
+Un rôle utilisateur & enum backend, dépendance RBAC, routes sensibles, type frontend, affichage et tests 401/403.\\
+\end{tabularx}
+
+\section{Questions de soutenance et réponses courtes}
+
+\begin{enumerate}
+  \item \textbf{Pourquoi FastAPI ?} Pour des routes typées, la validation Pydantic, les dépendances d’authentification et une séparation claire avec React.
+  \item \textbf{Pourquoi Celery/Redis ?} Pour sortir OCR et IA du cycle HTTP, suivre l’état et réessayer seulement les erreurs transitoires.
+  \item \textbf{Pourquoi conserver les valeurs extraites ?} Elles sont la source d’audit ; les calculs contrôlent sans corriger silencieusement.
+  \item \textbf{Pourquoi l’IA ne choisit-elle pas directement les comptes ?} Les comptes exacts sont propres au plan de chaque entreprise et une ambiguïté doit rester visible.
+  \item \textbf{Qu’est-ce qui alimente les états ?} Les lignes débit/crédit effectivement validées, jamais une simple extraction brute.
+  \item \textbf{Comment l’isolation est-elle assurée ?} Le cabinet vient de l’utilisateur JWT et chaque requête métier ajoute les filtres cabinet et entreprise pertinents.
+  \item \textbf{Comment gérez-vous un paiement partiel ?} Une allocation porte le montant réellement affecté et laisse un solde restant sur la facture.
+  \item \textbf{Existe-t-il une intégration directe Topaze ?} Non. Des exports génériques existent ; l’endpoint Topaze est volontairement non implémenté.
+  \item \textbf{Le traitement est-il strictement idempotent ?} Il résiste aux retraitements séquentiels, mais l’absence de certaines contraintes uniques laisse une limite en concurrence stricte.
+  \item \textbf{Quels fichiers sont centraux ?} Les points d’entrée sont \fichier{main.py} et \fichier{App.tsx}. Le pipeline principal est dans \fichier{document_processing.py}. La comptabilité repose surtout sur \fichier{accounting_service.py} et \fichier{ligne_comptable_service.py}. La banque utilise \fichier{rapprochement_bancaire_service.py} et la navigation React est structurée par \fichier{Layout.tsx}.
+\end{enumerate}
+
+\section{Ordre conseillé pour relire le code}
+
+\begin{enumerate}
+  \item \fichier{backend/app/main.py} et \fichier{frontend/src/App.tsx} pour voir les entrées.
+  \item \fichier{core/deps.py}, \fichier{models/base.py} et un modèle métier pour comprendre la sécurité.
+  \item \fichier{api/documents.py} puis \fichier{tasks/document_processing.py} pour le flux documentaire.
+  \item \fichier{accounting_service.py} puis \fichier{ligne_comptable_service.py} pour le cœur comptable.
+  \item \fichier{rapprochement_bancaire_service.py} pour Banque V2.
+  \item une chaîne frontend complète : page $\rightarrow$ API TS $\rightarrow$ route Python $\rightarrow$ service $\rightarrow$ modèle.
+  \item enfin les tests correspondants, qui donnent les exemples les plus précis des règles attendues.
+\end{enumerate}
+
+\vfill
+\begin{center}
+\colorbox{LightGreen}{\parbox{0.88\textwidth}{\centering
+\textbf{Phrase à retenir :} ComptaFlow automatise la préparation et le contrôle, mais conserve les données sources, utilise le plan comptable propre au dossier et exige une validation humaine dès qu’une décision comptable n’est pas suffisamment sûre.}}
+\end{center}
+
+\end{document}

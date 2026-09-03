@@ -6,11 +6,14 @@ import time
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from redis import Redis
 from sqlalchemy import text
 
 from app.api.accounting import router as accounting_router
+from app.api.audit import router as audit_router
+from app.api.assistant import router as assistant_router
 from app.api.auth import router as auth_router
 from app.api.cabinet import router as cabinet_router
 from app.api.chronos import router as chronos_router
@@ -21,6 +24,8 @@ from app.api.entreprises import router as entreprises_router
 from app.api.export import router as export_router
 from app.api.exchange_rates import router as exchange_rates_router
 from app.api.notifications import router as notifications_router
+from app.api.messages import router as messages_router
+from app.api.workflow_comptable import router as workflow_comptable_router
 from app.api.plan_comptable import router as plan_comptable_router
 from app.api.rappels import router as rappels_router
 from app.api.rapports import router as rapports_router
@@ -31,6 +36,7 @@ from app.api.users import router as users_router
 from app.api.tva import router as tva_router
 from app.core.config import settings
 from app.core.database import engine
+from app.core.exceptions import PeriodeComptableVerrouilleeError
 from app.core.logging_config import configurer_logging, request_id_context
 
 configurer_logging()
@@ -45,6 +51,14 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
+
+
+@app.exception_handler(PeriodeComptableVerrouilleeError)
+async def periode_comptable_verrouillee_handler(
+    _request: Request,
+    exc: PeriodeComptableVerrouilleeError,
+):
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
 
 
 @app.middleware("http")
@@ -63,6 +77,8 @@ async def ajouter_contexte_requete(request: Request, call_next):
     return response
 
 app.include_router(auth_router)
+app.include_router(audit_router)
+app.include_router(assistant_router)
 app.include_router(users_router)
 app.include_router(documents_router)
 app.include_router(accounting_router)
@@ -71,6 +87,8 @@ app.include_router(chronos_router)
 app.include_router(dashboard_router)
 app.include_router(search_router)
 app.include_router(notifications_router)
+app.include_router(messages_router)
+app.include_router(workflow_comptable_router)
 app.include_router(export_router)
 app.include_router(exchange_rates_router)
 app.include_router(taches_router)

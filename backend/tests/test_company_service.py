@@ -192,3 +192,73 @@ def test_isolation_cabinet_id_interdit_anzobat_d_un_autre_cabinet(
     assert direction is None
     assert data["traitement_cabinet_propre"] is True
     assert data["direction_a_verifier"] is True
+
+
+def test_releve_bancaire_identifie_entreprise_par_rib(tenant_context, monkeypatch):
+    monkeypatch.setattr(
+        company_service,
+        "_rechercher_entreprise_par_compte_bancaire",
+        lambda _db, cabinet_id, **_kwargs: (
+            (tenant_context.anzobat, False)
+            if cabinet_id == tenant_context.cabinet_id
+            else (None, False)
+        ),
+    )
+    data = {
+        "type_document": "releve_bancaire",
+        "titulaire_compte": "Nom OCR imparfait",
+        "nom_entreprise": "Nom OCR imparfait",
+        "rib": "011 780 000000000000000000",
+    }
+
+    company, direction, third_party = _identify(tenant_context, data)
+
+    assert company is tenant_context.anzobat
+    assert direction is None
+    assert third_party is None
+    assert data["source_identification_entreprise"] == "rib_iban"
+
+
+def test_releve_bancaire_ambigu_reste_a_verifier(tenant_context, monkeypatch):
+    monkeypatch.setattr(
+        company_service,
+        "_rechercher_entreprise_par_compte_bancaire",
+        lambda *_args, **_kwargs: (None, True),
+    )
+    data = {
+        "type_document": "releve_bancaire",
+        "rib": "011780000000000000000000",
+    }
+
+    company, direction, third_party = _identify(tenant_context, data)
+
+    assert company is tenant_context.placeholder
+    assert direction is None
+    assert third_party is None
+    assert data["identification_entreprise_a_verifier"] is True
+    assert "plusieurs entreprises" in data["raison_identification_entreprise"]
+
+
+def test_releve_bancaire_ne_reutilise_pas_compte_autre_cabinet(
+    tenant_context,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        company_service,
+        "_rechercher_entreprise_par_compte_bancaire",
+        lambda _db, cabinet_id, **_kwargs: (
+            (tenant_context.foreign_anzobat, False)
+            if cabinet_id == tenant_context.other_cabinet_id
+            else (None, False)
+        ),
+    )
+    data = {
+        "type_document": "releve_bancaire",
+        "rib": "011780000000000000000000",
+    }
+
+    company, _, _ = _identify(tenant_context, data)
+
+    assert company is tenant_context.placeholder
+    assert company is not tenant_context.foreign_anzobat
+    assert data["identification_entreprise_a_verifier"] is True

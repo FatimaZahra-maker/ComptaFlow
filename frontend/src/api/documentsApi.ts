@@ -20,6 +20,11 @@ export async function uploadDocument(file: File): Promise<Document> {
   return response.data;
 }
 
+export async function auditUploadBatch(documentIds: string[]): Promise<void> {
+  if (documentIds.length < 2) return;
+  await apiClient.post("/documents/upload/batch-audit", { document_ids: documentIds });
+}
+
 export async function listDocuments(): Promise<Document[]> {
   const response = await apiClient.get<Document[]>("/documents");
   return response.data;
@@ -46,6 +51,13 @@ export async function retraiterDocument(documentId: string): Promise<Document> {
   const response = await apiClient.post<Document>(
     `/documents/${documentId}/retraiter`,
   );
+  return response.data;
+}
+
+export async function assignDocumentEntreprise(documentId: string, entrepriseId: string): Promise<DocumentDetail> {
+  const response = await apiClient.patch<DocumentDetail>(`/documents/${documentId}/entreprise`, {
+    entreprise_id: entrepriseId,
+  });
   return response.data;
 }
 

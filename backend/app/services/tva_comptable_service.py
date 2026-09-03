@@ -12,14 +12,16 @@ spécifiques restent volontairement hors de cette V1.
 from __future__ import annotations
 
 from collections import defaultdict
+import calendar
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.models.compte_comptable_entreprise import CompteComptableEntreprise
 from app.models.ecriture import EcritureComptable
 from app.models.enums import StatutValidationEnum, TypeEcritureEnum
 from app.models.ligne_comptable import LigneComptable
@@ -379,6 +381,7 @@ def calculer_tva_annuelle(
             LigneComptable.cabinet_id == cabinet_id,
             LigneComptable.entreprise_id == entreprise_id,
             LigneComptable.est_validee.is_(True),
+            LigneComptable.tva_periode_id.is_(None),
             LigneComptable.date_ecriture >= debut,
             LigneComptable.date_ecriture < fin,
         )
@@ -388,7 +391,11 @@ def calculer_tva_annuelle(
         select(EcritureComptable).where(
             EcritureComptable.cabinet_id == cabinet_id,
             EcritureComptable.entreprise_id == entreprise_id,
-            EcritureComptable.statut_validation == StatutValidationEnum.VALIDE,
+            EcritureComptable.statut_validation.in_([
+                StatutValidationEnum.PRETE_TOPAZE,
+                StatutValidationEnum.SAISIE_TOPAZE,
+                StatutValidationEnum.VALIDE,
+            ]),
             EcritureComptable.date_piece >= debut,
             EcritureComptable.date_piece < fin,
             EcritureComptable.type_ecriture.in_(
@@ -549,6 +556,108 @@ def _credit_disponible(
     return source, _money(source.credit_a_reporter)
 
 
+def synchroniser_ecriture_tva(
+    db: Session,
+    *,
+    periode: TvaPeriode,
+    configuration: TvaConfigurationEntreprise | None,
+) -> list[str]:
+    """Crée les lignes de centralisation TVA sans jamais inventer un compte."""
+    db.execute(delete(LigneComptable).where(
+        LigneComptable.cabinet_id == periode.cabinet_id,
+        LigneComptable.entreprise_id == periode.entreprise_id,
+        LigneComptable.tva_periode_id == periode.id,
+    ))
+
+    amounts = {
+        "compte_tva_collectee": _money(periode.tva_collectee),
+        "compte_tva_recuperable_charges": _money(periode.tva_recuperable_charges),
+        "compte_tva_recuperable_immobilisations": _money(periode.tva_recuperable_immobilisations),
+        "compte_tva_a_payer": _money(periode.tva_a_payer),
+        "compte_credit_tva": max(_money(periode.credit_a_reporter), _money(periode.credit_anterieur)),
+    }
+    if not any(value > ZERO for value in amounts.values()):
+        return []
+    if _money(periode.regularisations) != ZERO or _money(periode.retenues_tva) != ZERO:
+        return [
+            "Les régularisations ou retenues TVA exigent une écriture manuelle configurée ; aucune ligne n'a été inventée."
+        ]
+    if configuration is None:
+        return ["Les comptes de centralisation TVA ne sont pas configurés pour cette entreprise."]
+
+    components: list[tuple[str, Decimal, int]] = []
+    # Le signe est Débit - Crédit. Les crédits antérieurs consommés sont
+    # crédités, tandis qu'un nouveau crédit à reporter est débité.
+    mapping = (
+        ("compte_tva_collectee", _money(periode.tva_collectee), 1),
+        ("compte_tva_recuperable_charges", _money(periode.tva_recuperable_charges), -1),
+        ("compte_tva_recuperable_immobilisations", _money(periode.tva_recuperable_immobilisations), -1),
+        ("compte_credit_tva", _money(periode.credit_anterieur), -1),
+        ("compte_tva_a_payer", _money(periode.tva_a_payer), -1),
+        ("compte_credit_tva", _money(periode.credit_a_reporter), 1),
+    )
+    missing: list[str] = []
+    configured_numbers: set[str] = set()
+    for field_name, amount, sign in mapping:
+        if amount <= ZERO:
+            continue
+        number = getattr(configuration, field_name, None)
+        if not number:
+            missing.append(f"Compte exact non configuré : {field_name}.")
+            continue
+        number = str(number).strip()
+        configured_numbers.add(number)
+        components.append((number, amount, sign))
+    if missing:
+        return missing
+
+    plan_numbers = set(db.execute(select(CompteComptableEntreprise.numero_compte).where(
+        CompteComptableEntreprise.cabinet_id == periode.cabinet_id,
+        CompteComptableEntreprise.entreprise_id == periode.entreprise_id,
+        CompteComptableEntreprise.numero_compte.in_(configured_numbers),
+        CompteComptableEntreprise.is_active.is_(True),
+    )).scalars().all())
+    unknown = sorted(configured_numbers - plan_numbers)
+    if unknown:
+        return [
+            "Compte TVA absent du plan comptable actif de l'entreprise : " + ", ".join(unknown) + "."
+        ]
+
+    signed_by_account: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    for number, amount, sign in components:
+        signed_by_account[number] += amount * sign
+    total_signed = sum(signed_by_account.values(), ZERO).quantize(MONEY, rounding=ROUND_HALF_UP)
+    # Cette écriture est produite par des calculs décimaux déterministes : elle
+    # doit être strictement équilibrée. La tolérance d'affichage de la Balance
+    # ne doit jamais autoriser une centralisation TVA déséquilibrée en base.
+    if total_signed != ZERO:
+        return [f"L'écriture de centralisation TVA est déséquilibrée (écart {total_signed} MAD)."]
+
+    entry_date = date(periode.annee, periode.mois, calendar.monthrange(periode.annee, periode.mois)[1])
+    order = 1
+    for number, signed in sorted(signed_by_account.items()):
+        signed = signed.quantize(MONEY, rounding=ROUND_HALF_UP)
+        if signed == ZERO:
+            continue
+        db.add(LigneComptable(
+            cabinet_id=periode.cabinet_id,
+            entreprise_id=periode.entreprise_id,
+            tva_periode_id=periode.id,
+            date_ecriture=entry_date,
+            journal="TVA",
+            numero_piece=f"TVA-{periode.annee}-{periode.mois:02d}",
+            compte=number,
+            libelle=f"Centralisation TVA {periode.mois:02d}/{periode.annee}",
+            debit=signed if signed > ZERO else ZERO,
+            credit=-signed if signed < ZERO else ZERO,
+            ordre=order,
+            origine="tva",
+            est_validee=True,
+        ))
+        order += 1
+    return []
+
+
 def recalculer_periodes_tva(
     db: Session,
     *,
@@ -635,9 +744,29 @@ def recalculer_periodes_tva(
         periode.tva_a_payer = calculation.tva_a_payer
         periode.credit_a_reporter = calculation.credit_a_reporter
         periode.credit_source_periode_id = source_credit.id if source_credit else None
-        periode.a_verifier = calculation.a_verifier
-        periode.anomalies = calculation.anomalies
         periode.calcul_provisoire_at = now
+        line_anomalies = synchroniser_ecriture_tva(
+            db,
+            periode=periode,
+            configuration=configuration,
+        )
+        periode.anomalies = list(dict.fromkeys([*calculation.anomalies, *line_anomalies]))
+        periode.a_verifier = calculation.a_verifier or bool(line_anomalies)
+        periode.statut_comptable = (
+            "a_verifier"
+            if periode.a_verifier
+            else "saisie_topaze"
+            if periode.topaze_entered_at is not None
+            else "prete_topaze"
+        )
+        if periode.declared_at is not None:
+            periode.statut_declaration = "declaree"
+        elif periode.date_limite_declaration and date.today() > periode.date_limite_declaration:
+            periode.statut_declaration = "en_retard"
+        elif periode.a_verifier:
+            periode.statut_declaration = "a_verifier"
+        else:
+            periode.statut_declaration = "prete_a_declarer"
         results.append(periode)
     db.flush()
     return results
@@ -681,6 +810,7 @@ def valider_periode_tva(
                 )
             )
     periode.statut = "validee"
+    periode.statut_comptable = "prete_topaze"
     periode.validee_at = datetime.now(timezone.utc)
     periode.validee_par = user_id
     db.flush()

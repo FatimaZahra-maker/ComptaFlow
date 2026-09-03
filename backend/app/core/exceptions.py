@@ -10,6 +10,13 @@ class DocumentProcessingError(Exception):
     """Classe de base pour toutes les erreurs du pipeline de document."""
     pass
 
+
+class PeriodeComptableVerrouilleeError(ValueError):
+    """Mutation métier refusée car la période ComptaFlow est en lecture seule."""
+
+    def __init__(self, message: str = "Cette période comptable ComptaFlow est verrouillée et accessible en lecture seule."):
+        super().__init__(message)
+
 class ErreurPipelineDefinitive(DocumentProcessingError):
     """
     Erreur bloquante liée au document lui-même. 

@@ -7,11 +7,13 @@ import {
   CalendarClock,
   CheckCircle2,
   CircleDot,
+  Columns3,
   Download,
   FileText,
   Plus,
   RefreshCw,
   Search,
+  ListTodo,
   Trash2,
   X,
 } from "lucide-react";
@@ -70,6 +72,7 @@ const EMPTY_FORM = {
   titre: "",
   description: "",
   date_echeance: new Date().toISOString().slice(0, 10),
+  heure_echeance: "09:00",
   priorite: "normale" as PrioriteTache,
   recurrence: "aucune" as RecurrenceTache,
 };
@@ -90,6 +93,19 @@ function formatMoney(value: string): string {
     : "—";
 }
 
+function dueLabel(task: Tache): string {
+  const due = new Date(`${task.date_echeance}T${task.heure_echeance?.slice(0, 5) || "23:59"}:00`);
+  const today = new Date();
+  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startDue = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  const days = Math.round((startDue.getTime() - startToday.getTime()) / 86_400_000);
+  const time = task.heure_echeance ? ` à ${task.heure_echeance.slice(0, 5)}` : "";
+  if (days === 0) return `Aujourd'hui${time}`;
+  if (days === 1) return `Demain${time}`;
+  if (days === -1) return `Hier${time}`;
+  return `${startDue.toLocaleDateString("fr-FR")}${time}`;
+}
+
 export function RappelsPage() {
   const navigate = useNavigate();
 
@@ -101,6 +117,7 @@ export function RappelsPage() {
   const [priorite, setPriorite] = useState<PrioriteTache | "">("");
   const [search, setSearch] = useState("");
   const [onlyLate, setOnlyLate] = useState(false);
+  const [viewMode, setViewMode] = useState<"board" | "list">("board");
   const [loading, setLoading] = useState(true);
   const [loadingAlerts, setLoadingAlerts] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -171,7 +188,7 @@ export function RappelsPage() {
     { header: "Titre", value: (task) => task.titre },
     { header: "Entreprise", value: (task) => task.entreprise_nom ?? "Cabinet" },
     { header: "Description", value: (task) => task.description ?? "" },
-    { header: "Échéance", value: (task) => new Date(`${task.date_echeance}T00:00:00`).toLocaleDateString("fr-FR") },
+    { header: "Échéance", value: (task) => `${new Date(`${task.date_echeance}T00:00:00`).toLocaleDateString("fr-FR")}${task.heure_echeance ? ` à ${task.heure_echeance.slice(0, 5)}` : ""}` },
     { header: "Statut", value: (task) => STATUS_LABELS[task.statut] },
     { header: "Priorité", value: (task) => task.priorite },
     { header: "Récurrence", value: (task) => RECURRENCE_LABELS[task.recurrence] },
@@ -187,6 +204,7 @@ export function RappelsPage() {
         titre: form.titre.trim(),
         description: form.description.trim() || undefined,
         date_echeance: form.date_echeance,
+        heure_echeance: form.heure_echeance || undefined,
         priorite: form.priorite,
         recurrence: form.recurrence,
       });
@@ -291,6 +309,7 @@ export function RappelsPage() {
               <label className="text-sm">Entreprise<select value={form.entreprise_id} onChange={(event) => setForm({ ...form, entreprise_id: event.target.value })} className="mt-1 w-full rounded-lg border px-3 py-2.5"><option value="">Cabinet — tâche générale</option>{entreprises.map((enterprise) => <option key={enterprise.id} value={enterprise.id}>{enterprise.nom}</option>)}</select></label>
               <label className="text-sm xl:col-span-3">Description<textarea rows={3} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="mt-1 w-full rounded-lg border px-3 py-2.5" /></label>
               <label className="text-sm">Échéance<input type="date" required value={form.date_echeance} onChange={(event) => setForm({ ...form, date_echeance: event.target.value })} className="mt-1 w-full rounded-lg border px-3 py-2.5" /></label>
+              <label className="text-sm">Heure<input type="time" value={form.heure_echeance} onChange={(event) => setForm({ ...form, heure_echeance: event.target.value })} className="mt-1 w-full rounded-lg border px-3 py-2.5" /></label>
               <label className="text-sm">Priorité<select value={form.priorite} onChange={(event) => setForm({ ...form, priorite: event.target.value as PrioriteTache })} className="mt-1 w-full rounded-lg border px-3 py-2.5"><option value="basse">Basse</option><option value="normale">Normale</option><option value="haute">Haute</option></select></label>
               <label className="text-sm">Récurrence<select value={form.recurrence} onChange={(event) => setForm({ ...form, recurrence: event.target.value as RecurrenceTache })} className="mt-1 w-full rounded-lg border px-3 py-2.5"><option value="aucune">Ponctuelle</option><option value="mensuelle">Mensuelle</option><option value="trimestrielle">Trimestrielle</option><option value="annuelle">Annuelle</option></select></label>
             </div>
@@ -314,8 +333,15 @@ export function RappelsPage() {
           </section>
         </div>
 
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div><h2 className="font-bold text-slate-900">Plan de travail</h2><p className="text-xs text-slate-500">Organisez les actions par statut et contrôlez les échéances.</p></div>
+              <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1" aria-label="Mode d'affichage">
+                <button type="button" onClick={() => setViewMode("board")} className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold ${viewMode === "board" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500"}`}><Columns3 size={15} /> Tableau</button>
+                <button type="button" onClick={() => setViewMode("list")} className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold ${viewMode === "list" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500"}`}><ListTodo size={15} /> Liste</button>
+              </div>
+            </div>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_260px_180px_180px_auto]">
               <div className="relative"><Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher une tâche..." className="w-full rounded-lg border py-2.5 pl-10 pr-3 text-sm" /></div>
               <select value={entrepriseId} onChange={(event) => setEntrepriseId(event.target.value)} className="rounded-lg border px-3 py-2.5 text-sm"><option value="">Toutes les entreprises</option>{entreprises.map((enterprise) => <option key={enterprise.id} value={enterprise.id}>{enterprise.nom}</option>)}</select>
@@ -325,10 +351,18 @@ export function RappelsPage() {
             </div>
           </div>
 
-          <div className="divide-y">
+          <div className="bg-slate-50/70 p-4">
             {loading && <p className="p-8 text-center text-sm text-slate-400">Chargement...</p>}
-            {!loading && visibleTasks.length === 0 && <p className="p-8 text-center text-sm text-slate-400">Aucune tâche pour ces filtres.</p>}
-            {!loading && visibleTasks.map((task) => <article key={task.id} className={`p-5 ${task.est_en_retard ? "bg-red-50/60" : "hover:bg-slate-50/60"}`}><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0 flex-1"><div className="mb-2 flex flex-wrap items-center gap-2"><h3 className="font-semibold text-slate-900">{task.titre}</h3><span className={`rounded-full px-2 py-1 text-xs font-semibold ${STATUS_CLASSES[task.statut]}`}>{STATUS_LABELS[task.statut]}</span><span className={`rounded-full px-2 py-1 text-xs font-semibold ${PRIORITY_CLASSES[task.priorite]}`}>{task.priorite}</span>{task.recurrence !== "aucune" && <span className="rounded-full bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-700">{RECURRENCE_LABELS[task.recurrence]}</span>}{task.est_en_retard && <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-bold text-red-700">En retard</span>}</div>{task.description && <p className="mb-2 text-sm text-slate-600">{task.description}</p>}<p className="text-xs text-slate-500">Échéance {new Date(`${task.date_echeance}T00:00:00`).toLocaleDateString("fr-FR")} • {task.entreprise_nom ?? "Cabinet"}{task.assignee_nom ? ` • ${task.assignee_nom}` : ""}</p></div><div className="flex shrink-0 flex-wrap gap-2">{task.statut === "a_faire" && <button type="button" disabled={busyId === task.id} onClick={() => void changeStatus(task, "en_cours")} className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Démarrer</button>}{task.statut !== "terminee" && <button type="button" disabled={busyId === task.id} onClick={() => void changeStatus(task, "terminee")} className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-50"><CheckCircle2 size={14} /> Terminer</button>}<button type="button" disabled={busyId === task.id} onClick={() => void removeTask(task.id)} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"><Trash2 size={14} /> Supprimer</button></div></div></article>)}
+            {!loading && visibleTasks.length === 0 && <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center"><ListTodo className="mx-auto mb-3 text-slate-300" size={32} /><p className="font-semibold text-slate-600">Aucune tâche pour ces filtres</p><p className="mt-1 text-xs text-slate-400">Modifiez les filtres ou créez une nouvelle tâche.</p></div>}
+            {!loading && visibleTasks.length > 0 && viewMode === "board" && (
+              <div className="grid gap-4 xl:grid-cols-3">
+                {(["a_faire", "en_cours", "terminee"] as StatutTache[]).map((columnStatus) => {
+                  const columnTasks = visibleTasks.filter((task) => task.statut === columnStatus);
+                  return <section key={columnStatus} className="min-w-0 rounded-xl border border-slate-200 bg-slate-100/80 p-3"><div className="mb-3 flex items-center justify-between px-1"><h3 className="text-sm font-bold text-slate-700">{STATUS_LABELS[columnStatus]}</h3><span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-500 shadow-sm">{columnTasks.length}</span></div><div className="space-y-3">{columnTasks.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 bg-white/60 px-3 py-6 text-center text-xs text-slate-400">Aucune tâche</p>}{columnTasks.map((task) => <article key={task.id} className={`rounded-xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${task.est_en_retard ? "border-red-200 border-l-4 border-l-red-500" : task.priorite === "haute" ? "border-l-4 border-l-amber-500" : "border-slate-200"}`}><div className="mb-2 flex items-start justify-between gap-2"><h4 className="text-sm font-bold leading-snug text-slate-900">{task.titre}</h4><button type="button" disabled={busyId === task.id} onClick={() => void removeTask(task.id)} className="shrink-0 rounded-md p-1 text-slate-300 hover:bg-red-50 hover:text-red-600" aria-label={`Supprimer ${task.titre}`}><Trash2 size={14} /></button></div>{task.description && <p className="mb-3 line-clamp-2 text-xs leading-relaxed text-slate-500">{task.description}</p>}<div className="mb-3 flex flex-wrap gap-1.5"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${PRIORITY_CLASSES[task.priorite]}`}>{task.priorite}</span>{task.recurrence !== "aucune" && <span className="rounded-full bg-purple-100 px-2 py-1 text-[10px] font-bold text-purple-700">{RECURRENCE_LABELS[task.recurrence]}</span>}</div><div className={`rounded-lg px-2.5 py-2 text-xs font-semibold ${task.est_en_retard ? "bg-red-50 text-red-700" : "bg-slate-50 text-slate-600"}`}><CalendarClock className="mr-1.5 inline" size={14} />{dueLabel(task)}</div><p className="mt-2 truncate text-[11px] text-slate-400">{task.entreprise_nom ?? "Cabinet"}{task.assignee_nom ? ` • ${task.assignee_nom}` : ""}</p><div className="mt-3 flex gap-2">{task.statut === "a_faire" && <button type="button" disabled={busyId === task.id} onClick={() => void changeStatus(task, "en_cours")} className="flex-1 rounded-lg border border-blue-200 px-2 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Démarrer</button>}{task.statut !== "terminee" && <button type="button" disabled={busyId === task.id} onClick={() => void changeStatus(task, "terminee")} className="flex-1 rounded-lg bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Terminer</button>}</div></article>)}</div></section>;
+                })}
+              </div>
+            )}
+            {!loading && visibleTasks.length > 0 && viewMode === "list" && <div className="space-y-3">{visibleTasks.map((task) => <article key={task.id} className={`rounded-xl border bg-white p-4 shadow-sm ${task.est_en_retard ? "border-red-200 border-l-4 border-l-red-500" : "border-slate-200"}`}><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0 flex-1"><div className="mb-2 flex flex-wrap items-center gap-2"><h3 className="font-semibold text-slate-900">{task.titre}</h3><span className={`rounded-full px-2 py-1 text-xs font-semibold ${STATUS_CLASSES[task.statut]}`}>{STATUS_LABELS[task.statut]}</span><span className={`rounded-full px-2 py-1 text-xs font-semibold ${PRIORITY_CLASSES[task.priorite]}`}>{task.priorite}</span></div>{task.description && <p className="mb-2 text-sm text-slate-600">{task.description}</p>}<p className={`text-xs font-medium ${task.est_en_retard ? "text-red-600" : "text-slate-500"}`}>{dueLabel(task)} • {task.entreprise_nom ?? "Cabinet"}{task.assignee_nom ? ` • ${task.assignee_nom}` : ""}</p></div><div className="flex shrink-0 flex-wrap gap-2">{task.statut === "a_faire" && <button type="button" disabled={busyId === task.id} onClick={() => void changeStatus(task, "en_cours")} className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Démarrer</button>}{task.statut !== "terminee" && <button type="button" disabled={busyId === task.id} onClick={() => void changeStatus(task, "terminee")} className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-50"><CheckCircle2 size={14} /> Terminer</button>}<button type="button" disabled={busyId === task.id} onClick={() => void removeTask(task.id)} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"><Trash2 size={14} /> Supprimer</button></div></div></article>)}</div>}
           </div>
         </section>
       </div>

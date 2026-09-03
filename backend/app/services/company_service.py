@@ -37,6 +37,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.cabinet import Cabinet
+from app.models.compte_bancaire_entreprise import CompteBancaireEntreprise
 from app.models.entreprise import Entreprise
 
 _PLACEHOLDER = "Entreprise à identifier"
@@ -204,6 +205,62 @@ def _rechercher_entreprise_suivie(
     return None
 
 
+def _rechercher_entreprise_par_compte_bancaire(
+    db: Session,
+    cabinet_id: uuid.UUID,
+    *,
+    rib: Any = None,
+    iban: Any = None,
+) -> tuple[Entreprise | None, bool]:
+    """Résout un relevé par RIB/IBAN exact dans le cabinet courant.
+
+    Le booléen indique une ambiguïté : plusieurs entreprises suivies possèdent
+    le même identifiant bancaire. Dans ce cas, aucune entreprise n'est choisie
+    automatiquement.
+    """
+    identifiants = {
+        valeur
+        for valeur in (
+            _normaliser_identifiant(rib),
+            _normaliser_identifiant(iban),
+        )
+        if valeur
+    }
+    if not identifiants:
+        return None, False
+
+    comptes = (
+        db.query(CompteBancaireEntreprise)
+        .filter(
+            CompteBancaireEntreprise.cabinet_id == cabinet_id,
+            CompteBancaireEntreprise.is_active.is_(True),
+        )
+        .all()
+    )
+    entreprise_ids = {
+        compte.entreprise_id
+        for compte in comptes
+        if identifiants.intersection(
+            {
+                valeur
+                for valeur in (
+                    _normaliser_identifiant(compte.rib),
+                    _normaliser_identifiant(compte.iban),
+                )
+                if valeur
+            }
+        )
+    }
+    correspondances = [
+        entreprise
+        for entreprise in _entreprises_suivies(db, cabinet_id)
+        if entreprise.id in entreprise_ids
+    ]
+    if len(correspondances) == 1:
+        return correspondances[0], False
+    return None, len(correspondances) > 1
+
+
 def _obtenir_placeholder(
     db: Session,
     cabinet_id: uuid.UUID,
@@ -303,7 +360,37 @@ def identifier_entreprise_et_direction(
     donnees.pop("cabinet_nom", None)
     donnees.pop("direction_a_verifier", None)
 
-    if type_doc in ("releve_bancaire", "avis_cnss", "avis_tva"):
+    if type_doc == "releve_bancaire":
+        entreprise, ambigu = _rechercher_entreprise_par_compte_bancaire(
+            db,
+            cabinet_id,
+            rib=donnees.get("rib"),
+            iban=donnees.get("iban"),
+        )
+        if entreprise is not None:
+            donnees["source_identification_entreprise"] = "rib_iban"
+            return entreprise, None, None
+        if ambigu:
+            donnees["identification_entreprise_a_verifier"] = True
+            donnees["raison_identification_entreprise"] = (
+                "Le RIB/IBAN correspond à plusieurs entreprises du cabinet."
+            )
+
+        # Repli strict sur le titulaire/les identifiants génériques. En cas
+        # d'absence ou d'ambiguïté, le dossier technique impose une validation
+        # humaine au lieu d'inventer une correspondance.
+        entreprise = identifier_ou_creer_entreprise(db, cabinet_id, donnees)
+        if entreprise.creee_automatiquement:
+            donnees["identification_entreprise_a_verifier"] = True
+            donnees.setdefault(
+                "raison_identification_entreprise",
+                "Aucune entreprise ne correspond exactement au relevé bancaire.",
+            )
+        else:
+            donnees["source_identification_entreprise"] = "titulaire"
+        return entreprise, None, None
+
+    if type_doc in ("avis_cnss", "avis_tva"):
         entreprise = identifier_ou_creer_entreprise(db, cabinet_id, donnees)
         return entreprise, None, None
 

@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { getDashboard } from "../api/dashboardApi";
 import type { Dashboard } from "../types/dashboard";
+import { ACTIVE_ENTREPRISE_EVENT, getActiveEntrepriseId } from "../utils/activeEntreprise";
 
 // --- ICÔNES SVG NATIVES ---
 const IconWrapper = ({ children, className }: { children: React.ReactNode, className?: string }) => (
@@ -22,6 +24,16 @@ const Icons = {
   Building2: ({ className }: any) => <IconWrapper className={className}><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></IconWrapper>,
   Calendar: ({ className }: any) => <IconWrapper className={className}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></IconWrapper>
 };
+
+function dashboardErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const detail = error.response?.data?.detail;
+    if (typeof detail === "string" && detail.trim()) return detail;
+    if (!error.response) return "Backend inaccessible. Vérifiez que le serveur est démarré.";
+    return `Le tableau de bord est indisponible (erreur ${error.response.status}).`;
+  }
+  return "Impossible de charger le tableau de bord.";
+}
 
 const StatCard = ({ title, value, icon: Icon, colorText, colorBg, onClick }: { title: string, value: number | string, icon: any, colorText: string, colorBg: string, onClick: () => void }) => (
   <button 
@@ -48,21 +60,26 @@ export function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  const [period, setPeriod] = useState(() => {
-    const today = new Date();
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-  });
+  // La vue globale évite d'afficher un tableau vide simplement parce que le
+  // mois courant ne contient encore aucun document.
+  const [period, setPeriod] = useState("");
+  const [entrepriseId, setEntrepriseId] = useState<string | null>(() => getActiveEntrepriseId());
+
+  useEffect(() => {
+    const synchronize = (event: Event) => setEntrepriseId((event as CustomEvent<string | null>).detail ?? null);
+    window.addEventListener(ACTIVE_ENTREPRISE_EVENT, synchronize);
+    return () => window.removeEventListener(ACTIVE_ENTREPRISE_EVENT, synchronize);
+  }, []);
 
   useEffect(() => {
     setIsLoading(true);
     setError(null); // CORRECTION 1 : Réinitialiser l'erreur
     
-    // Assurez-vous que getDashboard accepte bien "period" dans dashboardApi.ts
-    getDashboard(period)
+    getDashboard(period || undefined, entrepriseId)
       .then(setDashboard)
-      .catch(() => setError("Impossible de charger le tableau de bord pour cette période."))
+      .catch((requestError: unknown) => setError(dashboardErrorMessage(requestError)))
       .finally(() => setIsLoading(false));
-  }, [period]);
+  }, [entrepriseId, period]);
 
   if (isLoading) {
     return (
@@ -100,14 +117,24 @@ export function DashboardPage() {
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-slate-800">Vue d'ensemble</h1>
         
-        <div className="flex items-center gap-3 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-blue-500 transition-all">
-          <Icons.Calendar className="w-5 h-5 text-blue-600" />
-          <input 
-            type="month" 
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-            className="bg-transparent border-none focus:outline-none text-sm font-semibold text-slate-700 cursor-pointer w-full"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPeriod("")}
+            className={`rounded-xl border px-4 py-2 text-sm font-semibold shadow-sm transition-colors ${!period ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
+          >
+            Toutes les périodes
+          </button>
+          <div className="flex items-center gap-3 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+            <Icons.Calendar className="w-5 h-5 text-blue-600" />
+            <input
+              type="month"
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              aria-label="Filtrer le tableau de bord par mois"
+              className="bg-transparent border-none focus:outline-none text-sm font-semibold text-slate-700 cursor-pointer w-full"
+            />
+          </div>
         </div>
       </div>
 
@@ -157,8 +184,10 @@ export function DashboardPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <StatCard title="Brouillon" value={dashboard.ecritures_par_statut?.brouillon || 0} icon={Icons.FileText} colorText="text-slate-600" colorBg="bg-slate-100" onClick={() => navigate("/registers")} />
+            <StatCard title="Calcul en cours" value={dashboard.ecritures_par_statut?.calcul_en_cours || 0} icon={Icons.RefreshCw} colorText="text-blue-600" colorBg="bg-blue-50" onClick={() => navigate("/registers")} />
             <StatCard title="À vérifier" value={ecrituresVerification} icon={Icons.AlertTriangle} colorText="text-amber-600" colorBg="bg-amber-50" onClick={() => navigate("/registers")} />
-            <StatCard title="Validées" value={dashboard.ecritures_par_statut?.valide || 0} icon={Icons.CheckCircle2} colorText="text-emerald-600" colorBg="bg-emerald-50" onClick={() => navigate("/registers")} />
+            <StatCard title="Prêtes pour Topaze" value={(dashboard.ecritures_par_statut?.prete_topaze || 0) + (dashboard.ecritures_par_statut?.valide || 0)} icon={Icons.CheckCircle2} colorText="text-emerald-600" colorBg="bg-emerald-50" onClick={() => navigate("/registers")} />
+            <StatCard title="Saisies dans Topaze" value={dashboard.ecritures_par_statut?.saisie_topaze || 0} icon={Icons.CheckCircle2} colorText="text-indigo-600" colorBg="bg-indigo-50" onClick={() => navigate("/registers")} />
             <StatCard title="Rejetées" value={dashboard.ecritures_par_statut?.rejete || 0} icon={Icons.XCircle} colorText="text-red-600" colorBg="bg-red-50" onClick={() => navigate("/registers")} />
           </div>
         </section>

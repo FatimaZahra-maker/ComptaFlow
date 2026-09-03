@@ -10,6 +10,7 @@ import axios from "axios";
 import {
   BarChart3,
   Bell,
+  Bot,
   Building2,
   BookOpen,
   BookOpenText,
@@ -19,10 +20,13 @@ import {
   Cloud,
   Clock,
   FileStack,
+  FileSearch,
   FileText,
   Home,
+  History,
   Landmark,
   LogOut,
+  MessageCircle,
   Plus,
   Receipt,
   Scale,
@@ -38,14 +42,17 @@ import { getNotifications } from "../api/notificationsApi";
 import { search } from "../api/searchApi";
 import { listEntreprises } from "../api/entreprisesApi";
 import { listTaches } from "../api/tachesApi";
+import { getUnreadMessageCount } from "../api/messagesApi";
 import { useAuth } from "../context/AuthContext";
 import { ResizableSidebar } from "./ResizableSidebar";
+import { AssistantWidget } from "./assistant/AssistantWidget";
+import { ACTIVE_ENTREPRISE_EVENT, ACTIVE_ENTREPRISE_KEY, setActiveEntrepriseId } from "../utils/activeEntreprise";
 
 import type { Entreprise } from "../types/entreprise";
 import type { Notification } from "../types/notification";
 import type { SearchResultItem } from "../types/search";
 
-export const ACTIVE_ENTREPRISE_KEY = "comptaflow_active_entreprise_id";
+export { ACTIVE_ENTREPRISE_KEY } from "../utils/activeEntreprise";
 
 const SEARCH_DELAY_MS = 300;
 const NOTIFICATIONS_REFRESH_MS = 15_000;
@@ -55,6 +62,8 @@ interface NavigationItem {
   label: string;
   route: string;
   icon: LucideIcon;
+  roles?: string[];
+  requiresCompany?: boolean;
 }
 
 interface NavigationGroup {
@@ -66,9 +75,12 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
   {
     title: "Vue d'ensemble",
     items: [
-      { label: "Tableau de bord", route: "/dashboard", icon: Home },
+      { label: "Accueil", route: "/accueil", icon: Home },
+      { label: "Tableau de bord", route: "/dashboard", icon: BarChart3, requiresCompany: true },
       { label: "Documents", route: "/upload", icon: FileText },
+      { label: "Documents à identifier", route: "/chronos?non_identifies=1", icon: FileSearch },
       { label: "Chronos", route: "/chronos", icon: Clock },
+      { label: "Assistant", route: "/assistant", icon: Bot },
     ],
   },
   {
@@ -93,9 +105,11 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
     title: "Organisation",
     items: [
       { label: "Rappels & Tâches", route: "/rappels", icon: CalendarClock },
+      { label: "Messagerie", route: "/messagerie", icon: MessageCircle },
       { label: "Notifications", route: "/notifications", icon: Bell },
       { label: "Rapports", route: "/rapports", icon: BarChart3 },
-      { label: "Utilisateurs", route: "/admin/utilisateurs", icon: UserCog },
+      { label: "Utilisateurs", route: "/admin/utilisateurs", icon: UserCog, roles: ["admin_cabinet", "super_admin"] },
+      { label: "Historique", route: "/admin/historique", icon: History, roles: ["admin_cabinet", "super_admin"] },
     ],
   },
 ];
@@ -149,6 +163,7 @@ export function Layout({ children }: { children: ReactNode }) {
       return null;
     }
   });
+  const activeCompany = companies.find((company) => company.id === activeCompanyId) ?? null;
 
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
@@ -159,6 +174,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [tasksCount, setTasksCount] = useState(0);
+  const [messagesCount, setMessagesCount] = useState(0);
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const notificationContainerRef = useRef<HTMLDivElement>(null);
@@ -167,6 +183,12 @@ export function Layout({ children }: { children: ReactNode }) {
     listEntreprises()
       .then(setCompanies)
       .catch(() => setCompanies([]));
+  }, []);
+
+  useEffect(() => {
+    const synchronize = (event: Event) => setActiveCompanyId((event as CustomEvent<string | null>).detail ?? null);
+    window.addEventListener(ACTIVE_ENTREPRISE_EVENT, synchronize);
+    return () => window.removeEventListener(ACTIVE_ENTREPRISE_EVENT, synchronize);
   }, []);
 
   const refreshNotifications = useCallback(async () => {
@@ -198,6 +220,19 @@ export function Layout({ children }: { children: ReactNode }) {
     const timer = window.setInterval(refreshTasks, TASKS_REFRESH_MS);
     return () => window.clearInterval(timer);
   }, [refreshTasks]);
+
+  useEffect(() => {
+    const refreshMessages = async () => {
+      try {
+        setMessagesCount(await getUnreadMessageCount());
+      } catch {
+        // Le polling réessaiera automatiquement.
+      }
+    };
+    void refreshMessages();
+    const timer = window.setInterval(refreshMessages, 10_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const term = query.trim();
@@ -259,21 +294,17 @@ export function Layout({ children }: { children: ReactNode }) {
 
   function selectCompany(id: string | null) {
     setActiveCompanyId(id);
-    try {
-      if (id) localStorage.setItem(ACTIVE_ENTREPRISE_KEY, id);
-      else localStorage.removeItem(ACTIVE_ENTREPRISE_KEY);
-    } catch {
-      // Le filtre reste actif pour la session même sans localStorage.
-    }
-    window.dispatchEvent(
-      new CustomEvent("entreprise-active-changed", { detail: id }),
-    );
+    setActiveEntrepriseId(id);
   }
 
   function selectSearchResult(item: SearchResultItem) {
     setSearchOpen(false);
     setQuery("");
     navigate(item.route);
+  }
+
+  if (location.pathname === "/accueil" || location.pathname === "/entreprises/selection") {
+    return <div className="min-h-screen">{children}</div>;
   }
 
   return (
@@ -297,19 +328,21 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
 
           <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
-            {NAVIGATION_GROUPS.map((group) => (
+            {NAVIGATION_GROUPS.filter((group) => activeCompanyId || group.title !== "Gestion comptable").map((group) => (
               <section key={group.title}>
                 <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-green-200/50">
                   {group.title}
                 </p>
                 <div className="space-y-1">
-                  {group.items.map((item) => {
+                  {group.items.filter((item) => (!item.requiresCompany || activeCompanyId) && (!item.roles || (user && item.roles.includes(user.role)))).map((item) => {
                     const Icon = item.icon;
                     const active = isRouteActive(location.pathname, item.route);
                     const badge = item.route === "/notifications"
                       ? notifications.length
                       : item.route === "/rappels"
                         ? tasksCount
+                        : item.route === "/messagerie"
+                          ? messagesCount
                         : 0;
 
                     return (
@@ -474,6 +507,11 @@ export function Layout({ children }: { children: ReactNode }) {
             )}
           </div>
 
+          <button type="button" onClick={() => navigate("/entreprises/selection")} className="hidden max-w-64 items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-left lg:flex" title="Changer d’entreprise">
+            <Building2 size={17} className="shrink-0 text-blue-700" />
+            <span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-wide text-blue-500">Entreprise actuelle</span><span className="block truncate text-sm font-bold text-blue-950">{activeCompany?.nom ?? "Sélectionner une entreprise"}</span></span>
+          </button>
+
           <div ref={notificationContainerRef} className="relative ml-auto shrink-0">
             <button
               type="button"
@@ -562,6 +600,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
         <main className="min-w-0 flex-1 overflow-auto">{children}</main>
       </div>
+      <AssistantWidget />
     </div>
   );
 }

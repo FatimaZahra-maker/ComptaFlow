@@ -18,6 +18,7 @@ from app.models.tache import Tache
 from app.models.entreprise import Entreprise
 from app.schemas.tache import TacheCreate, TacheUpdate, TacheOut
 from app.services.tache_service import est_en_retard, marquer_terminee_et_regenerer
+from app.services import audit_service
 
 router = APIRouter(prefix="/taches", tags=["taches"])
 
@@ -28,6 +29,16 @@ def _vers_tache_out(tache: Tache, entreprise_nom: str | None, assignee_nom: str 
     item.assignee_nom = assignee_nom
     item.est_en_retard = est_en_retard(tache)
     return item
+
+
+def _verifier_assignee(db: Session, user_id: uuid.UUID | None, cabinet_id: uuid.UUID) -> None:
+    if user_id is None:
+        return
+    exists = db.execute(select(User.id).where(
+        User.id == user_id, User.cabinet_id == cabinet_id, User.is_active.is_(True),
+    )).scalar_one_or_none()
+    if exists is None:
+        raise HTTPException(status_code=404, detail="Utilisateur assigné introuvable dans ce cabinet.")
 
 
 @router.get("", response_model=list[TacheOut])
@@ -76,6 +87,7 @@ def create_tache(
         if entreprise is None:
             raise HTTPException(status_code=404, detail="Entreprise introuvable.")
 
+    _verifier_assignee(db, payload.assignee_a, current_user.cabinet_id)
     tache = Tache(
         cabinet_id=current_user.cabinet_id,
         cree_par=current_user.id,
@@ -84,10 +96,20 @@ def create_tache(
         titre=payload.titre,
         description=payload.description,
         date_echeance=payload.date_echeance,
+        heure_echeance=payload.heure_echeance,
         priorite=payload.priorite,
         recurrence=payload.recurrence,
     )
     db.add(tache)
+    db.flush()
+    audit_service.enregistrer(
+        db, user=current_user, action=audit_service.AuditAction.TASK_CREATED,
+        entreprise_id=tache.entreprise_id, resource_type="tache", resource_id=tache.id,
+        description=f"Création de la tâche {tache.titre}.",
+        apres={"titre": tache.titre, "date_echeance": tache.date_echeance,
+               "heure_echeance": tache.heure_echeance,
+               "assignee_a": tache.assignee_a, "priorite": tache.priorite},
+    )
     db.commit()
     db.refresh(tache)
     return _vers_tache_out(tache, None, None)
@@ -107,8 +129,19 @@ def update_tache(
         raise HTTPException(status_code=404, detail="Tâche introuvable.")
 
     donnees = payload.model_dump(exclude_unset=True)
+    if "assignee_a" in donnees:
+        _verifier_assignee(db, donnees["assignee_a"], current_user.cabinet_id)
+    avant = {champ: getattr(tache, champ) for champ in donnees}
     for champ, valeur in donnees.items():
         setattr(tache, champ, valeur)
+    apres = {champ: getattr(tache, champ) for champ in donnees}
+    avant_modifie, apres_modifie = audit_service.valeurs_modifiees(avant, apres)
+    audit_service.enregistrer(
+        db, user=current_user, action=audit_service.AuditAction.TASK_UPDATED,
+        entreprise_id=tache.entreprise_id, resource_type="tache", resource_id=tache.id,
+        description=f"Modification de la tâche {tache.titre}.",
+        avant=avant_modifie, apres=apres_modifie,
+    )
     db.commit()
     db.refresh(tache)
     return _vers_tache_out(tache, None, None)
@@ -128,7 +161,15 @@ def terminer_tache(
     if tache is None:
         raise HTTPException(status_code=404, detail="Tâche introuvable.")
 
-    marquer_terminee_et_regenerer(db, tache)
+    prochaine = marquer_terminee_et_regenerer(db, tache)
+    audit_service.enregistrer(
+        db, user=current_user, action=audit_service.AuditAction.TASK_COMPLETED,
+        entreprise_id=tache.entreprise_id, resource_type="tache", resource_id=tache.id,
+        description=f"Achèvement de la tâche {tache.titre}.",
+        avant={"statut": "a_faire"}, apres={"statut": "terminee"},
+        metadata={"prochaine_occurrence_id": prochaine.id if prochaine else None},
+    )
+    db.commit()
     return _vers_tache_out(tache, None, None)
 
 
@@ -143,5 +184,11 @@ def delete_tache(
     ).first()
     if tache is None:
         raise HTTPException(status_code=404, detail="Tâche introuvable.")
+    audit_service.enregistrer(
+        db, user=current_user, action=audit_service.AuditAction.TASK_DELETED,
+        entreprise_id=tache.entreprise_id, resource_type="tache", resource_id=tache.id,
+        description=f"Suppression de la tâche {tache.titre}.",
+        avant={"titre": tache.titre, "date_echeance": tache.date_echeance},
+    )
     db.delete(tache)
     db.commit()

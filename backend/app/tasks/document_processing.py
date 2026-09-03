@@ -30,7 +30,8 @@ from __future__ import annotations
 import logging
 import os
 import time
-from datetime import datetime
+import uuid
+from datetime import date, datetime
 
 import psutil
 
@@ -41,8 +42,10 @@ from app.core.exceptions import (
     ErreurPipelineDefinitive,
     ErreurPipelineTransitoire,
     OCRVideError,
+    PeriodeComptableVerrouilleeError,
 )
 from app.models.document import Document
+from app.models.entreprise import Entreprise
 from app.models.enums import (
     StatutDocumentEnum,
     TypeErreurEnum,
@@ -50,6 +53,7 @@ from app.models.enums import (
 from app.services import (
     accounting_service,
     ai_service,
+    audit_service,
     anomaly_service,
     bank_statement_service,
     chrono_service,
@@ -57,6 +61,7 @@ from app.services import (
     ocr_service,
     preprocessing_service,
     vision_service,
+    workflow_comptable_service,
 )
 from app.services.document_classifier import (
     detecter_type_document,
@@ -899,6 +904,14 @@ def _marquer_erreur(
             error_code
         )
 
+        audit_service.enregistrer(
+            db, user=document.uploaded_by_user,
+            action="DOCUMENT_PROCESSING_FAILED", entreprise_id=document.entreprise_id,
+            resource_type="document", resource_id=document.id, actor_type="celery",
+            status="failed", description="Échec du traitement automatique du document.",
+            metadata={"error_code": error_code, "error_type": type_erreur},
+        )
+
         db.commit()
 
 
@@ -969,6 +982,14 @@ def process_document(
             )
 
             return
+
+        entreprise_forcee_id = (document.donnees_extraites or {}).get(
+            "_entreprise_forcee_id"
+        )
+
+        # Une tâche mise en file avant le verrouillage ne doit pas contourner
+        # le passage ultérieur de la période en lecture seule.
+        workflow_comptable_service.verifier_document_modifiable(db, document)
 
 
         # ====================================================
@@ -1049,6 +1070,34 @@ def process_document(
             donnees,
         )
 
+        if entreprise_forcee_id:
+            entreprise_detectee_id = getattr(entreprise, "id", None)
+            entreprise_forcee = (
+                db.query(Entreprise)
+                .filter(
+                    Entreprise.id == uuid.UUID(str(entreprise_forcee_id)),
+                    Entreprise.cabinet_id == document.cabinet_id,
+                    Entreprise.is_active.is_(True),
+                    Entreprise.creee_automatiquement.is_(False),
+                )
+                .first()
+            )
+            if entreprise_forcee is None:
+                raise ValueError(
+                    "L'entreprise attribuée manuellement n'est plus disponible dans ce cabinet."
+                )
+            entreprise = entreprise_forcee
+            if entreprise_detectee_id not in (None, entreprise_forcee.id):
+                direction = None
+                donnees["direction_a_verifier"] = True
+                donnees["raison_direction"] = (
+                    "L'attribution manuelle diffère de l'identification automatique ; "
+                    "le sens achat/vente doit être vérifié."
+                )
+            donnees["_entreprise_forcee_id"] = str(entreprise_forcee.id)
+            donnees["source_identification_entreprise"] = "attribution_manuelle"
+            donnees["identification_entreprise_a_verifier"] = False
+
 
         # ====================================================
         # CATÉGORIE
@@ -1100,6 +1149,11 @@ def process_document(
             ] = tiers_detecte
 
 
+        annee, mois = _extraire_annee_mois(
+            donnees.get("date_piece"),
+            document,
+        )
+
         # Sauvegarder la version enrichie et rattacher immédiatement
         # le dossier comptable quand il existe. Une facture propre au cabinet
         # SEGURIBAT peut volontairement rester sans entreprise_id.
@@ -1109,6 +1163,14 @@ def process_document(
             if entreprise is not None
             else None
         )
+
+        if entreprise_id is not None:
+            workflow_comptable_service.verifier_date_modifiable(
+                db,
+                cabinet_id=document.cabinet_id,
+                entreprise_id=entreprise_id,
+                target_date=date(annee, mois, 1),
+            )
 
         document.entreprise_id = entreprise_id
         document.donnees_extraites = dict(donnees)
@@ -1150,18 +1212,23 @@ def process_document(
                 document_doublon.id,
             )
 
+            audit_service.enregistrer(
+                db, user=document.uploaded_by_user,
+                action="DOCUMENT_DUPLICATE_DETECTED",
+                entreprise_id=document.entreprise_id, resource_type="document",
+                resource_id=document.id, actor_type="celery",
+                description="Doublon métier détecté par le traitement automatique.",
+                metadata={"original_document_id": document_doublon.id},
+                resource_ids=[document.id, document_doublon.id], item_count=2,
+            )
+            db.commit()
+
             return
 
 
         # ====================================================
         # ANNÉE / MOIS INTERNES
         # ====================================================
-
-        annee, mois = _extraire_annee_mois(
-            donnees.get("date_piece"),
-            document,
-        )
-
 
         # ====================================================
         # FACTURE PROPRE AU CABINET
@@ -1183,6 +1250,14 @@ def process_document(
             )
             document.statut = StatutDocumentEnum.TRAITE
             document.donnees_extraites = dict(donnees)
+            audit_service.enregistrer(
+                db, user=document.uploaded_by_user,
+                action="DOCUMENT_CLASSIFIED", resource_type="document",
+                resource_id=document.id, actor_type="celery",
+                description="Document du cabinet classifié automatiquement.",
+                apres={"categorie": document.categorie, "statut": document.statut},
+                metadata={"source_extraction": donnees.get("source_extraction")},
+            )
             db.commit()
 
             logger.info(
@@ -1191,6 +1266,7 @@ def process_document(
                 document_id,
                 donnees.get("cabinet_nom") or "cabinet",
             )
+
             return
 
 
@@ -1313,6 +1389,22 @@ def process_document(
                 document_id,
             )
 
+        audit_service.enregistrer(
+            db, user=document.uploaded_by_user,
+            action="DOCUMENT_CLASSIFIED", entreprise_id=document.entreprise_id,
+            resource_type="document", resource_id=document.id, actor_type="celery",
+            description="Extraction et classification automatiques terminées.",
+            apres={
+                "categorie": document.categorie, "statut": document.statut,
+                "entreprise_id": document.entreprise_id,
+            },
+            metadata={
+                "source_extraction": donnees.get("source_extraction"),
+                "type_document": donnees.get("type_document"),
+            },
+        )
+        db.commit()
+
 
     # ========================================================
     # ERREUR DÉFINITIVE
@@ -1341,6 +1433,20 @@ def process_document(
             TypeErreurEnum.DEFINITIVE,
             exc.code,
         )
+
+
+    except PeriodeComptableVerrouilleeError as exc:
+
+        db.rollback()
+        logger.warning("Document %s refusé : période verrouillée.", document_id)
+        _marquer_erreur(
+            db,
+            document_id,
+            str(exc),
+            TypeErreurEnum.DEFINITIVE,
+            "PERIODE_VERROUILLEE",
+        )
+        return
 
 
     # ========================================================

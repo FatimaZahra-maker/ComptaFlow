@@ -11,10 +11,10 @@ précise -- répond au besoin exprimé "le rappel pour quelle entreprise
 exactement".
 """
 import uuid
-from datetime import date
+from datetime import date, time
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String, Text, Date, Enum, ForeignKey
+from sqlalchemy import String, Text, Date, Time, Enum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -43,6 +43,7 @@ class Tache(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin):
     titre: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     date_echeance: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    heure_echeance: Mapped[time | None] = mapped_column(Time, nullable=True)
 
     statut: Mapped[StatutTacheEnum] = mapped_column(
         Enum(StatutTacheEnum, name="statut_tache_enum"), default=StatutTacheEnum.A_FAIRE

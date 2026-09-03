@@ -19,7 +19,7 @@ from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.models.document import Document
 from app.models.ecriture import EcritureComptable
-from app.services import ai_service
+from app.services import ai_service, workflow_comptable_service
 
 logger = logging.getLogger("comptaflow.pipeline")
 
@@ -31,6 +31,7 @@ def enrichir_document_ia(self, document_id: str):
         document = db.query(Document).filter(Document.id == document_id).first()
         if document is None or not document.texte_ocr:
             return
+        workflow_comptable_service.verifier_document_modifiable(db, document)
 
         donnees = dict(document.donnees_extraites or {})
         type_document = donnees.get("type_document", "autre")

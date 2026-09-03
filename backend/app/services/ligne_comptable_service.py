@@ -27,6 +27,7 @@ from app.models.enums import (
     TypeMouvementBancaireEnum,
 )
 from app.models.ligne_comptable import LigneComptable
+from app.models.tva_periode import TvaPeriode
 from app.models.mouvement_bancaire import MouvementBancaire
 from app.models.rapprochement_bancaire_allocation import RapprochementBancaireAllocation
 
@@ -34,6 +35,11 @@ MONEY = Decimal("0.01")
 ZERO = Decimal("0.00")
 
 STATUTS_RAPPROCHEMENT_COMPTABILISABLES = {"automatique", "confirme"}
+STATUTS_ECRITURES_COMPTABILISABLES = {
+    StatutValidationEnum.PRETE_TOPAZE,
+    StatutValidationEnum.SAISIE_TOPAZE,
+    StatutValidationEnum.VALIDE,
+}
 
 
 @dataclass(slots=True)
@@ -69,6 +75,10 @@ def _texte(value: object | None) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _value(value: object | None) -> str:
+    return value.value if hasattr(value, "value") else str(value or "")
 
 
 def _libelle_ecriture(ecriture: EcritureComptable) -> str:
@@ -223,7 +233,7 @@ def synchroniser_lignes_facture(
     if not resultat.applicable or not resultat.complet:
         return resultat
 
-    est_validee = ecriture.statut_validation == StatutValidationEnum.VALIDE
+    est_validee = ecriture.statut_validation in STATUTS_ECRITURES_COMPTABILISABLES
 
     for item in resultat.lignes:
         db.add(
@@ -288,7 +298,7 @@ def construire_lignes_banque(
     raisons: list[str] = []
     if mouvement.statut_rapprochement not in STATUTS_RAPPROCHEMENT_COMPTABILISABLES:
         return GenerationLignesResultat(applicable=False, complet=True)
-    if ecriture.statut_validation != StatutValidationEnum.VALIDE:
+    if ecriture.statut_validation not in STATUTS_ECRITURES_COMPTABILISABLES:
         raisons.append("La facture rapprochée n'est pas encore validée.")
     if not compte_banque:
         raisons.append("Compte banque exact absent.")
@@ -471,7 +481,7 @@ def _construire_lignes_allocations(
         ):
             raisons.append("Une allocation n'appartient pas au même cabinet et à la même entreprise.")
             continue
-        if entry.statut_validation != StatutValidationEnum.VALIDE:
+        if entry.statut_validation not in STATUTS_ECRITURES_COMPTABILISABLES:
             raisons.append(f"Facture {entry.numero_piece or entry.id} non validée.")
         if entry.type_ecriture != expected:
             raisons.append(f"Facture {entry.numero_piece or entry.id} incompatible avec le sens bancaire.")
@@ -654,8 +664,14 @@ def _query_lignes_validees(
     date_debut: date | None,
     date_fin: date | None,
     compte_prefix: str | None = None,
+    journal: str | None = None,
+    statut_topaze: StatutValidationEnum | None = None,
+    tiers: str | None = None,
+    recherche: str | None = None,
 ):
-    query = select(LigneComptable).where(
+    query = select(LigneComptable).outerjoin(
+        EcritureComptable, LigneComptable.ecriture_id == EcritureComptable.id
+    ).where(
         LigneComptable.cabinet_id == cabinet_id,
         LigneComptable.entreprise_id == entreprise_id,
         LigneComptable.est_validee.is_(True),
@@ -666,6 +682,18 @@ def _query_lignes_validees(
         query = query.where(LigneComptable.date_ecriture <= date_fin)
     if compte_prefix:
         query = query.where(LigneComptable.compte.startswith(compte_prefix.strip()))
+    if journal:
+        query = query.where(LigneComptable.journal == journal.strip().upper())
+    if statut_topaze is not None:
+        query = query.where(EcritureComptable.statut_validation == statut_topaze)
+    if tiers:
+        query = query.where(EcritureComptable.tiers.ilike(f"%{tiers.strip()}%"))
+    if recherche:
+        pattern = f"%{recherche.strip()}%"
+        query = query.where(
+            (LigneComptable.numero_piece.ilike(pattern))
+            | (LigneComptable.libelle.ilike(pattern))
+        )
     return query
 
 
@@ -677,6 +705,10 @@ def obtenir_grand_livre(
     date_debut: date | None = None,
     date_fin: date | None = None,
     compte_prefix: str | None = None,
+    journal: str | None = None,
+    statut_topaze: StatutValidationEnum | None = None,
+    tiers: str | None = None,
+    recherche: str | None = None,
 ) -> dict:
     labels = _labels_comptes(db, cabinet_id, entreprise_id)
 
@@ -688,6 +720,10 @@ def obtenir_grand_livre(
             date_debut,
             date_fin,
             compte_prefix,
+            journal,
+            statut_topaze,
+            tiers,
+            recherche,
         ).order_by(
             LigneComptable.compte.asc(),
             LigneComptable.date_ecriture.asc(),
@@ -695,6 +731,23 @@ def obtenir_grand_livre(
             LigneComptable.ordre.asc(),
         )
     ).scalars().all()
+
+    entry_ids = {line.ecriture_id for line in lignes if line.ecriture_id is not None}
+    entries = db.execute(
+        select(EcritureComptable).where(
+            EcritureComptable.cabinet_id == cabinet_id,
+            EcritureComptable.entreprise_id == entreprise_id,
+            EcritureComptable.id.in_(entry_ids),
+        )
+    ).scalars().all() if entry_ids else []
+    entry_map = {entry.id: entry for entry in entries}
+    tva_ids = {line.tva_periode_id for line in lignes if line.tva_periode_id is not None}
+    tva_periods = db.execute(select(TvaPeriode).where(
+        TvaPeriode.cabinet_id == cabinet_id,
+        TvaPeriode.entreprise_id == entreprise_id,
+        TvaPeriode.id.in_(tva_ids),
+    )).scalars().all() if tva_ids else []
+    tva_map = {period.id: period for period in tva_periods}
 
     soldes_initiaux: dict[str, Decimal] = {}
     if date_debut is not None:
@@ -760,6 +813,16 @@ def obtenir_grand_livre(
                 "ecriture_id": ligne.ecriture_id,
                 "mouvement_bancaire_id": ligne.mouvement_bancaire_id,
                 "regularisation_cloture_id": ligne.regularisation_cloture_id,
+                "tva_periode_id": ligne.tva_periode_id,
+                "document_id": entry_map[ligne.ecriture_id].document_id if ligne.ecriture_id in entry_map else None,
+                "tiers": entry_map[ligne.ecriture_id].tiers if ligne.ecriture_id in entry_map else None,
+                "statut_topaze": (
+                    _value(entry_map[ligne.ecriture_id].statut_validation)
+                    if ligne.ecriture_id in entry_map
+                    else tva_map[ligne.tva_periode_id].statut_comptable
+                    if ligne.tva_periode_id in tva_map
+                    else None
+                ),
             }
         )
 
@@ -771,6 +834,8 @@ def obtenir_grand_livre(
             + groupe["total_debit"]
             - groupe["total_credit"]
         )
+        groupe["solde_debiteur"] = max(groupe["solde_final"], ZERO)
+        groupe["solde_crediteur"] = max(-groupe["solde_final"], ZERO)
         comptes.append(groupe)
 
     return {
@@ -781,7 +846,7 @@ def obtenir_grand_livre(
         "nombre_lignes": len(lignes),
         "total_debit": total_debit,
         "total_credit": total_credit,
-        "equilibre": total_debit == total_credit,
+        "equilibre": abs(total_debit - total_credit) <= MONEY,
         "comptes": comptes,
     }
 
@@ -841,6 +906,25 @@ def obtenir_balance(
         total_solde_debiteur += solde_debiteur
         total_solde_crediteur += solde_crediteur
 
+    ecart = (total_debit - total_credit).quantize(MONEY)
+    comptes_inconnus = sum(1 for row in rows if row["compte"] not in labels)
+    entry_query = select(EcritureComptable.id).where(
+        EcritureComptable.cabinet_id == cabinet_id,
+        EcritureComptable.entreprise_id == entreprise_id,
+        EcritureComptable.statut_validation == StatutValidationEnum.PRETE_TOPAZE,
+    )
+    if date_debut is not None:
+        entry_query = entry_query.where(EcritureComptable.date_piece >= date_debut)
+    if date_fin is not None:
+        entry_query = entry_query.where(EcritureComptable.date_piece <= date_fin)
+    non_saisies = len(db.execute(entry_query).scalars().all())
+    anomalies: list[str] = []
+    if abs(ecart) > MONEY:
+        anomalies.append(f"Écart Débit/Crédit de {ecart} MAD.")
+    if comptes_inconnus:
+        anomalies.append(f"{comptes_inconnus} compte(s) absent(s) du plan comptable actif.")
+    if non_saisies:
+        anomalies.append(f"{non_saisies} écriture(s) prête(s) non encore saisie(s) dans Topaze.")
     return {
         "entreprise_id": entreprise_id,
         "date_debut": date_debut,
@@ -850,7 +934,12 @@ def obtenir_balance(
         "total_credit": total_credit,
         "total_solde_debiteur": total_solde_debiteur,
         "total_solde_crediteur": total_solde_crediteur,
-        "equilibree": total_debit == total_credit,
+        "equilibree": abs(ecart) <= MONEY,
+        "ecart": ecart,
+        "tolerance": MONEY,
+        "comptes_inconnus": comptes_inconnus,
+        "ecritures_non_saisies_topaze": non_saisies,
+        "anomalies": anomalies,
         "lignes": rows,
     }
 

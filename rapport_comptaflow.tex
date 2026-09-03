@@ -8,10 +8,10 @@
 
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[french,english]{babel}
+\usepackage[english,french]{babel}
 \usepackage{lmodern}
 \usepackage{microtype}
-\usepackage[a4paper,margin=2.5cm,headheight=15pt]{geometry}
+\usepackage[a4paper,margin=2.5cm,headheight=26pt]{geometry}
 \usepackage{setspace}
 \usepackage{graphicx}
 \usepackage{float}
@@ -22,20 +22,23 @@
 \usepackage{tabularx}
 \usepackage{array}
 \usepackage{enumitem}
-\usepackage{xcolor}
+\usepackage[table]{xcolor}
 \usepackage{fancyhdr}
+\usepackage{titlesec}
 \usepackage{hyperref}
 \usepackage{url}
 \usepackage{listings}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,fit,shapes.geometric,shapes.multipart,calc}
 
-\definecolor{ComptaGreen}{HTML}{15803D}
-\definecolor{ComptaDark}{HTML}{0F172A}
-\definecolor{ComptaLight}{HTML}{F0FDF4}
-\definecolor{ComptaBlue}{HTML}{1D4ED8}
-\definecolor{ComptaOrange}{HTML}{C2410C}
+\definecolor{ComptaGreen}{HTML}{1F5E45}
+\definecolor{ComptaDark}{HTML}{111827}
+\definecolor{ComptaLight}{HTML}{F7F9FB}
+\definecolor{ComptaBlue}{HTML}{17324D}
+\definecolor{ComptaSlate}{HTML}{52677D}
 \definecolor{ComptaGray}{HTML}{64748B}
+\definecolor{ComptaTableLine}{HTML}{718096}
+\definecolor{ComptaTableRow}{HTML}{F4F6F8}
 
 \hypersetup{
   colorlinks=true,
@@ -52,40 +55,89 @@
 \setcounter{secnumdepth}{3}
 \setcounter{tocdepth}{3}
 
+\titleformat{\chapter}[display]
+  {\normalfont\bfseries\color{ComptaDark}}
+  {\Large\color{ComptaBlue}\chaptername\ \thechapter}
+  {0.55em}{\Huge}
+  [\vspace{0.35em}\color{ComptaBlue}\titlerule]
+\titleformat{name=\chapter,numberless}[display]
+  {\normalfont\bfseries\color{ComptaDark}}
+  {}{0pt}{\Huge}
+  [\vspace{0.35em}\color{ComptaBlue}\titlerule]
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{ComptaBlue}}
+  {\thesection}{0.75em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{ComptaGreen}}
+  {\thesubsection}{0.75em}{}
+
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{ComptaFlow}
-\fancyhead[R]{Rapport de projet}
-\fancyfoot[C]{\thepage}
-\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{\textcolor{ComptaDark}{ComptaFlow}}
+\fancyhead[R]{\textcolor{ComptaDark}{\nouppercase{\leftmark}}}
+\fancyfoot[C]{\textcolor{ComptaGreen}{\thepage}}
+\renewcommand{\chaptermark}[1]{\markboth{#1}{}}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{ComptaBlue}\leaders\hrule height 0.5pt\hfill}}
+
+\captionsetup{
+  labelfont={color=ComptaBlue},
+  textfont={color=ComptaDark}
+}
 
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcommand{\TableSetup}{%
+  \arrayrulecolor{ComptaTableLine}%
+  \setlength{\arrayrulewidth}{0.45pt}%
+  \renewcommand{\arraystretch}{1.18}%
+}
+\newcommand{\TableHead}[1]{\textcolor{white}{\textbf{#1}}}
+\newcommand{\TableId}[1]{\textcolor{ComptaGreen}{\textbf{#1}}}
+\newcommand{\TableSuccess}[1]{\textcolor{ComptaGreen}{\textbf{#1}}}
 
-% ---------- Champs à renseigner ----------
+% ---------- Informations du rapport ----------
 \newcommand{\Auteur}{RADOUI Fatima Zahra}
 \newcommand{\Formation}{Génie informatique}
 \newcommand{\Etablissement}{ENSA de Berrechid}
-\newcommand{\EntrepriseAccueil}{Seguribat}
+\newcommand{\EntrepriseAccueil}{SEGURIBAT}
 \newcommand{\EncadrantPedagogique}{M. Dehaj}
 \newcommand{\EncadrantEntreprise}{M. Faiz Mohammed Er-Raitab}
 \newcommand{\AnneeUniversitaire}{2025--2026}
 \newcommand{\DateSoutenance}{}
-\newcommand{\PeriodeProjet}{du 1\textsuperscript{er} juillet au 30 juillet}
+\newcommand{\PeriodeProjet}{du 1\textsuperscript{er} au 30 juillet 2026}
 
-\newcommand{\champ}[1]{%
-  \textbf{#1 :}\enspace\rule{0.58\linewidth}{0.4pt}%
-}
+% ---------- Textes modifiables de la page de garde ----------
+\newcommand{\NomEcoleComplet}{ÉCOLE NATIONALE DES SCIENCES APPLIQUÉES DE BERRECHID}
+\newcommand{\TypeRapport}{RAPPORT DE STAGE}
+\newcommand{\SousTitreRapport}{Conception et réalisation d'une plateforme\\
+  intelligente de gestion documentaire et de pré-comptabilité}
+\newcommand{\MentionSeguribat}{COMPTABLE AGRÉÉ PAR L'ÉTAT}
 
-\newcommand{\acompleter}[1]{%
-  \begin{center}
-    \fcolorbox{ComptaGray}{white}{%
-      \begin{minipage}{0.88\textwidth}
-        \vspace{0.35em}\textit{#1}\vspace{0.35em}
-      \end{minipage}%
-    }
-  \end{center}%
-}
+% ---------- Logos et réglages modifiables de la page de garde ----------
+% Les fichiers restent séparés : leur taille et leur position peuvent être
+% adaptés ici sans transformer la couverture en image unique.
+\newcommand{\LogoENSA}{assets/logos/ensa-berrechid-transparent.png}
+\newcommand{\LogoUniversite}{assets/logos/universite-hassan-1er-transparent.png}
+\newlength{\LogoENSAWidth}
+\newlength{\LogoUniversiteHeight}
+\newlength{\LogoENSAOffsetY}
+\newlength{\LogoUniversiteOffsetY}
+\setlength{\LogoENSAWidth}{6.7cm}
+\setlength{\LogoUniversiteHeight}{3.05cm}
+\setlength{\LogoENSAOffsetY}{0cm}
+\setlength{\LogoUniversiteOffsetY}{-0.12cm}
+
+% ---------- Espacements modifiables de la page de garde ----------
+% Modifier ces valeurs permet de déplacer verticalement les grands blocs.
+\newlength{\CouvertureEspaceApresLogos}
+\newlength{\CouvertureEspaceApresEntreprise}
+\newlength{\CouvertureEspaceAvantTitre}
+\newlength{\CouvertureEspaceAvantInformations}
+\setlength{\CouvertureEspaceApresLogos}{1.15cm}
+\setlength{\CouvertureEspaceApresEntreprise}{1.25cm}
+\setlength{\CouvertureEspaceAvantTitre}{0.75cm}
+\setlength{\CouvertureEspaceAvantInformations}{0.8cm}
 
 \newcommand{\capture}[3]{%
   \begin{figure}[H]
@@ -96,8 +148,8 @@
       \fcolorbox{ComptaGray}{white}{%
         \begin{minipage}[c][5.3cm][c]{0.86\textwidth}
           \centering
-          \textbf{Capture d'écran à insérer}\\[0.7em]
-          Déposer l'image sous : \texttt{\detokenize{#1}}\\[0.5em]
+          \textbf{Illustration indisponible}\\[0.7em]
+          Fichier attendu : \texttt{\detokenize{#1}}\\[0.5em]
           #3
         \end{minipage}%
       }%
@@ -122,8 +174,8 @@
     rounded corners, text width=3.15cm, align=left, font=\scriptsize,
     fill=blue!4},
   meriseAssoc/.style={draw, ellipse, align=center, font=\scriptsize,
-    fill=orange!8, minimum width=2.2cm, minimum height=0.8cm},
-  note/.style={draw, dashed, rounded corners, fill=yellow!8, align=left, font=\scriptsize}
+    fill=ComptaBlue!5, minimum width=2.2cm, minimum height=0.8cm},
+  note/.style={draw, dashed, rounded corners, fill=ComptaGray!6, align=left, font=\scriptsize}
 }
 
 \lstset{
@@ -136,42 +188,103 @@
 }
 
 \begin{document}
+\pagecolor{white}
+\color{ComptaDark}
 
 % ============================================================
 % Page de garde
 % ============================================================
+\hypersetup{pageanchor=false}
 \begin{titlepage}
+  \newgeometry{left=2.1cm,right=2.1cm,top=1.25cm,bottom=1.15cm}
+  \thispagestyle{empty}
+  \sffamily
+
+  % Logos supérieurs sur fond transparent. Les commandes du préambule
+  % permettent de modifier séparément fichiers, dimensions et décalages.
+  \noindent
+  \begin{minipage}[t]{0.56\textwidth}
+    \vspace{0pt}
+    \raggedright
+    \raisebox{\LogoENSAOffsetY}{%
+      \includegraphics[width=\LogoENSAWidth,keepaspectratio]{\LogoENSA}}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[t]{0.30\textwidth}
+    \vspace{0pt}
+    \raggedleft
+    \raisebox{\LogoUniversiteOffsetY}{%
+      \includegraphics[height=\LogoUniversiteHeight,keepaspectratio]{\LogoUniversite}}
+  \end{minipage}
+
+  \vspace{\CouvertureEspaceApresLogos}
+
+  % Bandeau de l'entreprise d'accueil.
+  \noindent
+  \begin{minipage}[c]{0.59\textwidth}
+    \centering
+    {\fontsize{27}{30}\selectfont\rmfamily SEGURIBAT}%
+    \hspace{0.35em}{\fontsize{11}{13}\selectfont\itshape Ingénierie financière}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.37\textwidth}
+    \centering
+    \fcolorbox{ComptaDark}{white}{%
+      \parbox[c][0.82cm][c]{0.91\linewidth}{%
+        \centering\fontsize{9.1}{10}\selectfont \MentionSeguribat}}
+  \end{minipage}
+
+  \vspace{\CouvertureEspaceApresEntreprise}
+
   \begin{center}
-    \vspace*{0.7cm}
-    {\large \Etablissement}\\[0.5cm]
-    {\large \Formation}\\[1.4cm]
+    \resizebox{0.89\textwidth}{!}{\bfseries \NomEcoleComplet}\\[0.55cm]
+    {\fontsize{13.5}{16}\selectfont\bfseries\MakeUppercase{\Formation}}
 
-    \fcolorbox{ComptaGreen}{ComptaLight}{%
-      \begin{minipage}{0.86\textwidth}
-        \centering
-        \vspace{0.8cm}
-        {\Huge\bfseries\color{ComptaDark} ComptaFlow}\\[0.45cm]
-        {\LARGE Conception et réalisation d'une plateforme intelligente de gestion documentaire et de pré-comptabilité}
-        \vspace{0.8cm}
-      \end{minipage}%
-    }\\[1.5cm]
+    \vspace{0.9cm}
+    {\color{ComptaBlue}\rule{0.82\textwidth}{0.75pt}}
 
-    {\Large Rapport de projet / stage}\\[1.1cm]
+    \vspace{\CouvertureEspaceAvantTitre}
+    {\fontsize{17}{20}\selectfont\bfseries \TypeRapport}\\[0.32cm]
+    {\fontsize{43}{47}\selectfont\bfseries
+      \textcolor{ComptaBlue}{Compta}\textcolor{ComptaGreen}{Flow}}\\[0.35cm]
+    {\fontsize{14}{18}\selectfont \SousTitreRapport}
 
-    \begin{tabular}{L{6.2cm}L{6.2cm}}
-      \textbf{Réalisé par :} & \textbf{Entreprise d'accueil :} \\
-      \Auteur & \EntrepriseAccueil \\[0.8cm]
-      \textbf{Encadrant pédagogique :} & \textbf{Encadrant professionnel :} \\
-      \EncadrantPedagogique & \EncadrantEntreprise \\
-    \end{tabular}
-
-    \vfill
-    \textbf{Période du projet :} \PeriodeProjet\\[0.55cm]
-    \textbf{Date de soutenance :} \DateSoutenance\\[0.8cm]
-    {\large Année universitaire : \AnneeUniversitaire}
+    \vspace{0.72cm}
+    {\color{ComptaBlue}\rule{0.82\textwidth}{0.75pt}}
   \end{center}
+
+  \vspace{\CouvertureEspaceAvantInformations}
+
+  % Bloc d'informations : modifier les commandes placées en tête du fichier.
+  \noindent
+  \begin{minipage}[t]{0.46\textwidth}
+    \raggedright
+    \textbf{Réalisé par :}\\[0.18cm]
+    \Auteur\\[0.55cm]
+    \textbf{Encadrant pédagogique :}\\[0.18cm]
+    \EncadrantPedagogique
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[t]{0.43\textwidth}
+    \raggedright
+    \textbf{Entreprise d'accueil :}\\[0.18cm]
+    \EntrepriseAccueil\\[0.55cm]
+    \textbf{Encadrant professionnel :}\\[0.18cm]
+    \EncadrantEntreprise
+  \end{minipage}
+
+  \vfill
+  \begin{center}
+    \textbf{Période :} \PeriodeProjet\\[0.28cm]
+    Année universitaire \AnneeUniversitaire
+    \ifx\DateSoutenance\empty\else
+      \\[0.28cm]\textbf{Date de soutenance :} \DateSoutenance
+    \fi
+  \end{center}
+  \restoregeometry
 \end{titlepage}
 
+\hypersetup{pageanchor=true}
 \pagenumbering{roman}
 
 % ============================================================
@@ -180,21 +293,15 @@
 \chapter*{Remerciements}
 \addcontentsline{toc}{chapter}{Remerciements}
 
-Au terme de cette expérience au sein de \textbf{SEGURIBAT}, je souhaite adresser mes sincères remerciements à toutes les personnes qui ont contribué, chacune à leur manière, à faire de ce stage une expérience aussi enrichissante sur le plan professionnel qu'humain.
+Au terme de mon stage au sein de \textbf{SEGURIBAT}, je remercie sincèrement toutes les personnes qui ont contribué à cette expérience professionnelle et humaine.
 
-Je tiens tout particulièrement à exprimer ma profonde reconnaissance à \textbf{M. Faiz Mohammed Er-Raitab, comptable agréé par l'État, conseiller financier et fiscal et mon encadrant professionnel au sein de SEGURIBAT}, pour la confiance qu'il m'a accordée, sa disponibilité ainsi que l'accompagnement dont j'ai bénéficié tout au long de mon stage. Découvrant pour la première fois le domaine de la comptabilité et ses réalités professionnelles, j'ai pu compter sur ses explications et son expérience pour mieux comprendre les besoins du métier et clarifier de nombreux aspects qui m'étaient encore inconnus.
+J'adresse une reconnaissance particulière à \textbf{M. Faiz Mohammed Er-Raitab, comptable agréé par l'État, conseiller financier et fiscal et mon encadrant professionnel au sein de SEGURIBAT}, pour sa confiance, sa disponibilité et ses explications. La découverte du domaine comptable et la compréhension progressive de ses besoins métier ont nourri ma réflexion et contribué à faire émerger le projet \textbf{ComptaFlow}. Sa supervision m'a permis de confronter mes choix aux réalités du terrain et d'améliorer progressivement la solution.
 
-Cette compréhension progressive du fonctionnement et des besoins réels du domaine m'a permis de mener ma propre réflexion, d'analyser les différentes problématiques rencontrées et, à partir de mes observations, de faire émerger l'idée du projet \textbf{ComptaFlow}. Le travail d'analyse, de conception, de développement puis d'amélioration de cette solution constitue pour moi l'un des aspects les plus marquants de ce stage. Il m'a permis de dépasser la simple application de connaissances techniques pour apprendre à partir d'un besoin réel, à rechercher des solutions adaptées, à remettre en question mes choix et à améliorer progressivement mon travail.
+Je remercie également \textbf{l'ensemble de l'équipe de SEGURIBAT} pour son accueil, sa bienveillance et son esprit d'entraide. Les échanges avec les collaborateurs m'ont aidée à mieux comprendre le traitement quotidien des dossiers et à développer mon autonomie, mes capacités d'analyse et mes compétences techniques.
 
-Je remercie également chaleureusement \textbf{l'ensemble de l'équipe de SEGURIBAT} pour son accueil, sa gentillesse, sa disponibilité et son esprit d'entraide. La bienveillance avec laquelle j'ai été intégrée m'a permis d'évoluer dans un environnement agréable, propice à l'apprentissage, aux échanges et à la prise d'initiative.
+J'exprime aussi ma gratitude à \textbf{M. Dehaj} pour son accompagnement et ses orientations, ainsi qu'à \textbf{M. Hnini}, chef de la filière, pour son engagement auprès des étudiants. Je remercie plus largement \textbf{l'École Nationale des Sciences Appliquées de Berrechid} et son corps enseignant pour les connaissances et les méthodes qui m'ont permis d'aborder ce stage avec rigueur.
 
-J'adresse également mes sincères remerciements à \textbf{M. Dehaj}, mon encadrant, pour son accompagnement et ses orientations, ainsi qu'à \textbf{M. Hnini}, chef de la filière, pour son engagement auprès des étudiants. Plus largement, je tiens à exprimer ma reconnaissance à \textbf{l'École Nationale des Sciences Appliquées de Berrechid}, à son corps enseignant et à toutes les personnes qui contribuent à notre formation. Les connaissances et les méthodes acquises au cours de mon parcours m'ont fourni les bases nécessaires pour aborder ce stage avec rigueur, curiosité et volonté d'apprendre.
-
-Cette expérience m'a permis de développer non seulement mes compétences en \textbf{développement logiciel, analyse des besoins, conception d'une solution informatique et intégration de technologies d'intelligence artificielle dans un contexte métier}, mais également des qualités essentielles telles que l'autonomie, l'adaptation, la réflexion, la communication et la persévérance face aux difficultés.
-
-Enfin, je souhaite adresser une pensée toute particulière à \textbf{ma famille}, pour son soutien, ses encouragements et sa présence constante tout au long de mon parcours. Leur confiance constitue pour moi une source précieuse de motivation.
-
-À toutes ces personnes, je souhaite exprimer ma gratitude pour leur contribution à cette expérience qui représente aujourd'hui bien plus qu'un simple stage : \textbf{une étape importante dans ma formation, dans ma compréhension du monde professionnel et dans la construction de mon parcours d'ingénieure.}
+Enfin, je remercie chaleureusement \textbf{ma famille} pour son soutien constant et ses encouragements. À toutes ces personnes, j'adresse mes sincères remerciements pour leur contribution à cette étape importante de ma formation et de mon parcours d'ingénieure.
 
 % ============================================================
 % 2. Résumé
@@ -202,11 +309,11 @@ Enfin, je souhaite adresser une pensée toute particulière à \textbf{ma famill
 \chapter*{Résumé}
 \addcontentsline{toc}{chapter}{Résumé}
 
-La transformation numérique des cabinets comptables soulève un double enjeu : accélérer le traitement d'un volume important de pièces tout en conservant la fiabilité, la traçabilité et le contrôle humain qu'exige la comptabilité. Le projet \textbf{ComptaFlow} répond à cet enjeu par une application web multi-tenant de gestion documentaire et de pré-comptabilité. La solution permet d'importer des factures et relevés bancaires, d'en extraire les données, d'identifier l'entreprise gérée et le tiers, de proposer des écritures comptables, puis de soumettre les résultats à validation.
+La transformation numérique des cabinets comptables soulève un double enjeu : accélérer le traitement d'un volume important de pièces tout en conservant la fiabilité, la traçabilité et le contrôle humain qu'exige la comptabilité. Le projet \textbf{ComptaFlow} répond à cet enjeu par une application web multi-tenant de gestion documentaire et de pré-comptabilité. La solution permet d'importer des factures et relevés bancaires, d'en extraire les données, d'identifier l'entreprise gérée et le tiers, de préparer des pré-écritures comptables, puis de soumettre les résultats à validation.
 
-L'application repose sur un frontend React et TypeScript, une API FastAPI, une base PostgreSQL et un traitement asynchrone assuré par Celery et Redis. Son pipeline combine Groq Vision, l'extraction de texte native des PDF, PaddleOCR, Groq texte et un repli local Regex/Ollama. Les règles comptables restent déterministes : l'intelligence artificielle détermine la nature économique, tandis que Python recherche le compte exact dans le plan comptable propre à l'entreprise. Le périmètre inclut également les chronos, la détection de doublons, le Grand Livre, la Balance, la TVA, le CPC, le Bilan, la clôture, les devises Bank Al-Maghrib et le rapprochement bancaire avancé.
+L'application repose sur un frontend React et TypeScript, une API FastAPI, une base PostgreSQL et un traitement asynchrone assuré par Celery et Redis. Son pipeline combine Groq Vision, l'extraction de texte native des PDF, PaddleOCR, Groq texte et un repli local Regex/Ollama. Les règles comptables restent déterministes : l'intelligence artificielle détermine la nature économique, tandis que Python recherche le compte exact dans le plan comptable propre à l'entreprise. Le périmètre inclut également les chronos, la détection de doublons, le Grand Livre, la Balance, la TVA, le CPC, le Bilan, les contrôles de pré-clôture, les devises Bank Al-Maghrib et le rapprochement bancaire avancé.
 
-La démarche suivie associe analyse du besoin, conception fonctionnelle, informationnelle et applicative, réalisation incrémentale, puis validation par des tests automatisés portant notamment sur les règles comptables, l'isolation des tenants, les états financiers et Banque V2.
+La démarche suivie associe analyse du besoin, conception fonctionnelle, informationnelle et applicative, réalisation incrémentale, puis validation par des tests automatisés portant notamment sur les règles comptables, l'isolation des tenants, les états financiers et la gestion bancaire avancée.
 
 \textbf{Mots-clés :} pré-comptabilité, OCR, intelligence artificielle, FastAPI, React, PostgreSQL, multi-tenant, rapprochement bancaire.
 
@@ -217,11 +324,11 @@ La démarche suivie associe analyse du besoin, conception fonctionnelle, informa
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
 
-The digital transformation of accounting firms creates a dual challenge: processing large volumes of documents faster while preserving accounting reliability, auditability, and human oversight. \textbf{ComptaFlow} addresses this challenge through a multi-tenant web platform for document management and pre-accounting. The system imports invoices and bank statements, extracts their data, identifies the managed company and the third party, proposes accounting entries, and submits the resulting information for professional review.
+The digital transformation of accounting firms creates a dual challenge: processing large volumes of documents faster while preserving accounting reliability, auditability, and human oversight. \textbf{ComptaFlow} addresses this challenge through a multi-tenant web platform for document management and pre-accounting. The system imports invoices and bank statements, extracts their data, identifies the managed company and the third party, prepares draft accounting entries, and submits the resulting information for professional review.
 
-The application uses a React and TypeScript frontend, a FastAPI backend, PostgreSQL, and asynchronous processing with Celery and Redis. Its pipeline combines Groq Vision, native PDF text extraction, PaddleOCR, Groq text processing, and a local Regex/Ollama fallback. Accounting decisions remain deterministic: artificial intelligence identifies the economic nature, while Python resolves the exact account from each company's own chart of accounts. The scope also covers document registers, duplicate detection, General Ledger, Trial Balance, VAT, income statement, balance sheet, closing entries, Bank Al-Maghrib exchange rates, and advanced bank reconciliation.
+The application uses a React and TypeScript frontend, a FastAPI backend, PostgreSQL, and asynchronous processing with Celery and Redis. Its pipeline combines Groq Vision, native PDF text extraction, PaddleOCR, Groq text processing, and a local Regex/Ollama fallback. Accounting decisions remain deterministic: artificial intelligence identifies the economic nature, while Python resolves the exact account from each company's own chart of accounts. The scope also covers document registers, duplicate detection, General Ledger, Trial Balance, VAT, income statement, balance sheet, pre-closing controls, Bank Al-Maghrib exchange rates, and advanced bank reconciliation.
 
-The adopted method combines requirements analysis, functional, information, and application design, incremental implementation, and automated validation of accounting rules, tenant isolation, financial statements, and Bank V2 features.
+The adopted method combines requirements analysis, functional, information, and application design, incremental implementation, and automated validation of accounting rules, tenant isolation, financial statements, and advanced bank-reconciliation features.
 
 \textbf{Keywords:} pre-accounting, OCR, artificial intelligence, FastAPI, React, PostgreSQL, multi-tenancy, bank reconciliation.
 \end{otherlanguage}
@@ -229,15 +336,19 @@ The adopted method combines requirements analysis, functional, information, and 
 % ============================================================
 % 4. Listes
 % ============================================================
+\begingroup
+\footnotesize
 \tableofcontents
+\endgroup
 \listoffigures
 \listoftables
 
 \chapter*{Liste des abréviations}
 \addcontentsline{toc}{chapter}{Liste des abréviations}
-\begin{longtable}{L{3cm}L{11cm}}
+\TableSetup
+\begin{longtable}{|L{3cm}|L{11cm}|}
 \toprule
-\textbf{Abréviation} & \textbf{Signification} \\
+\rowcolor{ComptaBlue}\TableHead{Abréviation} & \TableHead{Signification} \\
 \midrule
 API & Application Programming Interface, interface de programmation applicative. \\
 BAM & Bank Al-Maghrib. \\
@@ -295,7 +406,7 @@ Les objectifs du projet sont :
   \item centraliser les pièces comptables dans une interface sécurisée ;
   \item extraire les informations utiles sans altérer silencieusement les valeurs sources ;
   \item classifier les documents et déterminer correctement le sens achat/vente ;
-  \item préparer les informations nécessaires à la génération des écritures comptables conformément au plan comptable de chaque entreprise ;
+  \item préparer des pré-écritures comptables à partir des informations extraites et du plan comptable de chaque entreprise ;
   \item gérer les relevés, comptes bancaires, paiements partiels et allocations multiples ;
   \item produire les journaux, le Grand Livre, la Balance, la TVA, le CPC et le Bilan ;
   \item fournir des contrôles de cohérence et une piste d'audit ;
@@ -316,9 +427,37 @@ Sur le plan technique, chaque évolution était contrôlée au niveau du backend
 
 Cette démarche a permis de conserver une certaine souplesse tout au long du développement et d'adapter progressivement la solution aux besoins identifiés sur le terrain.
 
+\section{Déroulement du stage}
+
+Le stage s'est déroulé du 1\textsuperscript{er} au 30 juillet 2026. La
+chronologie suivante présente les activités dominantes par semaine plutôt que
+des dates journalières qui ne pourraient pas toutes être établies avec
+précision. Elle s'appuie sur la démarche de travail suivie, les livrables du
+projet et l'historique Git disponible. Celui-ci commence le 24 juillet et
+confirme principalement les développements, corrections et intégrations de la
+dernière semaine ; il ne constitue donc pas une preuve exhaustive des trois
+premières semaines.
+
+\begin{table}[H]
+\centering
+\caption{Déroulement synthétique du stage en juillet 2026}
+\footnotesize
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{2.1cm}|L{6.1cm}|Y|}
+\toprule
+\rowcolor{ComptaBlue}\TableHead{Période} & \TableHead{Activités principales} & \TableHead{Résultat} \\
+\midrule
+\shortstack[l]{Semaine 1\\1--7 juillet} & Observation du traitement comptable, découverte de Topaze, échanges métier et formulation du problème. & Processus actuel décrit, besoins initiaux et périmètre fonctionnel dégagés. \\
+\shortstack[l]{Semaine 2\\8--14 juillet} & Conception fonctionnelle, informationnelle et applicative ; organisation des rôles, des données et des composants. & Modèles de conception et architecture de référence établis. \\
+\shortstack[l]{Semaine 3\\15--21 juillet} & Développement incrémental du socle multi-tenant, de la gestion documentaire, du pipeline d'extraction et de la pré-comptabilité. & Première chaîne fonctionnelle intégrée, soumise aux retours métier. \\
+\shortstack[l]{Semaine 4\\22--30 juillet} & Enrichissement des fonctions bancaires et comptables, intégration frontend/backend, tests, corrections et préparation du rapport. & Version consolidée et validée ; les commits des 24, 25, 26 et 27 juillet attestent cette phase d'intégration et d'amélioration. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
 \section{Organisation du rapport}
 
-Après la présentation de l'entreprise d'accueil, le rapport expose le contexte et les besoins du projet. Il détaille ensuite la conception fonctionnelle, informationnelle et applicative. Les chapitres suivants présentent la réalisation, le pipeline de traitement, les principales fonctionnalités, les tests et les résultats. La conclusion dresse le bilan, les compétences acquises et les perspectives, avant les références et annexes.
+Après la présentation de l'entreprise d'accueil, le rapport expose le contexte du projet, puis un état de l'art situe ComptaFlow par rapport à la GED et à la pré-comptabilité assistée. Il présente ensuite les besoins et la conception fonctionnelle, informationnelle et applicative. Les chapitres suivants détaillent la réalisation, le pipeline de traitement, les principales fonctionnalités, les tests et les résultats. La conclusion dresse le bilan, les compétences acquises et les perspectives, avant les références et annexes.
 
 % ============================================================
 % 6. Présentation de l'entreprise
@@ -335,8 +474,11 @@ Ce chapitre présente l'entreprise d'accueil, ses principales activités, son or
 \begin{table}[H]
 \centering
 \caption{Fiche d'identité de l'entreprise d'accueil}
-\begin{tabularx}{\textwidth}{L{5cm}Y}
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{5cm}|Y|}
 \toprule
+\rowcolor{ComptaBlue}\TableHead{Élément} & \TableHead{Information} \\
+\midrule
 \textbf{Raison sociale} & SEGURIBAT \\
 \textbf{Secteur d'activité} & Comptabilité, fiscalité, accompagnement administratif et conseil aux entreprises \\
 \textbf{Adresse} & 261, boulevard de Témara, Hay Moulay Abdellah, Aïn Chock, Casablanca \\
@@ -451,9 +593,10 @@ Les principaux outils observés peuvent être résumés comme suit :
 \centering
 \caption{Outils et technologies utilisés par SEGURIBAT}
 \label{tab:technologies-seguribat}
-\begin{tabularx}{\textwidth}{L{3.2cm}L{4.2cm}Y}
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{3.2cm}|L{4.2cm}|Y|}
 \toprule
-\textbf{Catégorie} & \textbf{Outils et moyens} & \textbf{Usage principal} \\
+\rowcolor{ComptaBlue}\TableHead{Catégorie} & \TableHead{Outils et moyens} & \TableHead{Usage principal} \\
 \midrule
 Gestion documentaire & Documents papier, imprimantes et scanners & Réception, classement, impression et numérisation des pièces \\
 Logiciel comptable & Topaze & Saisie, journaux comptables, TVA, paie, immobilisations et états de synthèse \\
@@ -545,9 +688,10 @@ La succession de ces opérations mobilise un temps important, en particulier lor
 \centering
 \caption{Solutions utilisées par SEGURIBAT et limites observées}
 \label{tab:solutions-existantes-seguribat}
-\begin{tabularx}{\textwidth}{L{3.3cm}L{5.1cm}Y}
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{3.3cm}|L{5.1cm}|Y|}
 \toprule
-\textbf{Solution utilisée} & \textbf{Utilisation} & \textbf{Limites observées} \\
+\rowcolor{ComptaBlue}\TableHead{Solution utilisée} & \TableHead{Utilisation} & \TableHead{Limites observées} \\
 \midrule
 \textbf{Chronos physiques} & Classer les pièces par entreprise, année et catégorie. & Classement manuel et recherche lente en cas d'anomalie. \\
 \textbf{Traitement manuel des pièces} & Identifier l'entreprise, lire la pièce et relever les informations nécessaires. & Processus répétitif, long et exposé aux erreurs de transcription. \\
@@ -572,12 +716,169 @@ Le système sépare trois responsabilités : l'IA extrait et propose une nature 
 \begin{enumerate}[leftmargin=*]
   \item Centraliser et sécuriser les pièces comptables afin de faciliter leur stockage et leur recherche.
   \item Automatiser l'extraction et le classement des documents, avec des mécanismes de repli en cas d'échec.
-  \item Préparer les données comptables en s'appuyant sur le plan comptable de chaque entreprise et en maintenant une validation humaine lorsque nécessaire.
+  \item Préparer des pré-écritures comptables à partir des informations extraites et du plan comptable de l'entreprise, tout en maintenant une validation humaine lorsque nécessaire.
   \item Assurer la séparation et la confidentialité des données entre les différentes entreprises clientes du cabinet.
   \item Gérer les opérations bancaires et les rapprochements, y compris les paiements partiels et multiples.
   \item Produire les principaux journaux et états comptables et assister la préparation de la clôture.
   \item Préserver la traçabilité des données et faciliter leur exploitation dans le flux comptable existant, notamment avec Topaze.
 \end{enumerate}
+
+\section{Périmètre et limites du projet}
+
+ComptaFlow assiste la gestion documentaire et la pré-comptabilité en automatisant
+les opérations situées en amont du logiciel comptable. Les tableaux suivants
+délimitent les fonctions confirmées dans la version documentée et les éléments
+qui ne sont pas revendiqués comme réalisés.
+
+\begin{table}[H]
+\centering
+\caption{Périmètre fonctionnel couvert par ComptaFlow}
+\footnotesize
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{3.5cm}|Y|}
+\toprule
+\rowcolor{ComptaBlue}\TableHead{Domaine} & \TableHead{Éléments couverts} \\
+\midrule
+Accès et isolation & Authentification, rôles, séparation par cabinet et isolation des dossiers d'entreprises. \\
+Gestion documentaire & Entreprises, documents, import PDF/PNG/JPEG, chronos numériques et détection des doublons binaires. \\
+Extraction et identification & Pipeline OCR/IA, identification de l'entreprise et du tiers, classification achat/vente et contrôles de cohérence. \\
+Pré-comptabilité & Préparation et validation humaine des pré-écritures, plan comptable propre à l'entreprise et lignes débit/crédit. \\
+Banque & Relevés, comptes bancaires, mouvements, paiements partiels ou multiples et rapprochements par allocations. \\
+Devises & Conservation des montants d'origine, conversion séparée en MAD et cours Bank Al-Maghrib. \\
+États et contrôles & Grand Livre, Balance, TVA, CPC, Bilan et contrôles de pré-clôture à partir des données validées. \\
+Suivi et exploitation & Tableau de bord, tâches, rappels, notifications et exports génériques CSV, XLSX et PDF. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Éléments hors périmètre ou limites de la version documentée}
+\footnotesize
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{4.2cm}|Y|}
+\toprule
+\rowcolor{ComptaBlue}\TableHead{Élément} & \TableHead{Délimitation retenue} \\
+\midrule
+Topaze & Le remplacement de Topaze est hors périmètre et aucune intégration automatique directe n'a été réalisée pendant le stage. \\
+Autonomie comptable et obligations officielles & La comptabilité sans validation humaine est exclue ; la télétransmission fiscale officielle et un moteur complet de paie ne sont pas intégrés. \\
+Canaux d'accès & Aucune application mobile native n'a été réalisée ; l'accès repose sur l'application web responsive. \\
+Archivage & Le stockage documentaire actuel n'est pas présenté comme un dispositif d'archivage légal ou probant. \\
+Exploitation en production & L'hébergement 24/7, la haute disponibilité et une industrialisation complète ne sont pas revendiqués ; ils constituent des conditions d'évolution. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Les résultats ambigus ou sensibles restent soumis à une validation humaine.
+Dans un contexte réel, l'usage de services d'intelligence artificielle externes
+nécessiterait en outre une politique explicite de confidentialité et de
+protection des documents.
+
+% ============================================================
+% État de l'art
+% ============================================================
+\chapter{État de l'art et positionnement de ComptaFlow}
+
+\section{Gestion électronique des documents}
+
+Dans un cabinet comptable, une gestion électronique des documents organise le
+cycle de vie opérationnel des pièces reçues. Elle couvre leur acquisition, leur
+classement, l'indexation des informations utiles, la recherche et la
+traçabilité des opérations réalisées. Le rattachement à une entreprise, à une
+période et à une catégorie permet de retrouver un document dans son contexte
+comptable, tandis que le contrôle d'accès limite sa consultation aux
+utilisateurs autorisés.
+
+Une GED classique apporte ainsi un classement plus structuré que des dossiers
+partagés ou des chronos physiques. Elle ne suffit toutefois pas, à elle seule,
+à interpréter le sens comptable de la pièce, à contrôler ses montants ou à
+préparer une affectation conforme au plan comptable propre au dossier.
+
+\section{Pré-comptabilité assistée}
+
+La pré-comptabilité regroupe les opérations préparatoires qui précèdent la
+validation comptable : collecte des pièces, extraction des données, contrôles,
+identification de l'entreprise et du tiers, classification achat/vente,
+recherche des comptes possibles, préparation des pré-écritures, contrôle de la
+TVA, rapprochement bancaire et préparation des exports. Elle vise à réduire les
+tâches répétitives sans transférer au système la responsabilité professionnelle
+du comptable.
+
+L'assistance doit donc préserver les données sources, rendre visibles les
+incertitudes et laisser à un utilisateur habilité la correction, la validation
+ou le rejet. Cette distinction est essentielle : une proposition automatisée
+reste une pré-écriture tant qu'elle n'a pas satisfait les règles d'intégrité et
+le contrôle humain prévus.
+
+\section{OCR, règles métier et intelligence artificielle}
+
+Une stratégie hybride combine plusieurs techniques complémentaires. La couche
+texte d'un PDF natif évite un OCR inutile ; un OCR local traite les documents
+numérisés ; des règles déterministes appliquent les contraintes connues ; une
+IA peut interpréter des mises en page ou des formulations plus variables. Des
+mécanismes de repli limitent la dépendance à une méthode unique, mais aucun
+résultat ambigu ne doit être validé automatiquement.
+
+Dans ComptaFlow, Groq Vision constitue le chemin principal. En cas d'échec, le
+système tente l'extraction native du PDF ou PaddleOCR. Le texte obtenu est
+traité par une branche bancaire spécialisée ou par Groq texte ; si ce service
+n'est pas exploitable, les expressions régulières, les heuristiques et un
+enrichissement local par Ollama assurent le repli\cite{paddleocr,groq,ollama}.
+Les contrôles Python et le plan comptable de l'entreprise déterminent
+ensuite les décisions comptables vérifiables. La section consacrée au pipeline
+détaille cette séquence sans la répéter ici.
+
+\section{Positionnement de ComptaFlow}
+
+ComptaFlow se situe entre une GED classique et un logiciel comptable complet.
+Sa valeur porte sur le traitement amont, la préparation comptable, la
+traçabilité, l'association OCR/IA et règles métier, ainsi que le rapprochement
+bancaire sous contrôle humain.
+
+\begin{table}[H]
+\centering
+\caption{Positionnement comparatif des approches de traitement documentaire}
+\footnotesize
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{3.1cm}|L{3.7cm}|L{3.7cm}|Y|}
+\toprule
+\rowcolor{ComptaBlue}\TableHead{Approche} & \TableHead{Atouts} & \TableHead{Limites} & \TableHead{Adéquation au besoin} \\
+\midrule
+Dossiers partagés / classement manuel & Simplicité, habitudes existantes et faible coût initial. & Recherche lente, saisies répétitives et traçabilité limitée. & Adapté à un faible volume, moins au portefeuille important observé. \\
+GED classique & Centralisation, indexation, recherche et gestion des accès. & Interprétation et préparation comptable souvent limitées. & Répond au classement, mais seulement à une partie du processus amont. \\
+SaaS comptable fermé & Fonctions intégrées et exploitation immédiate dans son propre environnement. & Personnalisation, transparence et interopérabilité dépendantes de l'éditeur. & Pertinent si les règles, la confidentialité et les formats correspondent au cabinet. \\
+ComptaFlow & Pipeline hybride, règles métier, plan par entreprise, banque et validation humaine. & Solution de stage non industrialisée et sans connecteur direct Topaze. & Couvre la préparation située entre la réception des pièces et le logiciel comptable de référence. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Justification synthétique des choix techniques}
+
+Cette comparaison ne constitue pas un benchmark de performances. Elle explicite
+les raisons architecturales des choix retenus face à des alternatives possibles.
+
+\begin{table}[H]
+\centering
+\caption{Choix techniques et alternatives possibles}
+\footnotesize
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{2.2cm}|L{3.4cm}|L{3.4cm}|Y|}
+\toprule
+\rowcolor{ComptaBlue}\TableHead{Domaine} & \TableHead{Choix retenu} & \TableHead{Alternatives possibles} & \TableHead{Justification} \\
+\midrule
+Frontend & React et TypeScript & Vue ou Angular & Composants réutilisables, typage et cohérence avec l'architecture du projet. \\
+Backend & FastAPI & Django REST ou Node.js & Validation Pydantic, API REST et intégration naturelle avec les traitements Python. \\
+Base & PostgreSQL & MySQL ou base NoSQL & Transactions, contraintes relationnelles, types JSONB et fiabilité des données comptables. \\
+Asynchrone & Celery et Redis & RQ ou traitement synchrone & Découplage des traitements longs, file de tâches et mécanismes de reprise. \\
+OCR & PaddleOCR & Tesseract ou OCR cloud & Solution locale conservée comme mécanisme de repli pour les documents numérisés. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ces choix s'appuient sur les capacités documentées des composants concernés,
+notamment FastAPI, PostgreSQL, Celery et Redis
+\cite{fastapi,postgresql,celery,redis}, sans prétendre qu'un benchmark comparatif
+des alternatives a été réalisé.
 
 % ============================================================
 % 8. Besoins
@@ -592,9 +893,10 @@ Le système distingue les rôles techniques d'administration des rôles liés au
 \centering
 \caption{Acteurs de ComptaFlow et responsabilités principales}
 \label{tab:acteurs-comptaflow}
-\begin{tabularx}{\textwidth}{L{4.2cm}Y}
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{4.2cm}|Y|}
 \toprule
-\textbf{Acteur} & \textbf{Responsabilités principales} \\
+\rowcolor{ComptaBlue}\TableHead{Acteur} & \TableHead{Responsabilités principales} \\
 \midrule
 \textbf{Super-administrateur} & Assure l'administration technique globale, la configuration initiale et certaines opérations de maintenance de la plateforme. Durant le développement et les tests, ce rôle a été assuré par la développeuse du projet. \\
 \textbf{Administrateur du cabinet} & Gère les utilisateurs du cabinet, attribue les rôles et supervise les paramètres liés à son organisation. \\
@@ -612,30 +914,31 @@ L'accès à l'application est protégé par authentification. Après connexion, 
 
 \section{Besoins fonctionnels}
 
-\begin{longtable}{L{1.4cm}L{5cm}L{8cm}}
+\TableSetup
+\begin{longtable}{|L{1.4cm}|L{5cm}|L{8cm}|}
 \caption{Besoins fonctionnels principaux}\label{tab:bf}\\
 \toprule
-\textbf{ID} & \textbf{Besoin} & \textbf{Description} \\
+\rowcolor{ComptaBlue}\TableHead{ID} & \TableHead{Besoin} & \TableHead{Description} \\
 \midrule
 \endfirsthead
 \toprule
-\textbf{ID} & \textbf{Besoin} & \textbf{Description} \\
+\rowcolor{ComptaBlue}\TableHead{ID} & \TableHead{Besoin} & \TableHead{Description} \\
 \midrule
 \endhead
-BF01 & Authentification et rôles & Permettre la connexion des utilisateurs et limiter les actions selon le rôle attribué. \\
-BF02 & Isolation des données & Séparer les données de chaque entreprise cliente et garantir qu'un utilisateur n'accède qu'aux informations autorisées. \\
-BF03 & Import documentaire & Importer des factures, relevés et autres pièces autorisées tout en contrôlant leur format, leur taille et les éventuels doublons. \\
-BF04 & Extraction des données & Extraire automatiquement les informations utiles des documents et prévoir un mécanisme de repli lorsque l'extraction principale échoue. \\
-BF05 & Identification et classification & Identifier l'entreprise concernée, reconnaître le tiers et déterminer la nature du document, notamment achat ou vente. \\
-BF06 & Chronos numériques & Classer automatiquement les documents par entreprise, année, mois et catégorie. \\
-BF07 & Préparation comptable & Générer une pré-écriture à partir des informations extraites et permettre sa correction, sa validation ou son rejet. \\
-BF08 & Plan comptable & Importer et gérer le plan comptable propre à chaque entreprise afin d'utiliser les comptes appropriés. \\
-BF09 & Gestion bancaire & Gérer les relevés et comptes bancaires ainsi que les rapprochements simples, partiels, multiples et les virements internes. \\
-BF10 & Gestion des devises & Conserver le montant et la devise d'origine, récupérer le taux de change correspondant et effectuer séparément la conversion en MAD. \\
-BF11 & États comptables & Produire le Grand Livre, la Balance, la TVA, le CPC et le Bilan à partir des données comptables validées. \\
-BF12 & Pré-clôture & Contrôler la cohérence des comptes, signaler les anomalies et préparer les opérations nécessaires à la clôture sous validation humaine. \\
-BF13 & Pilotage et suivi & Fournir un tableau de bord, des alertes, des notifications, des tâches et des outils de recherche permettant de suivre l'activité. \\
-BF14 & Export & Exporter les données et registres et préparer des informations exploitables dans le flux de travail avec Topaze. \\
+\TableId{BF01} & Authentification et rôles & Permettre la connexion des utilisateurs et limiter les actions selon le rôle attribué. \\
+\TableId{BF02} & Isolation des données & Garantir l'isolation des données entre les cabinets et, au sein de chaque cabinet, entre les différents dossiers d'entreprises selon les droits autorisés. \\
+\TableId{BF03} & Import documentaire & Importer des factures, relevés et autres pièces autorisées tout en contrôlant leur format, leur taille et les éventuels doublons. \\
+\TableId{BF04} & Extraction des données & Extraire automatiquement les informations utiles des documents et prévoir un mécanisme de repli lorsque l'extraction principale échoue. \\
+\TableId{BF05} & Identification et classification & Identifier l'entreprise concernée, reconnaître le tiers et déterminer la nature du document, notamment achat ou vente. \\
+\TableId{BF06} & Chronos numériques & Classer automatiquement les documents par entreprise, année, mois et catégorie. \\
+\TableId{BF07} & Préparation comptable & Générer une pré-écriture à partir des informations extraites et permettre sa correction, sa validation ou son rejet. \\
+\TableId{BF08} & Plan comptable & Importer et gérer le plan comptable propre à chaque entreprise afin d'utiliser les comptes appropriés. \\
+\TableId{BF09} & Gestion bancaire & Gérer les relevés et comptes bancaires ainsi que les rapprochements simples, partiels, multiples et les virements internes. \\
+\TableId{BF10} & Gestion des devises & Conserver le montant et la devise d'origine, récupérer le taux de change correspondant et effectuer séparément la conversion en MAD. \\
+\TableId{BF11} & États comptables & Produire le Grand Livre, la Balance, la TVA, le CPC et le Bilan à partir des données comptables validées. \\
+\TableId{BF12} & Pré-clôture & Contrôler la cohérence des comptes, signaler les anomalies et préparer les opérations nécessaires à la clôture sous validation humaine. \\
+\TableId{BF13} & Pilotage et suivi & Fournir un tableau de bord, des alertes, des notifications, des tâches et des outils de recherche permettant de suivre l'activité. \\
+\TableId{BF14} & Export & Exporter les données et registres et préparer des informations exploitables dans le flux de travail avec Topaze. \\
 \bottomrule
 \end{longtable}
 
@@ -643,26 +946,27 @@ BF14 & Export & Exporter les données et registres et préparer des informations
 
 Les besoins non fonctionnels définissent les exigences de qualité, de sécurité et de fiabilité auxquelles le système doit répondre.
 
-\begin{longtable}{L{1.4cm}L{4.2cm}L{8.8cm}}
+\TableSetup
+\begin{longtable}{|L{1.5cm}|L{4.2cm}|L{8.7cm}|}
 \caption{Besoins non fonctionnels}\label{tab:bnf}\\
 \toprule
-\textbf{ID} & \textbf{Qualité} & \textbf{Exigence} \\
+\rowcolor{ComptaBlue}\TableHead{ID} & \TableHead{Qualité} & \TableHead{Exigence} \\
 \midrule
 \endfirsthead
 \toprule
-\textbf{ID} & \textbf{Qualité} & \textbf{Exigence} \\
+\rowcolor{ComptaBlue}\TableHead{ID} & \TableHead{Qualité} & \TableHead{Exigence} \\
 \midrule
 \endhead
-BNF01 & Sécurité & Protéger l'accès par authentification, mots de passe sécurisés et contrôle des droits selon le rôle. \\
-BNF02 & Confidentialité & Garantir l'isolation des données entre les différentes entreprises et empêcher tout accès non autorisé à un autre dossier. \\
-BNF03 & Intégrité des données & Conserver les valeurs extraites d'origine et signaler toute incohérence sans modification silencieuse. \\
-BNF04 & Fiabilité comptable & Refuser les pré-écritures déséquilibrées et ne jamais générer de compte ou de donnée comptable fictive. \\
-BNF05 & Traçabilité & Conserver les données d'origine, les statuts, les erreurs et les actions de validation afin de permettre le suivi des traitements. \\
-BNF06 & Résilience & Prévoir des mécanismes de reprise et des méthodes alternatives lorsque certains traitements d'extraction échouent. \\
-BNF07 & Performance & Exécuter les traitements lourds sans bloquer l'utilisation de l'interface et maintenir des temps de réponse acceptables. \\
-BNF08 & Maintenabilité & Organiser l'application en composants et services séparés afin de faciliter les corrections et les évolutions. \\
-BNF09 & Portabilité & Permettre le déploiement de l'application dans différents environnements avec une configuration adaptée. \\
-BNF10 & Ergonomie & Proposer une interface claire, responsive et simple à utiliser, avec des statuts, filtres et actions facilement identifiables. \\
+\TableId{BNF01} & Sécurité & Protéger l'accès par authentification, mots de passe sécurisés et contrôle des droits selon le rôle. \\
+\TableId{BNF02} & Confidentialité & Protéger les données entre les cabinets et, dans chaque cabinet, isoler les dossiers des entreprises afin d'empêcher tout accès non autorisé. \\
+\TableId{BNF03} & Intégrité des données & Conserver les valeurs extraites d'origine et signaler toute incohérence sans modification silencieuse. \\
+\TableId{BNF04} & Fiabilité comptable & Refuser les pré-écritures déséquilibrées et ne jamais générer de compte ou de donnée comptable fictive. \\
+\TableId{BNF05} & Traçabilité & Conserver les données d'origine, les statuts, les erreurs et les actions de validation afin de permettre le suivi des traitements. \\
+\TableId{BNF06} & Résilience & Prévoir des mécanismes de reprise et des méthodes alternatives lorsque certains traitements d'extraction échouent. \\
+\TableId{BNF07} & Performance & Exécuter les traitements lourds sans bloquer l'utilisation de l'interface et maintenir des temps de réponse acceptables. \\
+\TableId{BNF08} & Maintenabilité & Organiser l'application en composants et services séparés afin de faciliter les corrections et les évolutions. \\
+\TableId{BNF09} & Portabilité & Permettre le déploiement de l'application dans différents environnements avec une configuration adaptée. \\
+\TableId{BNF10} & Ergonomie & Proposer une interface claire, responsive et simple à utiliser, avec des statuts, filtres et actions facilement identifiables. \\
 \bottomrule
 \end{longtable}
 
@@ -758,7 +1062,7 @@ Le diagramme de cas d'utilisation présente les principales interactions entre l
 
   % Acteurs UML à droite ; le rôle technique est séparé visuellement
   \pic at (15.05,10.45) {umlactor};
-  \node[actorLabel, draw=ComptaOrange!70!black, rounded corners=2pt]
+  \node[actorLabel, draw=ComptaSlate, rounded corners=2pt]
     at (15.05,9.45) {Super-\\administrateur};
   \coordinate (superLink) at (14.30,10.45);
 
@@ -891,9 +1195,9 @@ Afin de compléter la représentation fonctionnelle précédente, le diagramme s
   seqReturn/.style={-{Latex[length=2mm]}, draw=ComptaGray, dashed},
   seqLabel/.style={font=\scriptsize, fill=white, inner sep=1.5pt, align=center},
   seqNote/.style={
-    draw=ComptaOrange,
+    draw=ComptaSlate,
     rounded corners=3pt,
-    fill=orange!6,
+    fill=ComptaGray!6,
     text width=4.2cm,
     align=left,
     font=\scriptsize
@@ -928,11 +1232,11 @@ Afin de compléter la représentation fonctionnelle précédente, le diagramme s
   \draw[seqMessage] (11.75,-5.75) -- node[seqLabel,above]{Statut : en traitement} (7.05,-5.75);
   \draw[seqMessage] (11.75,-6.35) -- node[seqLabel,above]{Extraire et classifier} (14.1,-6.35);
   \draw[seqReturn] (14.1,-6.95) -- node[seqLabel,above]{Texte et données extraites} (11.75,-6.95);
-  \node[seqLabel, font=\scriptsize\itshape, text=ComptaOrange, anchor=east] at (14.1,-7.45) {Repli si l'extraction est insuffisante};
+  \node[seqLabel, font=\scriptsize\itshape, text=ComptaSlate, anchor=east] at (14.1,-7.45) {Repli si l'extraction est insuffisante};
   \draw[seqMessage] (11.75,-8.55) -- node[seqLabel,above]{Identifier, classer et préparer\\la pré-écriture} (14.1,-8.55);
   \draw[seqReturn] (14.1,-9.15) -- node[seqLabel,above]{Résultat et anomalies éventuelles} (11.75,-9.15);
   \draw[seqMessage] (11.75,-9.75) -- node[seqLabel,above]{Enregistrer résultats, statut\\et pré-écriture} (7.05,-9.75);
-  \node[seqLabel, font=\scriptsize\itshape, text=ComptaOrange, anchor=east] at (14.1,-10.35) {Ambiguïté : données conservées, contrôle humain requis};
+  \node[seqLabel, font=\scriptsize\itshape, text=ComptaSlate, anchor=east] at (14.1,-10.35) {Ambiguïté : données conservées, contrôle humain requis};
 
   % Consultation puis décision humaine
   \draw[seqMessage] (2.35,-11.25) -- node[seqLabel,above]{Consulter l'avancement} (4.7,-11.25);
@@ -960,9 +1264,10 @@ Certaines décisions nécessitent des règles métier précises afin d'éviter u
 \centering
 \caption{Principales règles fonctionnelles appliquées}
 \label{tab:regles-fonctionnelles-critiques}
-\begin{tabularx}{\textwidth}{L{4.1cm}Y}
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{4.1cm}|Y|}
 \toprule
-\textbf{Règle} & \textbf{Principe appliqué} \\
+\rowcolor{ComptaBlue}\TableHead{Règle} & \TableHead{Principe appliqué} \\
 \midrule
 Identification achat / vente & Pour un achat, l'entreprise gérée est destinataire et le tiers est fournisseur. Pour une vente, l'entreprise est émettrice et le tiers est client. La classification ne repose donc pas uniquement sur le nom du tiers. \\
 Contrôle des montants & Les montants HT, TVA et TTC extraits de la pièce sont conservés comme données de référence. Les calculs réalisés servent principalement à vérifier leur cohérence et à signaler les anomalies. \\
@@ -1047,9 +1352,10 @@ Le rapprochement est une association porteuse de propriétés. Une pré-écritur
 \begin{table}[H]
 \centering
 \caption{Règles de cardinalité du MCD}
-\begin{tabularx}{\textwidth}{L{3.5cm}L{3cm}Y}
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{3.5cm}|L{3cm}|Y|}
 \toprule
-\textbf{Association} & \textbf{Cardinalités} & \textbf{Règle métier} \\
+\rowcolor{ComptaBlue}\TableHead{Association} & \TableHead{Cardinalités} & \TableHead{Règle métier} \\
 \midrule
 APPARTENIR & Cabinet 0,N ; utilisateur 1,1 & Tout utilisateur dépend d'un seul cabinet. \\
 GÉRER & Cabinet 0,N ; entreprise 1,1 & Une entreprise gérée ne peut appartenir qu'à un cabinet. \\
@@ -1072,14 +1378,15 @@ AFFECTER & Compte bancaire 0,N ; mouvement 0,1 & L'affectation reste facultative
 Le passage au MLD transforme les associations de type 1,N en clés étrangères placées du côté N. L'association N,N \textsc{Rapprocher} devient une relation autonome. La notation \textbf{PK} indique une clé primaire, \textit{FK} une clé étrangère et \textsc{UQ} une contrainte d'unicité.
 
 \small
-\begin{longtable}{L{4.4cm}L{10cm}}
+\TableSetup
+\begin{longtable}{|L{4.4cm}|L{10cm}|}
 \caption{MLD relationnel de ComptaFlow}\label{tab:mld-merise}\\
 \toprule
-\textbf{Relation} & \textbf{Attributs logiques principaux} \\
+\rowcolor{ComptaBlue}\TableHead{Relation} & \TableHead{Attributs logiques principaux} \\
 \midrule
 \endfirsthead
 \toprule
-\textbf{Relation} & \textbf{Attributs logiques principaux} \\
+\rowcolor{ComptaBlue}\TableHead{Relation} & \TableHead{Attributs logiques principaux} \\
 \midrule
 \endhead
 CABINET & \textbf{PK} id, nom, ICE \textsc{UQ}, adresse, téléphone, email, actif \\
@@ -1087,20 +1394,24 @@ UTILISATEUR & \textbf{PK} id, \textit{FK} cabinet\_id, email \textsc{UQ}, mot\_d
 ENTREPRISE & \textbf{PK} id, \textit{FK} cabinet\_id, nom, ICE, IF, RC, forme\_juridique, adresse, actif ; \textsc{UQ}(cabinet\_id, ICE) \\
 CHRONO & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id \textsc{UQ}, nom \\
 DOCUMENT & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK?} entreprise\_id, \textit{FK?} chrono\_id, \textit{FK} uploaded\_by, année, mois, catégorie, fichier, hash, statut, texte\_ocr, données\_extraites \\
-ÉCRITURE COMPTABLE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, \textit{FK} document\_id, \textit{FK?} validated\_by, type, comptes, HT, TVA, TTC, devise, statut \\
-LIGNE COMPTABLE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, \textit{FK?} écriture\_id, \textit{FK?} mouvement\_id, \textit{FK?} régularisation\_id, date, journal, compte, débit, crédit, ordre, validée \\
+\shortstack[l]{PRÉ-ÉCRITURE\\COMPTABLE\\(\texttt{ecritures\_}\\\texttt{comptables})} & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, \textit{FK} document\_id, \textit{FK?} validated\_by, type, comptes, HT, TVA, TTC, devise, statut, dates et référence de saisie Topaze \\
+LIGNE COMPTABLE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, \textit{FK?} écriture\_id, \textit{FK?} mouvement\_id, \textit{FK?} régularisation\_id, \textit{FK?} période\_TVA\_id, date, journal, compte, débit, crédit, ordre, validée \\
 \shortstack[l]{COMPTE COMPTABLE\\ENTREPRISE} & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, numéro, libellé, famille, usage, nature, tiers ; \textsc{UQ}(cabinet\_id, entreprise\_id, numéro) \\
 \shortstack[l]{COMPTE BANCAIRE\\ENTREPRISE} & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, libellé, banque, RIB, IBAN, BIC, devise, numéro\_compte\_comptable \\
 MOUVEMENT BANCAIRE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, \textit{FK} document\_id, \textit{FK?} compte\_bancaire\_id, \textit{FK?} mouvement\_lié\_id, date, libellé, type\_mouvement, montant, devise, rapprochement \\
 \shortstack[l]{RAPPROCHEMENTS\\BANCAIRES\\ALLOCATIONS} & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, \textit{FK} mouvement\_bancaire\_id, \textit{FK} écriture\_id, montant\_affecté, écart\_change, statut, score ; \textsc{UQ}(mouvement\_bancaire\_id, écriture\_id) \\
-\shortstack[l]{TVA\\CONFIGURATIONS\\ENTREPRISE} & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, périodicité, prorata, retenue ; \textsc{UQ}(cabinet\_id, entreprise\_id) \\
-TVA\_PÉRIODE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, année, mois, statut, collectée, récupérable, crédits, TVA\_nette, anomalies ; \textsc{UQ}(cabinet\_id, entreprise\_id, année, mois) \\
+\shortstack[l]{TVA\\CONFIGURATIONS\\ENTREPRISE} & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, périodicité, prorata, retenue, comptes exacts de TVA collectée, récupérable, à payer et crédit ; \textsc{UQ}(cabinet\_id, entreprise\_id) \\
+TVA\_PÉRIODE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, année, mois, statut comptable, statut déclaratif, collectée, récupérable, crédits, TVA\_nette, échéance, déclaration et référence Topaze ; \textsc{UQ}(cabinet\_id, entreprise\_id, année, mois) \\
 TVA RÉGULARISATION & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, \textit{FK} période\_id, nature, montant\_signé, motif, date, statut \\
 \shortstack[l]{TVA CRÉDIT\\UTILISATION} & \textbf{PK} id, \textit{FK} entreprise\_id, \textit{FK} période\_source\_id \textsc{UQ}, \textit{FK} période\_destination\_id \textsc{UQ}, montant\_utilisé \\
 \shortstack[l]{RÉGULARISATION\\CLÔTURE} & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, exercice, date, type, libellé, montant, comptes, statut, anomalies \\
 TAUX CHANGE BAM & \textbf{PK} id, date\_cours, devise, unité, cours\_achat, cours\_vente, source ; \textsc{UQ}(date\_cours, devise, source) \\
-TÂCHE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK?} entreprise\_id, \textit{FK} cree\_par, \textit{FK?} assignee\_a, titre, échéance, priorité, récurrence, statut \\
-AUDIT LOG & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK?} user\_id, action, détails, adresse\_IP, horodatage \\
+ANOMALIE COMPTABLE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, \textit{FK?} écriture\_id, code, niveau, message, statut, résolution \\
+DOCUMENT ATTENDU & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, type, fréquence, période, échéance, quantité attendue et reçue, statut \\
+PÉRIODE DE TRAVAIL & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} entreprise\_id, exercice, début, fin, statut, verrouillage, réouverture et justification \\
+TÂCHE & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK?} entreprise\_id, \textit{FK} cree\_par, \textit{FK?} assignee\_a, titre, date et heure d'échéance, priorité, récurrence, statut \\
+MESSAGE CABINET & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK} expéditeur\_id, \textit{FK} destinataire\_id, contenu, lecture, date d'envoi \\
+AUDIT LOG & \textbf{PK} id, \textit{FK} cabinet\_id, \textit{FK?} entreprise\_id, \textit{FK?} user\_id, action, module, ressource, valeurs avant/après, métadonnées, adresse IP et horodatage \\
 \bottomrule
 \end{longtable}
 \normalsize
@@ -1112,14 +1423,15 @@ Le MCD retient la règle fonctionnelle d'une seule pré-écriture par facture. L
 Le MPD applique le MLD à PostgreSQL. Les identifiants sont des \texttt{UUID}, les montants utilisent \texttt{NUMERIC} afin d'éviter les erreurs d'arrondi binaires, et les données d'extraction auditables sont stockées en \texttt{JSONB}. Les objets dépendants utilisent des actions référentielles explicites, principalement \texttt{ON DELETE CASCADE} pour les portées cabinet et entreprise et \texttt{SET NULL} pour certaines références optionnelles.
 
 \small
-\begin{longtable}{L{4cm}L{4.2cm}L{6.1cm}}
+\TableSetup
+\begin{longtable}{|L{4cm}|L{4.2cm}|L{6.1cm}|}
 \caption{MPD PostgreSQL : types et contraintes structurantes}\label{tab:mpd-merise}\\
 \toprule
-\textbf{Table / colonne} & \textbf{Type physique} & \textbf{Contraintes ou usage} \\
+\rowcolor{ComptaBlue}\TableHead{Table / colonne} & \TableHead{Type physique} & \TableHead{Contraintes ou usage} \\
 \midrule
 \endfirsthead
 \toprule
-\textbf{Table / colonne} & \textbf{Type physique} & \textbf{Contraintes ou usage} \\
+\rowcolor{ComptaBlue}\TableHead{Table / colonne} & \TableHead{Type physique} & \TableHead{Contraintes ou usage} \\
 \midrule
 \endhead
 Toutes les tables métier : \texttt{id} & \texttt{UUID} & Clé primaire, valeur générée par UUID4. \\
@@ -1151,8 +1463,8 @@ Taux BAM & \shortstack[l]{\texttt{UNIQUE(date\_cours,}\\\texttt{devise, source)}
 \begin{tikzpicture}[node distance=0.45cm]
   \node[layer, fill=blue!6] (mcd) {MCD : entités, associations, propriétés et cardinalités métier};
   \node[layer, fill=green!7, below=of mcd] (mld) {MLD : relations, clés primaires, clés étrangères et unicités};
-  \node[layer, fill=orange!7, below=of mld] (mpd) {MPD PostgreSQL : UUID, NUMERIC, JSONB, index, CHECK et actions référentielles};
-  \node[layer, fill=red!5, below=of mpd] (orm) {Implémentation : modèles SQLAlchemy + migrations Alembic};
+  \node[layer, fill=ComptaBlue!5, below=of mld] (mpd) {MPD PostgreSQL : UUID, NUMERIC, JSONB, index, CHECK et actions référentielles};
+  \node[layer, fill=ComptaGray!6, below=of mpd] (orm) {Implémentation : modèles SQLAlchemy + migrations Alembic};
   \draw[flow] (mcd) -- (mld);
   \draw[flow] (mld) -- (mpd);
   \draw[flow] (mpd) -- (orm);
@@ -1166,14 +1478,15 @@ Taux BAM & \shortstack[l]{\texttt{UNIQUE(date\_cours,}\\\texttt{devise, source)}
 Afin d'éviter de répéter le MLD complet, ce dictionnaire est volontairement limité aux tables du cœur documentaire, comptable et bancaire représentées dans le MCD. Les tables spécialisées de TVA, de change, de clôture, de tâches et d'audit restent recensées dans le MLD.
 
 \small
-\begin{longtable}{L{5.4cm}L{9cm}}
+\TableSetup
+\begin{longtable}{|L{5.4cm}|L{9cm}|}
 \caption{Tables principales de ComptaFlow}\label{tab:tables}\\
 \toprule
-\textbf{Table} & \textbf{Responsabilité} \\
+\rowcolor{ComptaBlue}\TableHead{Table} & \TableHead{Responsabilité} \\
 \midrule
 \endfirsthead
 \toprule
-\textbf{Table} & \textbf{Responsabilité} \\
+\rowcolor{ComptaBlue}\TableHead{Table} & \TableHead{Responsabilité} \\
 \midrule
 \endhead
 \texttt{cabinets} & Tenant principal, coordonnées et état du cabinet. \\
@@ -1242,10 +1555,10 @@ l'interface.
      \nodepart{two}Documents, entreprises, chronos\\Comptabilité, banque, TVA et clôture
      \nodepart{three}\scriptsize\color{ComptaGreen!55!black}Services Python};
 
-  \node[appcard, fill=ComptaOrange!8] (async) at (4.95,0)
+  \node[appcard, fill=ComptaGray!6] (async) at (4.95,0)
     {\textbf{\color{ComptaDark}Traitements asynchrones}
      \nodepart{two}Extraction et classification\\OCR / IA et reprises
-     \nodepart{three}\scriptsize\color{ComptaOrange!75!black}Celery -- Redis};
+     \nodepart{three}\scriptsize\color{ComptaSlate}Celery -- Redis};
 
   \node[appcard, fill=ComptaGray!12] (persistence) at (0,0)
     {\textbf{\color{ComptaDark}Persistance}
@@ -1290,9 +1603,9 @@ Le diagramme suivant précise les principaux composants techniques et les
   directboth/.style={{Stealth[length=2.4mm]}-{Stealth[length=2.4mm]}, thick,
     draw=ComptaBlue!75!ComptaDark},
   asynchronous/.style={-{Stealth[length=2.4mm]}, thick, dashed,
-    draw=ComptaOrange!85!black},
+    draw=ComptaSlate},
   asynchronousboth/.style={{Stealth[length=2.4mm]}-{Stealth[length=2.4mm]}, thick,
-    dashed, draw=ComptaOrange!85!black},
+    dashed, draw=ComptaSlate},
   edgelabel/.style={font=\scriptsize, fill=white, inner sep=1.5pt, text=ComptaDark}
 ]
   \node[draw=none, fill=none, font=\small\bfseries, text=ComptaDark] (user) at (0,13.5)
@@ -1306,11 +1619,11 @@ Le diagramme suivant précise les principaux composants techniques et les
 
   \node[infrastructure] (postgres) at (-4.55,3.25)
     {\textbf{PostgreSQL}\\Données métier et historique};
-  \node[infrastructure, fill=ComptaOrange!7, draw=ComptaOrange!75!black] (redis) at (0,3.25)
+  \node[infrastructure, fill=ComptaGray!6, draw=ComptaSlate] (redis) at (0,3.25)
     {\textbf{Redis}\\Broker Celery et backend de résultats};
   \node[infrastructure] (storage) at (4.55,3.25)
     {\textbf{Stockage documentaire local}\\PDF et images};
-  \node[infrastructure, fill=ComptaOrange!7, draw=ComptaOrange!75!black] (worker) at (0,-0.1)
+  \node[infrastructure, fill=ComptaGray!6, draw=ComptaSlate] (worker) at (0,-0.1)
     {\textbf{Worker Celery}\\Traitement documentaire asynchrone};
   \node[infrastructure, text width=4.4cm] (ocria) at (4.8,-0.1)
     {\textbf{Extraction / OCR / IA}\\Groq Vision et texte\\Replis : texte PDF natif, PaddleOCR, Regex, Ollama};
@@ -1340,9 +1653,7 @@ Le diagramme suivant précise les principaux composants techniques et les
 L'organisation du code reprend la séparation des responsabilités définie par
 l'architecture applicative.
 
-\clearpage
-\thispagestyle{fancy}
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[
   codepanel/.style={rounded corners=5pt, line width=0.8pt, fill=white,
@@ -1400,6 +1711,44 @@ l'architecture applicative.
 \label{fig:code-organization}
 \end{figure}
 
+\subsection{Sécurité et confidentialité}
+
+La sécurité est appliquée à plusieurs niveaux complémentaires. L'API vérifie
+l'identité et le rôle de l'utilisateur, tandis que les requêtes métier
+appliquent les portées du cabinet et de l'entreprise lorsque le dossier est
+concerné. Les contrôles documentaires interviennent avant l'enregistrement du
+fichier et les actions sensibles prises en charge par la piste d'audit
+conservent leur auteur et les états avant/après disponibles.
+
+\begin{table}[H]
+\centering
+\caption{Mécanismes de sécurité et de confidentialité appliqués}
+\footnotesize
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{3.8cm}|Y|}
+\toprule
+\rowcolor{ComptaBlue}\TableHead{Domaine} & \TableHead{Mécanisme appliqué} \\
+\midrule
+Authentification & Jetons JWT signés en HS256, durée de validité de huit heures et rejet des jetons invalides ou expirés. \\
+Mots de passe & Hachage bcrypt et vérification centralisée ; aucun mot de passe en clair n'est utilisé pour l'authentification. \\
+Rôles et comptes & RBAC pour les opérations sensibles et refus des comptes marqués inactifs. \\
+Isolation multi-tenant & Filtrage par \texttt{cabinet\_id} et contrôle de \texttt{entreprise\_id} pour les données propres aux dossiers comptables. \\
+Fichiers importés & PDF, PNG et JPEG uniquement, taille maximale de 20~Mo et cohérence contrôlée entre signature binaire, type MIME déclaré et extension. \\
+Intégrité et doublons & Empreinte SHA-256 et recherche d'un fichier identique dans le cabinet avant l'enregistrement. \\
+Stockage & Répertoire documentaire séparé par cabinet et refus de résoudre un chemin situé hors de la racine configurée. \\
+Traçabilité & Journal d'audit pour les opérations sensibles instrumentées, avec utilisateur, cabinet, ressource et états avant/après ; cette journalisation n'est pas présentée comme exhaustive. \\
+Configuration & Clé de signature, accès PostgreSQL, Redis, Ollama et clé Groq fournis par variables d'environnement, sans inscription de secrets dans le code. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+L'utilisation d'un service d'IA distant comme Groq implique, dans un contexte
+réel de production, de définir une politique de confidentialité adaptée aux
+documents comptables traités. Le projet ne revendique ni certification ni
+accord contractuel particulier sur ce point. Les captures reproduites dans ce
+rapport utilisent exclusivement des données fictives créées pour la
+démonstration.
+
 % ============================================================
 % 10. Réalisation
 % ============================================================
@@ -1410,9 +1759,11 @@ l'architecture applicative.
 \begin{table}[H]
 \centering
 \caption{Technologies du projet}
-\begin{tabularx}{\textwidth}{L{3.4cm}L{4cm}Y}
+\footnotesize
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{3.4cm}|L{4cm}|Y|}
 \toprule
-\textbf{Domaine} & \textbf{Technologie} & \textbf{Rôle} \\
+\rowcolor{ComptaBlue}\TableHead{Domaine} & \TableHead{Technologie} & \TableHead{Rôle} \\
 \midrule
 Frontend & React 19, TypeScript, Vite & SPA, typage, compilation et chargement différé des pages. \\
 Interface & Tailwind CSS, Lucide React & Mise en forme responsive et iconographie. \\
@@ -1433,7 +1784,43 @@ Déploiement & Docker, Docker Compose, Nginx & Conteneurisation, orchestration e
 
 \section{Architecture du logiciel}
 
-Le navigateur appelle l'API REST avec un jeton JWT. FastAPI contrôle l'utilisateur, son rôle et son cabinet avant de déléguer aux services. Les opérations courtes sont traitées dans la requête ; l'analyse documentaire est envoyée au worker Celery via Redis. SQLAlchemy applique les transactions PostgreSQL et les migrations Alembic maintiennent le schéma. Cette architecture évite que l'OCR ou l'IA bloque l'interface.
+L'architecture définie lors de la phase de conception a été mise en œuvre sous
+la forme d'une application web séparant l'interface utilisateur, l'API, les
+services métier, les traitements asynchrones et la persistance. Le frontend,
+développé avec React et TypeScript puis compilé avec Vite, constitue une
+application distincte du backend FastAPI.
+
+Le frontend communique avec le backend par l'intermédiaire d'une API REST et
+du client HTTP Axios. Pour les requêtes protégées, le jeton JWT est transmis
+dans l'en-tête d'autorisation. FastAPI\cite{fastapi} vérifie alors l'identité de
+l'utilisateur, son état et, lorsque l'opération l'exige, son rôle avant de
+déléguer le traitement aux services métier. Ces services regroupent notamment
+les règles relatives aux documents, aux entreprises, aux chronos, à la
+comptabilité et aux opérations bancaires, tout en appliquant la portée du
+cabinet concerné.
+
+Après la connexion, le routage frontend conduit d'abord vers une page d'accueil
+intermédiaire et non vers un dossier d'entreprise présélectionné. Cette page
+sépare explicitement l'import de nouvelles pièces de l'ouverture d'un dossier
+existant. Dans le second parcours, l'utilisateur recherche une entreprise par
+nom, ICE, IF ou RC, puis sélectionne son contexte actif. Cet identifiant facilite
+la navigation entre les écrans, mais ne constitue jamais une autorisation :
+chaque appel API contrôle à nouveau le cabinet, l'entreprise et les permissions
+de l'utilisateur.
+
+Les traitements documentaires susceptibles de durer davantage, notamment
+l'extraction, l'OCR, la classification et les analyses associées, sont confiés
+à un worker Celery\cite{celery}. Redis\cite{redis} assure à la fois le transport des tâches et le
+stockage de leurs résultats. Cette exécution asynchrone évite de bloquer
+l'interface pendant le traitement et permet à l'application de suivre ensuite
+l'état du document ainsi que les résultats produits.
+
+La persistance des données métier repose sur PostgreSQL\cite{postgresql}, auquel l'application
+accède par SQLAlchemy\cite{sqlalchemy}, tandis qu'Alembic gère les évolutions versionnées du
+schéma. Les pièces importées sont conservées dans le stockage documentaire
+local configuré par l'application, dans un répertoire propre au cabinet. Cette
+séparation des responsabilités facilite la maintenance et permet de faire
+évoluer les différents composants de manière indépendante.
 
 \section{Pipeline complet de traitement}
 
@@ -1445,9 +1832,9 @@ document dans le stockage local. Une tâche Celery, transmise par Redis, prend
 ensuite en charge les opérations documentaires sans bloquer l'interface.
 
 Le système tente d'abord une extraction et une classification unifiées par
-Groq Vision. Si ce traitement n'aboutit pas, il exploite la couche texte native
-du PDF ou, à défaut, PaddleOCR, avant d'appliquer les mécanismes d'analyse
-textuelle prévus. Les valeurs obtenues sont normalisées et contrôlées sans
+Groq Vision\cite{groq}. Si ce traitement n'aboutit pas, il exploite la couche texte native
+du PDF ou, à défaut, PaddleOCR\cite{paddleocr}, avant d'appliquer les mécanismes d'analyse
+textuelle prévus. Le repli local peut également mobiliser Ollama\cite{ollama}. Les valeurs obtenues sont normalisées et contrôlées sans
 remplacer silencieusement les montants extraits.
 
 L'entreprise concernée, le tiers et le sens achat/vente sont ensuite déterminés
@@ -1459,24 +1846,26 @@ rapprochés avec les factures correspondantes. Les résultats incomplets ou
 ambigus restent soumis à un contrôle humain.
 
 Les lignes comptables sont préparées dès le stade de brouillon pour permettre
-leur prévisualisation. Elles n'alimentent toutefois les journaux, le Grand
-Livre, la Balance, la TVA, le CPC et le Bilan que lorsqu'elles sont marquées
-comme validées.
+leur prévisualisation. Le cycle distingue ensuite le calcul en cours, les
+éléments à vérifier, les pré-écritures prêtes pour Topaze et celles dont la
+saisie dans Topaze a été confirmée manuellement. Seules les données ayant
+franchi les contrôles et la validation humaine alimentent les journaux, le
+Grand Livre, la Balance, la TVA, le CPC et le Bilan.
 
-\clearpage
-\thispagestyle{fancy}
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[
+  scale=0.85,
+  every node/.style={transform shape},
   font=\small,
   pipebox/.style={rounded corners=4pt, draw=ComptaBlue!65!ComptaDark,
-    line width=0.7pt, fill=white, align=center, text width=3.05cm,
+    line width=0.7pt, fill=white, align=center, text width=3.2cm,
     minimum height=1.45cm, inner sep=4pt},
   analysisbox/.style={pipebox, fill=ComptaBlue!5},
   businessbox/.style={pipebox, fill=ComptaGreen!6,
     draw=ComptaGreen!65!black},
-  decision/.style={diamond, aspect=2.25, draw=ComptaOrange!80!black,
-    line width=0.75pt, fill=ComptaOrange!8, align=center,
+  decision/.style={diamond, aspect=2.25, draw=ComptaSlate,
+    line width=0.75pt, fill=ComptaGray!6, align=center,
     text width=2.3cm, inner sep=2pt},
   pipeflow/.style={-{Stealth[length=2.4mm]}, thick,
     draw=ComptaBlue!75!ComptaDark},
@@ -1489,53 +1878,53 @@ comme validées.
 ]
   % Phase A : acquisition documentaire
   \node[pipebox, fill=ComptaLight] (upload) at (-5.7,15.3)
-    {\textbf{1. Import du document}};
+    {\textbf{1. Import du\\document}};
   \node[pipebox] (control) at (-1.9,15.3)
-    {\textbf{2. Contrôle du fichier}\\[-0.1em]
+    {\textbf{2. Contrôle du\\fichier}\\[-0.1em]
      \footnotesize SHA-256, doublon exact, taille 20 Mo\\MIME, signature et extension};
   \node[pipebox] (storage) at (1.9,15.3)
-    {\textbf{3. Stockage du document}\\[-0.1em]
+    {\textbf{3. Stockage du\\document}\\[-0.1em]
      \footnotesize stockage local par cabinet\\statut \texttt{en\_attente}};
-  \node[pipebox, fill=ComptaOrange!7, draw=ComptaOrange!75!black] (queue) at (5.7,15.3)
-    {\textbf{4. Mise en file du traitement}\\[-0.1em]
+  \node[pipebox, fill=ComptaGray!6, draw=ComptaSlate] (queue) at (5.7,15.3)
+    {\textbf{4. Mise en file\\du traitement}\\[-0.1em]
      \footnotesize Celery / Redis};
 
   % Phase B : extraction et analyse
-  \node[analysisbox, text width=4.1cm] (extract) at (0,12.45)
-    {\textbf{5. Extraction et classification principales}\\[-0.1em]
+  \node[analysisbox, text width=4.7cm] (extract) at (0,12.45)
+    {\textbf{5. Extraction et\\classification principales}\\[-0.1em]
      \footnotesize Groq Vision};
   \node[decision] (usable) at (0,10.35)
-    {\textbf{Données\\exploitables ?}};
-  \node[analysisbox, fill=ComptaOrange!6, draw=ComptaOrange!75!black,
-        text width=4.2cm] (fallback) at (-3.75,8.1)
-    {\textbf{6. Mécanismes de repli}\\[-0.1em]
-     \footnotesize texte PDF natif, sinon PaddleOCR\\Groq texte ; Regex/ML + Ollama};
-  \node[analysisbox, text width=3.65cm] (kept) at (3.75,8.1)
-    {\textbf{Conservation des données extraites}\\[-0.1em]
+    {{\NoAutoSpacing\textbf{Données\\exploitables ?}}};
+  \node[analysisbox, fill=ComptaGray!6, draw=ComptaSlate,
+        text width=4.45cm] (fallback) at (-3.9,8.1)
+    {\textbf{6. Mécanismes\\de repli}\\[-0.1em]
+     \footnotesize texte PDF natif\\ou PaddleOCR\\Groq texte / Regex / ML\\puis Ollama};
+  \node[analysisbox, text width=4.05cm] (kept) at (3.9,8.1)
+    {\textbf{Conservation des\\données extraites}\\[-0.1em]
      \footnotesize valeurs et source d'extraction};
-  \node[analysisbox, text width=4.55cm] (normalize) at (0,5.85)
-    {\textbf{7. Normalisation et contrôle de cohérence}\\[-0.1em]
+  \node[analysisbox, text width=4.8cm] (normalize) at (0,5.85)
+    {\textbf{7. Normalisation et\\contrôle de cohérence}\\[-0.1em]
      \footnotesize HT / TVA / TTC ou totaux et solde bancaire};
-  \node[analysisbox, text width=4.35cm] (identify) at (0,3.55)
-    {\textbf{8. Identification métier}\\[-0.1em]
+  \node[analysisbox, text width=4.5cm] (identify) at (0,3.55)
+    {\textbf{8. Identification\\métier}\\[-0.1em]
      \footnotesize entreprise, tiers et sens achat/vente};
 
   % Phase C : traitement métier et validation
   \node[businessbox] (chrono) at (-5.7,0.25)
-    {\textbf{9. Doublon métier et chrono}\\[-0.1em]
+    {\textbf{9. Doublon\\métier et chrono}\\[-0.1em]
      \footnotesize avant toute pré-écriture};
   \node[businessbox] (rules) at (-1.9,0.25)
-    {\textbf{10. Règles métier et comptes}\\[-0.1em]
+    {\textbf{10. Règles métier\\et comptes}\\[-0.1em]
      \footnotesize plan comptable de l'entreprise};
   \node[businessbox] (prepare) at (1.9,0.25)
-    {\textbf{11. Préparation comptable}\\[-0.1em]
+    {\textbf{11. Préparation\\comptable}\\[-0.1em]
      \footnotesize pré-écriture ou traitement bancaire};
   \node[businessbox] (human) at (5.7,0.25)
-    {\textbf{12. Contrôle humain}\\[-0.1em]
-     \footnotesize correction, validation ou rejet};
+    {\textbf{12. Contrôle\\humain}\\[-0.1em]
+     \footnotesize correction,\\validation ou rejet};
   \node[businessbox, fill=ComptaLight, text width=5.8cm] (statements) at (0,-2.55)
-    {\textbf{13. Exploitation des données validées}\\[-0.1em]
-     \footnotesize Journaux, Grand Livre, Balance, TVA, CPC et Bilan};
+    {\textbf{13. Exploitation des\\données validées}\\[-0.1em]
+     \footnotesize Journaux, Grand Livre,\\Balance, TVA, CPC et Bilan};
 
   % Flux principal et branche de repli
   \draw[pipeflow] (upload) -- (control);
@@ -1566,12 +1955,39 @@ comme validées.
 \label{fig:pipeline}
 \end{figure}
 
-\clearpage
 Le pipeline suit ainsi une progression contrôlée : les informations extraites
 ne sont pas considérées comme définitives. Elles passent par des contrôles de
 cohérence, une identification métier et, lorsque la situation le nécessite,
 une intervention humaine. Cette organisation associe automatisation du
 traitement documentaire et contrôle professionnel des résultats.
+
+\subsection{Workflow pré-comptable et passage vers Topaze}
+
+Le service de workflow exécute des contrôles déterministes sur les valeurs
+obligatoires, la date, la cohérence HT--TVA--TTC, l'équilibre Débit/Crédit, les
+doublons et l'existence de chaque compte exact dans le plan de l'entreprise.
+Une pré-écriture conforme passe au statut \texttt{prete\_topaze}. Une ambiguïté
+ou un compte absent la maintient au statut \texttt{a\_verifier}, avec une
+anomalie structurée et sans ligne fictive d'équilibrage. La saisie réalisée
+dans Topaze reste une action externe : l'utilisateur autorisé la confirme dans
+ComptaFlow, qui conserve la date, l'auteur et une référence de lot facultative.
+
+La TVA suit la même séparation. La synthèse mensuelle est calculée depuis les
+lignes validées du Grand Livre. La centralisation n'est préparée que si les
+comptes de TVA exacts ont été configurés et existent dans le plan de
+l'entreprise ; elle doit être strictement équilibrée. Les régularisations ou
+retenues dont la contrepartie n'est pas déterminable restent à vérifier. Les
+statuts comptable, déclaratif et Topaze sont conservés séparément afin de ne
+pas confondre calcul interne, déclaration fiscale et saisie dans le logiciel de
+référence.
+
+Enfin, une période de travail peut être verrouillée après les contrôles de
+pré-clôture. Elle devient alors accessible en lecture seule : les mutations
+comptables, bancaires, fiscales et documentaires portant sur cette période sont
+refusées avant toute modification ou mise en file d'un traitement. Les
+consultations restent disponibles. Une réouverture nécessite un rôle autorisé,
+une justification et une trace d'audit avant que les mutations redeviennent
+possibles.
 
 \subsection{Traitement des factures}
 
@@ -1602,7 +2018,7 @@ sont pas complètes et équilibrées.
 
 Les moteurs d'extraction ne doivent pas fournir un numéro de compte définitif :
 ils proposent une nature économique appartenant à un vocabulaire contrôlé.
-Les règles Python transforment cette nature en famille CGNC, puis interrogent
+Les règles Python transforment cette nature en famille CGNC\cite{cgnc}, puis interrogent
 le plan comptable de l'entreprise avec les portées \texttt{cabinet\_id} et
 \texttt{entreprise\_id}. La recherche privilégie un compte actif compatible
 avec l'usage et, lorsqu'elle est renseignée, avec la nature de l'opération.
@@ -1658,7 +2074,7 @@ produite.
 Pour une opération libellée dans une devise étrangère, le moteur conserve
 séparément la devise et les montants d'origine, le montant converti en dirhams,
 le taux appliqué, sa date, son type, sa source et l'unité de cotation. Les cours
-Bank Al-Maghrib déjà obtenus sont mis en cache dans PostgreSQL par date, devise
+Bank Al-Maghrib\cite{bam} déjà obtenus sont mis en cache dans PostgreSQL par date, devise
 et source, avec leurs valeurs d'achat et de vente.
 
 Pour une facture d'achat, le cours de vente à la clientèle de la date de la
@@ -1675,60 +2091,258 @@ cours demandé ne peut pas être établi de façon sûre, le système signale
 l'anomalie et refuse toute substitution silencieuse par le cours du jour ; la
 pré-écriture ou le mouvement reste alors à vérifier.
 
+\subsection{Exports et interopérabilité}
+
+L'API permet d'exporter les registres validés d'une entreprise, filtrés par
+catégorie, année et mois, aux formats CSV, XLSX et PDF. Les fichiers sont
+générés en mémoire à partir des mêmes données comptables et de leurs totaux,
+puis retournés au client sans stockage permanent d'une copie d'export. Ces
+formats facilitent la consultation, le contrôle et les échanges génériques,
+mais ne constituent pas un connecteur vers un logiciel tiers.
+
+Aucune intégration automatique directe avec Topaze n'a été réalisée pendant le
+stage. Une évolution future pourrait consister à définir un format d'export
+compatible ou un mécanisme d'intégration, après validation des contraintes du
+logiciel utilisé par SEGURIBAT.
+
+\subsection{Idempotence et reprise des traitements}
+
+L'implémentation limite l'accumulation de résultats lors d'un retraitement
+séquentiel. L'import calcule une empreinte SHA-256 et refuse, dans un même
+cabinet, un fichier identique déjà enregistré. Pour une facture, le service
+recherche la pré-écriture liée au document, réutilise la première occurrence et
+supprime d'éventuels doublons historiques avant de synchroniser ses lignes. Pour
+un relevé, les mouvements précédemment issus du document sont supprimés puis
+recréés dans la même transaction ; un second traitement successif ne les ajoute
+donc pas à la série précédente.
+
+La tâche Celery réessaie au maximum trois fois les erreurs considérées comme
+transitoires, notamment les délais d'attente, erreurs de connexion, réponses
+HTTP~429 et erreurs serveur. Le backoff, la reprise au démarrage du broker et
+l'acquittement tardif améliorent la continuité du traitement. En revanche,
+l'idempotence stricte n'est pas garantie face à deux workers concurrents : ni
+l'empreinte du document ni \texttt{document\_id} dans la table des
+pré-écritures ne disposent actuellement d'une contrainte \texttt{UNIQUE}. La
+prévention repose donc en partie sur la logique applicative. Un verrou de
+traitement ou des contraintes de base adaptées constituent une amélioration à
+prévoir avant la production. Le retraitement volontaire réinitialise en outre
+les données comptables associées au document ; les identifiants de mouvements
+et leurs allocations peuvent alors être recréés.
+
 % ============================================================
 % 11. Fonctionnalités principales
 % ============================================================
 \chapter{Fonctionnalités principales réalisées}
 
-Ce chapitre décrit les fonctionnalités présentes dans la version analysée. Adaptez le texte à votre contribution personnelle et remplacez les cadres par vos propres captures, sans données confidentielles.
+Ce chapitre présente les principales fonctionnalités mises en œuvre dans
+l'application. Les interfaces retenues illustrent le parcours documentaire, le
+contrôle comptable, le traitement bancaire ainsi que la consultation des
+principaux états. Les exemples affichés reposent exclusivement sur des données
+fictives créées pour la démonstration.
 
-\section{Authentification et tableau de bord}
+\section{Authentification et choix du parcours}
 
-Après connexion, le tableau de bord synthétise les documents par statut, les écritures à vérifier ou validées, la situation TVA et les actions requises. La navigation est protégée et adaptée au rôle de l'utilisateur.
+L'accès à ComptaFlow commence par une authentification protégée. Après une
+connexion réussie, l'utilisateur arrive sur une page principale volontairement
+simple. Elle ne surcharge pas l'accueil avec des statistiques : elle lui propose
+immédiatement deux parcours distincts, tout en conservant un accès discret aux
+notifications et à l'Assistant.
 
-\capture{captures/dashboard.png}{Tableau de bord de ComptaFlow}{Afficher les indicateurs de documents, écritures et TVA.}
+\capture{captures/login-page-verification.png}{Écran d'authentification sécurisé de ComptaFlow}{fig:authentification}
+
+Le premier choix, \og Importer de nouveaux documents \fg{}, conduit directement
+à l'espace de dépôt. Le second, \og Travailler sur une entreprise \fg{}, ouvre
+la recherche des dossiers disponibles. Un texte d'aide apparaît au survol ou au
+focus clavier afin d'expliquer ce second parcours sans alourdir l'écran.
+
+\capture{captures/accueil_focus_entreprise.png}{Accueil à deux parcours et aide contextuelle sur le choix d'une entreprise}{fig:accueil-parcours}
+
+La séparation rend explicites les deux chaînes de navigation suivantes :
+\begin{itemize}[leftmargin=1.3cm]
+  \item connexion $\rightarrow$ import $\rightarrow$ OCR/IA $\rightarrow$
+    extraction $\rightarrow$ identification $\rightarrow$ vérification ou
+    correction $\rightarrow$ classement et préparation comptable ;
+  \item connexion $\rightarrow$ recherche d'une entreprise $\rightarrow$
+    sélection du dossier $\rightarrow$ accès à ses modules métier.
+\end{itemize}
+
+La page de sélection filtre dynamiquement les entreprises actives et confirmées
+par nom, ICE, IF ou RC. Une fois le dossier choisi, le contexte d'entreprise est
+conservé pour la navigation ; les contrôles multi-tenant du backend restent
+systématiquement appliqués.
+
+\capture{captures/selection_entreprise.png}{Recherche et sélection du dossier d'une entreprise}{fig:selection-entreprise}
+
+\section{Espace entreprise et tableau de bord}
+
+Une fois l'entreprise sélectionnée, l'utilisateur accède aux modules réellement
+disponibles pour ce dossier : tableau de bord, documents, chronos, achats,
+ventes, banque, comptes bancaires, écritures, registres, Grand Livre, Balance,
+TVA, CPC, Bilan, clôture et pré-clôture. Le tableau de bord centralise les
+indicateurs du contexte actif : état des documents, pré-écritures nécessitant
+une vérification, situation de la TVA et actions requises.
+
+\capture{captures/dashboard.png}{Tableau de bord du dossier comptable sélectionné}{}
 
 \section{Import et suivi documentaire}
 
-L'utilisateur importe une image ou un PDF. La plateforme indique l'état du traitement et permet de filtrer les chronos par entreprise, catégorie, année et mois. La recherche porte notamment sur les factures, ICE et tiers.
+L'interface documentaire permet d'importer une ou plusieurs pièces aux formats
+PDF, PNG ou JPEG, puis d'en suivre le statut de traitement. La liste conserve un
+accès direct au fichier et à l'écran de vérification correspondant.
 
-\capture{captures/import.png}{Interface d'import d'un document}{Utiliser un document de démonstration ne contenant aucune donnée confidentielle.}
-\capture{captures/chronos.png}{Suivi des documents dans les chronos}{Montrer les filtres et les statuts de traitement.}
+\capture{captures/import.png}{Interface d'import d'une pièce comptable}{}
+
+Un document dont l'entreprise n'a pas été reconnue n'est ni supprimé ni masqué.
+Il reste conservé au niveau du cabinet et apparaît dans la vue \og Documents à
+identifier \fg{}. Un utilisateur autorisé peut consulter les données extraites,
+attribuer manuellement une entreprise active du même cabinet, puis déclencher le
+retraitement. Cette attribution contrôle également le verrouillage de la période
+et ne contourne pas les règles d'isolation.
+
+Le chrono numérique fournit une vue structurée des documents. L'entreprise,
+l'année, le mois et la catégorie constituent ici des critères de consultation
+portés par les pièces ; ils ne correspondent pas à la création d'un chrono
+physique distinct pour chaque période. La recherche et les statuts facilitent le
+repérage des éléments à contrôler.
+
+\capture{captures/chronos.png}{Consultation et suivi des documents dans les chronos}{}
 
 \section{Contrôle détaillé et validation}
 
-La vue détaillée affiche l'aperçu de la pièce, les champs extraits, les anomalies et la proposition comptable. L'utilisateur peut corriger les données, puis valider ou rejeter le document selon ses droits.
+La vue détaillée rapproche le document original des informations extraites :
+entreprise, tiers, numéro, date et montants HT, TVA et TTC. Elle signale les
+anomalies sans modifier silencieusement les valeurs ambiguës. L'utilisateur peut
+corriger les données et examiner la pré-écriture comptable proposée avant de la
+valider ou de la rejeter, selon ses droits.
 
-\capture{captures/document_detail.png}{Contrôle d'un document et de son écriture}{Masquer les informations personnelles, bancaires ou fiscales sensibles.}
+\capture{captures/document_detail.png}{Contrôle d'un document et de sa pré-écriture comptable}{}
 
 \section{Plan comptable et comptes bancaires}
 
-Chaque entreprise dispose de comptes exacts. L'interface permet leur import et leur administration, ainsi que la configuration des comptes bancaires avec RIB, IBAN, devise et compte comptable associé.
+La préparation comptable s'appuie sur les comptes exacts configurés dans le plan
+comptable propre à l'entreprise. La configuration bancaire complète ce mécanisme
+en associant à chaque compte une banque, une devise, un RIB, un IBAN et un compte
+comptable exact déjà présent dans ce plan. Cette liaison facilite l'identification
+du compte concerné lors du traitement des relevés.
 
-\capture{captures/plan_comptable.png}{Plan comptable propre à une entreprise}{Illustrer la recherche ou l'import des comptes.}
-\capture{captures/comptes_bancaires.png}{Configuration des comptes bancaires}{Masquer le RIB et l'IBAN réels.}
+\capture{captures/comptes_bancaires.png}{Configuration des comptes bancaires d'une entreprise}{}
 
-\section{Banque V2 et rapprochement}
+\section{Gestion bancaire et rapprochements}
 
-La page Banque présente les mouvements et leur état de rapprochement. Les propositions peuvent être simples, partielles ou groupées. Une confirmation humaine finalise les allocations ; les virements internes sont liés pour éviter un double comptage.
+La page Banque présente les mouvements issus des relevés, leurs montants, leur
+sens et leur état de rapprochement. Le module prend en charge les rapprochements
+simples ainsi que les paiements partiels et les allocations multiples. Une
+proposition reste distincte d'un rapprochement confirmé : la validation par un
+utilisateur autorisé demeure nécessaire, et le montant affecté ne peut pas
+dépasser le solde restant dû.
 
-\capture{captures/banque_v2.png}{Mouvements et rapprochements bancaires}{Présenter un exemple anonymisé de rapprochement.}
+\capture{captures/banque_v2.png}{Rapprochement des mouvements bancaires}{}
+
+\section{Suivi opérationnel}
+
+Les tâches et rappels complètent le suivi opérationnel par l'affectation d'un
+responsable, d'une échéance, d'une priorité et, si nécessaire, d'une récurrence.
+L'heure d'échéance est conservée, et la fin d'une tâche récurrente crée la
+prochaine occurrence. La vue en tableau répartit les actions entre \og À faire
+\fg{}, \og En cours \fg{} et \og Terminée \fg{}, tout en mettant en évidence
+les retards. Les relances documentaires et les pré-écritures prêtes mais non
+saisies dans Topaze sont réunies dans le même espace.
+
+\capture{captures/taches_planification.png}{Planification et suivi visuel des tâches}{fig:taches-planification}
+
+La messagerie interne permet aux utilisateurs d'échanger avec
+l'administrateur du cabinet. Un message reçu peut être transformé en tâche
+planifiée avec une date et une heure, sans sortir de la portée du cabinet. Les
+notifications regroupent les actions en attente, tandis que les rapports
+fournissent une synthèse exportable.
 
 \section{États et contrôles comptables}
 
-Les lignes validées alimentent le Grand Livre et la Balance. Le CPC et le Bilan exposent leurs rubriques, les comptes non classés et les incohérences sans fabriquer de correction. La TVA distingue notamment la TVA collectée, récupérable sur charges et récupérable sur immobilisations. La pré-clôture agrège les anomalies bloquantes ou à vérifier.
+Seules les lignes comptables validées alimentent le Grand Livre et la Balance.
+Le Grand Livre regroupe les mouvements par compte et permet de contrôler
+l'équilibre global ainsi que l'évolution des soldes.
 
-\capture{captures/grand_livre.png}{Consultation du Grand Livre}{Montrer une période et un compte de démonstration.}
-\capture{captures/cpc_bilan.png}{État comptable et contrôles de cohérence}{Afficher le CPC ou le Bilan sans informations confidentielles.}
-\capture{captures/precloture.png}{Tableau de pré-clôture}{Montrer les contrôles et leur niveau de priorité.}
+\capture{captures/grand_livre.png}{Consultation du Grand Livre}{}
 
-\section{Tâches, rappels, notifications et rapports}
+Le CPC présente les produits, les charges et les résultats calculés pour
+l'exercice à partir des données validées. Comme le Bilan et les autres états de
+synthèse, il restitue les informations disponibles sans corriger automatiquement
+une incohérence comptable.
 
-Les tâches peuvent comporter une entreprise, un responsable, une échéance, une priorité et une récurrence. Les alertes et notifications regroupent les actions nécessaires. Les rapports donnent une vue synthétique et peuvent être exportés.
+\capture{captures/cpc_bilan.png}{Consultation des états comptables}{}
 
-\capture{captures/rappels.png}{Gestion des tâches et rappels}{Illustrer une liste de tâches fictives.}
+\subsection{TVA comptable et préparation Topaze}
 
-\acompleter{Préciser ici les fonctionnalités que vous avez personnellement conçues ou développées, votre niveau de responsabilité et les difficultés techniques propres à chacune.}
+La page TVA présente les montants issus des lignes validées, les crédits et les
+anomalies de chaque période. Elle permet de configurer les comptes exacts de
+centralisation, d'enregistrer l'échéance et la déclaration, puis de confirmer
+séparément la saisie effectuée dans Topaze. L'interface rappelle explicitement
+qu'il s'agit d'une synthèse comptable préparatoire et non d'une déclaration
+fiscale automatique.
+
+\capture{captures/tva_preparation_topaze.png}{TVA comptable et préparation de la centralisation}{fig:tva-topaze}
+
+\subsection{Contrôles de pré-clôture}
+
+La pré-clôture rassemble les contrôles des documents, des pré-écritures, de la
+banque, de la TVA et des états comptables. Le score constitue un indicateur
+technique ; les anomalies restent classées par niveau et doivent être instruites
+avant la clôture.
+
+\capture{captures/precloture.png}{Contrôles de pré-clôture}{}
+
+\section{Assistant sécurisé et journal d'audit}
+
+Dans l'espace authentifié, l'Assistant ComptaFlow est accessible par un bouton
+flottant compact. Son activation ouvre un panneau latéral ; une page complète
+reste également disponible pour les recherches longues. L'Assistant fournit une recherche en lecture seule sur les
+entreprises, documents, pré-écritures, mouvements, TVA et tâches auxquels
+l'utilisateur a réellement accès. Le moteur transforme la question en un plan
+de requête contrôlé ; il n'exécute pas de SQL fourni par l'utilisateur. Chaque
+requête applique \texttt{cabinet\_id} et, lorsqu'un contexte est sélectionné,
+\texttt{entreprise\_id}. Les résultats documentaires conservent un lien
+sécurisé vers la pièce originale.
+
+\capture{captures/assistant_comptaflow.png}{Assistant ComptaFlow en contexte multi-entreprise}{fig:assistant-comptaflow}
+
+Le journal d'audit est réservé aux administrateurs autorisés. Il centralise les
+connexions, validations, changements de statut, actions Topaze, modifications
+de configuration TVA, tâches, messages et consultations de l'Assistant. Les
+filtres par acteur, entreprise, module, action, statut et période facilitent la
+reconstitution d'un traitement, sans exposer les mots de passe, jetons ou
+contenus OCR complets.
+
+\capture{captures/historique_audit.png}{Journal d'audit filtrable réservé aux administrateurs}{fig:historique-audit}
+
+\section{Contribution personnelle}
+
+Ce projet a été réalisé individuellement. J'ai pris en charge l'ensemble des
+étapes, depuis l'analyse du besoin et la conception fonctionnelle,
+informationnelle et applicative jusqu'au développement, à l'intégration, aux
+tests et à la validation de l'application.
+
+Ma contribution a couvert à la fois le frontend, développé avec React,
+TypeScript et Vite, et le backend fondé sur FastAPI. J'ai réalisé les interfaces
+utilisateur, leur communication avec l'API ainsi que les services métier
+nécessaires au traitement des documents comptables. Le travail a notamment
+porté sur l'import et le suivi documentaire, les chronos, l'extraction et
+l'analyse des pièces, l'identification des entreprises et des tiers, la
+classification achat/vente et la préparation des pré-écritures comptables avec
+maintien d'une validation humaine.
+
+J'ai également développé la gestion du plan comptable propre à chaque
+entreprise, les comptes et mouvements bancaires, les rapprochements simples,
+partiels ou multiples, ainsi que la consultation du Grand Livre, de la Balance,
+de la TVA, du CPC, du Bilan et des contrôles de pré-clôture. La modélisation et
+la persistance reposent sur SQLAlchemy et PostgreSQL, avec Alembic pour le suivi
+des évolutions du schéma de données.
+
+Enfin, j'ai assuré l'intégration des traitements asynchrones avec Celery et
+Redis ainsi que des mécanismes d'extraction OCR et d'analyse assistée par Groq,
+PaddleOCR et Ollama. Le travail a compris l'intégration de ces composants, la
+résolution des anomalies rencontrées au cours du développement, les tests du
+backend et du frontend et la vérification du fonctionnement global de
+l'application.
 
 % ============================================================
 % 12. Tests et validation
@@ -1737,7 +2351,7 @@ Les tâches peuvent comporter une entreprise, un responsable, une échéance, un
 
 \section{Stratégie de validation}
 
-La validation combine tests automatisés backend, contrôles de compilation frontend et scénarios fonctionnels manuels. Les tests ciblent surtout les zones à risque : intégrité des montants, équilibre débit/crédit, isolation multi-tenant, résolution des comptes, changements de devise, rapprochements et cohérence des états.
+La validation combine des tests automatisés, des contrôles de compilation du frontend et des scénarios fonctionnels complémentaires exécutés soit via l'interface, soit directement au niveau des services métier selon la nature du comportement à vérifier. Les vérifications ciblent surtout les zones à risque : intégrité des montants, équilibre débit/crédit, isolation multi-tenant, résolution des comptes, changements de devise, rapprochements et cohérence des états.
 
 \section{Couverture fonctionnelle des tests automatisés}
 
@@ -1751,8 +2365,11 @@ La suite Pytest présente dans le dépôt couvre notamment :
   \item les écritures équilibrées, Grand Livre et Balance ;
   \item les calculs CPC, Bilan, TVA V2 et pré-clôture ;
   \item les cours BAM, conversions et écarts de change ;
-  \item Banque V2, paiements partiels, groupes, allocations et virements internes ;
-  \item la journalisation des actions sensibles.
+  \item la gestion bancaire avancée, les paiements partiels, les groupes, les allocations et les virements internes ;
+  \item le workflow pré-Topaze, la centralisation TVA et le verrouillage des périodes ;
+  \item la messagerie, la planification des tâches et leur isolation par cabinet ;
+  \item l'Assistant, ses filtres documentaires, ses liens sécurisés et le refus des requêtes SQL ;
+  \item la journalisation des actions sensibles et son contrôle d'accès administrateur.
 \end{itemize}
 
 \section{Résultats obtenus}
@@ -1760,41 +2377,154 @@ La suite Pytest présente dans le dépôt couvre notamment :
 \begin{table}[H]
 \centering
 \caption{Résultats de validation de la version documentée}
-\begin{tabularx}{\textwidth}{L{4.6cm}L{3.4cm}Y}
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{4.6cm}|L{3.4cm}|Y|}
 \toprule
-\textbf{Validation} & \textbf{Résultat} & \textbf{Observation} \\
+\rowcolor{ComptaBlue}\TableHead{Validation} & \TableHead{Résultat} & \TableHead{Observation} \\
 \midrule
-Import des modèles SQLAlchemy & Réussi & Les modèles du package \texttt{app.models} sont importables. \\
-Chaîne Alembic & Réussi & Une seule tête détectée : \texttt{c1f6a9b4d803}. \\
-Tests backend Pytest & Réussi & 200 tests réussis en 7,67 secondes ; aucun échec. \\
-Typecheck TypeScript & Réussi & \texttt{npm run typecheck} terminé sans erreur. \\
-Build frontend & Réussi & Build Vite de production terminé ; 1\,891 modules transformés. \\
-Lint frontend & Réussi avec avertissement & Aucun échec ; un avertissement Fast Refresh dans \texttt{AuthContext.tsx}. \\
-Scénarios manuels &  & Renseigner les scénarios réellement exécutés et les résultats observés. \\
+Import des modèles SQLAlchemy & \TableSuccess{Réussi} & Les modèles du package \texttt{app.models} sont importables. \\
+Chaîne Alembic & \TableSuccess{Réussi} & Une seule tête détectée : \texttt{f6d2b0e9a381} ; aucune opération de mise à niveau manquante. \\
+Tests backend Pytest & \TableSuccess{Réussi} & 401 tests réussis lors de la validation finale ; aucun échec. \\
+Typecheck TypeScript & \TableSuccess{Réussi} & \texttt{npm run typecheck} terminé sans erreur. \\
+Tests frontend & \TableSuccess{Réussi} & 18 tests Vitest réussis dans six fichiers ; aucun échec. \\
+Build frontend & \TableSuccess{Réussi} & Build Vite de production terminé ; 1\,905 modules transformés. \\
+Lint frontend & \textcolor{ComptaSlate}{\textbf{Réussi avec avertissement}} & Aucun échec ; un avertissement Fast Refresh dans \texttt{AuthContext.tsx}. \\
+Audit visuel des routes & \TableSuccess{Réussi} & 25 routes authentifiées chargées avec le backend réel ; aucune page vide ni erreur d'accès au backend après correction. \\
+Scénarios fonctionnels & \TableSuccess{Réussi} & Dix scénarios métier et de sécurité conformes au comportement attendu. \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \section{Exemples de scénarios de recette}
 
-\begin{longtable}{L{1.5cm}L{5cm}L{5cm}L{2.5cm}}
-\caption{Scénarios fonctionnels à renseigner}\label{tab:recette}\\
+Les scénarios suivants ont été vérifiés à partir du jeu de démonstration et
+d'exécutions isolées des services métier. Les modifications temporaires
+nécessaires au rapprochement partiel ont été annulées après observation afin de
+préserver l'état initial de la base de données.
+
+\small
+\TableSetup
+\begin{longtable}{|L{0.75cm}|L{3.3cm}|L{4.5cm}|L{5.6cm}|}
+\caption{Résultats des scénarios fonctionnels}\label{tab:recette}\\
 \toprule
-\textbf{ID} & \textbf{Scénario} & \textbf{Résultat attendu} & \textbf{Résultat réel} \\
+\rowcolor{ComptaBlue}\TableHead{ID} & \TableHead{Scénario} & \TableHead{Résultat attendu} & \TableHead{Résultat réel} \\
 \midrule
 \endfirsthead
-T01 & Importer une facture d'achat valide. & Document classé, montants conservés, écriture proposée et équilibrée. & \\
-T02 & Importer une facture avec HT + TVA différent de TTC. & Anomalie visible, aucune correction silencieuse. & \\
-T03 & Ouvrir une donnée d'un autre cabinet. & Accès refusé ou absence du résultat. & \\
-T04 & Rapprocher un règlement partiel. & Allocation limitée au montant réglé et solde restant conservé. & \\
-T05 & Demander un cours historique introuvable. & Message de vérification, aucun cours du jour substitué. & \\
-T06 & Générer le Bilan avec un déséquilibre. & Déséquilibre signalé sans ligne fictive. & \\
+\toprule
+\rowcolor{ComptaBlue}\TableHead{ID} & \TableHead{Scénario} & \TableHead{Résultat attendu} & \TableHead{Résultat réel} \\
+\midrule
+\endhead
+T01 & Vérifier le traitement d'une facture d'achat valide déjà importée. & Document traité, montants d'origine conservés et pré-écriture équilibrée préparée. & La facture fictive de Société Démo SARL est enregistrée dans le chrono principal, en achats (08/2026). Les montants HT 5\,000, TVA 1\,000 et TTC 6\,000 MAD sont conservés. La pré-écriture d'achat comporte trois lignes équilibrées, pour un total débit et crédit de 6\,000 MAD, puis passe automatiquement au statut \texttt{PRETE\_TOPAZE} puisque les contrôles ne détectent aucune anomalie. \\
+T02 & Importer une facture avec HT + TVA différent de TTC. & Incohérence signalée, valeurs d'origine conservées et aucune correction silencieuse. & Avec HT 1\,000, TVA 200 et TTC 1\,250 MAD, les trois valeurs sont restées inchangées. Le contrôle a produit \og Incohérence entre les montants HT, TVA et TTC extraits \fg{}, a activé \texttt{a\_verifier} et a refusé la génération de lignes déséquilibrées. \\
+T03 & Ouvrir une donnée d'un autre cabinet. & La donnée d'un autre cabinet n'est pas accessible. & L'accès à un document de démonstration avec l'identifiant d'un autre cabinet fictif a retourné HTTP 404, \og Document introuvable \fg{}. Aucune ressource n'a été retournée. \\
+T04 & Rapprocher un règlement partiel. & Le montant réglé est alloué sans dépasser le solde et le montant restant est conservé. & Dans une transaction de test, une facture de 4\,800 MAD a reçu une allocation de 2\,400 MAD. Le rapprochement a été confirmé en mode partiel et le solde observé était de 2\,400 MAD. La transaction a ensuite été annulée pour restaurer les données de démonstration. \\
+T05 & Demander un cours historique introuvable. & L'absence de cours historique est signalée sans substitution silencieuse par un cours courant. & Pour une facture fictive en EUR au 01/01/1900 et une absence contrôlée de cours, le service a retourné le statut \texttt{cours\_introuvable}. Les montants d'origine 1\,000, 200 et 1\,200 sont restés conservés ; les montants comptables MAD sont restés non renseignés et aucun cours courant n'a été substitué. \\
+T06 & Générer le Bilan avec un déséquilibre. & Le déséquilibre est signalé sans création de ligne comptable fictive. & Avec un actif de 100 MAD et un passif de 80 MAD, le Bilan a retourné un écart de 20 MAD, \texttt{equilibre = false} et un état à vérifier. Les deux comptes fournis sont restés les seuls comptes du résultat : aucune ligne d'équilibrage n'a été créée. \\
+T07 & Préparer puis centraliser une période de TVA. & Seuls les comptes configurés sont utilisés et la centralisation reste équilibrée. & Les tests ont produit les lignes à partir des comptes exacts du plan et vérifié l'égalité Débit/Crédit. Sans compte exact, la période est restée à vérifier et aucune ligne n'a été créée. \\
+T08 & Demander à l'Assistant uniquement les documents bancaires. & La catégorie banque et les portées du cabinet et de l'entreprise sont appliquées. & Le moteur de requête a filtré explicitement la catégorie \texttt{banque}, appliqué \texttt{cabinet\_id} et \texttt{entreprise\_id}, et retourné des liens documentaires protégés. \\
+T09 & Charger les routes fonctionnelles avec un administrateur de démonstration. & Chaque page authentifiée affiche un contenu réel sans erreur backend. & L'audit Chrome local a contrôlé 25 routes, notamment le nouvel accueil et la sélection d'entreprise ; le passage final est conforme. \\
+T10 & Tenter des mutations après verrouillage d'une période, puis la réouvrir avec un rôle autorisé. & Les mutations sont refusées sans changement partiel ; les GET restent disponibles et la réouverture justifiée restaure les droits de modification. & Les routes de rapprochement bancaire, TVA, documents, reconstruction et clôture retournent HTTP~409 avant toute mutation sur une période verrouillée. Les consultations restent accessibles. Après réouverture autorisée et auditée, les mêmes opérations redeviennent possibles. \\
 \bottomrule
 \end{longtable}
+\normalsize
+
+\section{Contrôles de sécurité complémentaires}
+
+Des contrôles ciblés ont été exécutés sur le code réel sans modifier
+l'application ni les données de démonstration. Trois sondes ont sollicité
+directement les dépendances de sécurité et le validateur d'import. En
+complément, huit tests Pytest existants ont été exécutés avec succès : six cas
+de sécurité documentaire, un cas d'isolation multi-tenant et un cas de
+sélection des erreurs ouvrant droit à un retry.
+
+\begin{table}[H]
+\centering
+\caption{Résultats des contrôles de sécurité complémentaires}
+\footnotesize
+\TableSetup
+\begin{tabularx}{\textwidth}{|L{1.2cm}|L{4.3cm}|L{3.8cm}|Y|}
+\toprule
+\rowcolor{ComptaBlue}\TableHead{ID} & \TableHead{Méthode} & \TableHead{Résultat attendu} & \TableHead{Résultat réel / preuve} \\
+\midrule
+S01 & Modifier la signature d'un JWT valide, puis appeler la dépendance d'accès. & Rejet de l'authentification. & \TableSuccess{Conforme} : HTTP~401, jeton invalide ou expiré. \\
+S02 & Présenter le rôle Assistant à la dépendance réservée à l'Expert-comptable ou au Chef de mission. & Refus de l'opération sensible. & \TableSuccess{Conforme} : HTTP~403, rôle insuffisant. \\
+S03 & Exécuter le test de portée métier avec un autre \texttt{cabinet\_id}. & Refus d'un objet hors cabinet. & \TableSuccess{Conforme} : test Pytest réussi ; T03 conserve en outre la preuve HTTP~404 au niveau documentaire. \\
+S04 & Soumettre un contenu PDF annoncé comme JPEG avec l'extension \texttt{.jpg}. & Refus avant stockage. & \TableSuccess{Conforme} : HTTP~400 ; les tests de taille, signature et confinement du chemin ont également réussi. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ces contrôles sont inclus dans la suite complète de 401 tests backend validée ;
+ils complètent les scénarios métier sans remplacer les tests d'intégration.
+
+\section{Traçabilité des besoins fonctionnels}
+
+La matrice suivante relie chaque besoin fonctionnel aux principaux éléments de réalisation ou de validation observables dans la version documentée.
+
+\small
+\TableSetup
+\begin{longtable}{|L{1.6cm}|L{3cm}|L{9.8cm}|}
+\caption{Matrice de traçabilité des besoins fonctionnels}\label{tab:tracabilite-bf}\\
+\toprule
+\rowcolor{ComptaBlue}\TableHead{Besoin} & \TableHead{État} & \TableHead{Preuve / validation} \\
+\midrule
+\endfirsthead
+\toprule
+\rowcolor{ComptaBlue}\TableHead{Besoin} & \TableHead{État} & \TableHead{Preuve / validation} \\
+\midrule
+\endhead
+\TableId{BF01} & \TableSuccess{Réalisé} & Authentification, rôles et contrôles d'accès ; sondes S01 et S02 : HTTP~401 et 403 attendus. \\
+\TableId{BF02} & \TableSuccess{Réalisé} & Isolation par cabinet et entreprise ; T03 : ressource d'un autre cabinet masquée par HTTP~404 ; contrôle S03 réussi. \\
+\TableId{BF03} & \TableSuccess{Réalisé} & Import documentaire ; S04 et tests Pytest : format, taille, signature, extension, MIME et chemin contrôlés. \\
+\TableId{BF04} & \TableSuccess{Réalisé} & Pipeline Groq/OCR et mécanismes de repli. \\
+\TableId{BF05} & \TableSuccess{Réalisé} & Identification entreprise/tiers et classification achat/vente. \\
+\TableId{BF06} & \TableSuccess{Réalisé} & Chronos numériques et filtres par période et catégorie. \\
+\TableId{BF07} & \TableSuccess{Réalisé} & T01 : pré-écriture équilibrée ; T02 : incohérence signalée et aucune ligne déséquilibrée produite. \\
+\TableId{BF08} & \TableSuccess{Réalisé} & Plan comptable propre à chaque entreprise et résolution des comptes. \\
+\TableId{BF09} & \TableSuccess{Réalisé} & T04 : 2\,400 MAD alloués sur 4\,800 MAD et solde de 2\,400 MAD conservé. \\
+\TableId{BF10} & \TableSuccess{Réalisé} & T05 : cours historique introuvable signalé, sans substitution par le cours courant. \\
+\TableId{BF11} & \TableSuccess{Réalisé} & Grand Livre, Balance, TVA, CPC et Bilan. \\
+\TableId{BF12} & \TableSuccess{Réalisé} & T06 : écart de bilan de 20 MAD signalé sans ligne fictive d'équilibrage. \\
+\TableId{BF13} & \TableSuccess{Réalisé} & Tableau de bord, tâches planifiées avec heure et récurrence, messagerie, notifications, Assistant sécurisé et journal d'audit administrateur. \\
+\TableId{BF14} & \textcolor{ComptaSlate}{\textbf{Partiellement réalisé}} & Exports génériques CSV, XLSX et PDF disponibles ; connecteur et intégration automatique directe avec Topaze non réalisés. \\
+\bottomrule
+\end{longtable}
+\normalsize
 
 \section{Problèmes rencontrés et corrections}
 
-\acompleter{Décrire vos problèmes réels sous la forme : symptôme, cause racine, solution appliquée et preuve de validation. Exemples possibles à confirmer : compatibilité des dépendances OCR, classification ambiguë, gestion des montants absents, performance du worker ou résolution de comptes multiples.}
+\subsection{Contraintes de ressources pour les traitements OCR et IA}
+
+\textbf{Problème constaté.} L'une des principales difficultés rencontrées au
+cours du développement concernait les ressources matérielles nécessaires aux
+traitements documentaires exécutés localement. L'utilisation de PaddleOCR et,
+surtout, l'exécution des modèles d'intelligence artificielle avec Ollama
+pouvaient entraîner une consommation importante de mémoire vive et ralentir le
+traitement sur ma machine de développement.
+
+\textbf{Cause.} Ces traitements nécessitent le chargement local de modèles et
+mobilisent des ressources pendant leur exécution. Cette contrainte était
+d'autant plus importante que je ne disposais ni d'un serveur dédié ni d'une
+infrastructure cloud personnelle suffisamment puissante pour héberger et
+exécuter continuellement des modèles lourds.
+
+\textbf{Solution adoptée.} J'ai intégré Groq comme service distant dans le
+pipeline documentaire. Groq Vision constitue le chemin prioritaire pour la
+classification et l'extraction structurée à partir des pages prétraitées. S'il
+n'est pas disponible ou si son résultat n'est pas exploitable, le système tente
+d'abord l'extraction native du texte d'un PDF, puis utilise le prétraitement
+OpenCV et PaddleOCR lorsque l'OCR est nécessaire. Le texte obtenu peut ensuite
+être analysé par Groq texte, avec une branche spécialisée pour les relevés
+bancaires.
+
+\textbf{Résultat et continuité du traitement.} Cette organisation limite le
+recours systématique aux modèles exécutés sur la machine locale, sans supprimer
+les mécanismes de repli. En cas d'indisponibilité des services Groq, le pipeline
+conserve l'extraction locale par PaddleOCR ainsi que les expressions régulières,
+les heuristiques de classification et l'enrichissement sémantique partiel par
+Ollama. La solution réduit ainsi qualitativement la charge locale tout en
+préservant la flexibilité du pipeline et la continuité du traitement, sans
+supposer qu'un résultat ambigu puisse être validé automatiquement.
 
 % ============================================================
 % 13. Conclusion
@@ -1805,26 +2535,94 @@ T06 & Générer le Bilan avec un déséquilibre. & Déséquilibre signalé sans 
 
 ComptaFlow fournit une chaîne cohérente allant du document brut aux états comptables. Son principal apport réside dans l'association de techniques d'extraction variées avec des règles métier déterministes et un contrôle humain. La structure multi-tenant, la conservation des données originales, la résolution des comptes par entreprise et le refus des corrections fictives répondent aux exigences de confiance du domaine comptable.
 
-Le périmètre réalisé couvre l'import, les chronos, les écritures, Banque V2, les devises BAM, les états comptables, la TVA et la clôture. La modularité des services permet d'ajouter des traitements tout en maintenant des règles identiques entre le chemin principal et les replis.
+Le périmètre réalisé couvre l'import, les chronos, la préparation et la validation des pré-écritures, le workflow pré-Topaze, la gestion bancaire avancée, les devises BAM, les états comptables, la TVA, les contrôles et le verrouillage de pré-clôture. Il comprend également l'Assistant sécurisé, le journal d'audit, la messagerie et la planification des tâches. La modularité des services permet d'ajouter des traitements tout en maintenant des règles identiques entre le chemin principal et les replis.
+
+Les résultats obtenus répondent ainsi à la problématique initiale en réduisant les opérations manuelles situées en amont de la saisie comptable tout en préservant la fiabilité et le contrôle professionnel. La version documentée a validé 401 tests backend, 18 tests frontend, le typecheck, le lint et le build de production, ainsi qu'un audit visuel de 25 routes authentifiées. Cette automatisation reste encadrée par une validation humaine pour les décisions comptables sensibles. L'intégration automatique avec Topaze, l'évaluation quantitative des performances OCR/IA et le renforcement de l'industrialisation, des sauvegardes et de l'observabilité constituent les principales étapes à poursuivre avant une utilisation en production.
 
 \section{Compétences acquises}
 
-\acompleter{Présenter vos acquis personnels : analyse métier comptable, modélisation UML, React/TypeScript, FastAPI, SQLAlchemy, PostgreSQL, Celery/Redis, OCR/IA, tests, Git, Docker, communication et gestion de projet.}
+La réalisation de ce projet m'a permis de renforcer mes compétences en analyse
+des besoins et en compréhension d'un processus métier réel. L'étude du
+fonctionnement comptable de SEGURIBAT m'a amenée à traduire un processus encore
+largement manuel en besoins fonctionnels, règles métier et modèles de données
+exploitables dans une application. J'ai ainsi appris à relier les observations
+du terrain aux décisions de conception, puis à faire évoluer ces décisions à
+partir des retours obtenus durant le stage.
+
+Sur le plan du développement, j'ai approfondi mes compétences en conception et
+réalisation d'applications web avec React, TypeScript et Vite pour le frontend,
+ainsi qu'avec FastAPI, SQLAlchemy et PostgreSQL pour le backend et la
+persistance des données. Ce travail m'a permis de mieux maîtriser la
+structuration d'une architecture modulaire, les échanges avec une API REST,
+l'authentification, la gestion des rôles et le suivi des évolutions du schéma de
+données avec Alembic.
+
+Le projet m'a également permis d'aborder des problématiques spécialisées de
+traitement documentaire. J'ai appris à intégrer et à articuler plusieurs
+mécanismes d'extraction et d'analyse, notamment Groq, PaddleOCR et Ollama, tout
+en prévoyant des méthodes de repli adaptées aux limites matérielles et aux
+différences de qualité des documents. L'utilisation de Celery et Redis m'a
+également permis de mieux comprendre l'exécution asynchrone des traitements
+longs et la séparation entre la réception d'une requête et son traitement en
+arrière-plan.
+
+Enfin, j'ai acquis une meilleure compréhension des contraintes propres au
+domaine comptable : conservation des données originales, préparation des
+pré-écritures, résolution des comptes à partir du plan de chaque entreprise,
+rapprochement bancaire, contrôles de cohérence et maintien d'une validation
+humaine pour les décisions sensibles. L'exécution des tests backend et des
+contrôles frontend, l'analyse des anomalies et les corrections successives ont
+renforcé ma capacité à valider une application de manière structurée et à
+justifier mes choix techniques et fonctionnels.
 
 \section{Perspectives}
 
-Les perspectives techniques et fonctionnelles possibles sont :
+ComptaFlow constitue une base fonctionnelle qui pourrait être prolongée par des
+évolutions ciblées, sans remettre en cause le contrôle humain placé au cœur du
+traitement comptable :
 
 \begin{itemize}[leftmargin=*]
-  \item mesurer la précision d'extraction sur un corpus anonymisé et versionné ;
-  \item renforcer l'observabilité avec métriques de temps, erreurs et taux de validation ;
-  \item développer une stratégie de sauvegarde, restauration et archivage probant ;
-  \item enrichir les exports vers les logiciels comptables utilisés par l'entreprise ;
-  \item ajouter des tests end-to-end du navigateur au worker ;
-  \item améliorer l'assistance à la résolution des cas ambigus sans supprimer la validation humaine.
+  \item Une évolution prioritaire consisterait à développer un mécanisme
+  d'export dans un format compatible avec Topaze ou, si des possibilités
+  techniques sont confirmées ultérieurement, une intégration avec ce logiciel.
+  ComptaFlow continuerait ainsi à automatiser la réception, le classement,
+  l'extraction, le contrôle et la préparation comptable, tandis que Topaze
+  resterait l'outil comptable de référence utilisé par SEGURIBAT. Aucune
+  intégration automatique directe avec Topaze n'a été réalisée durant le stage.
+
+  \item Un corpus de documents anonymisés et versionnés pourrait être constitué
+  afin de mesurer la qualité des différentes méthodes d'extraction et de
+  classification. Cette évaluation permettrait de comparer les résultats selon
+  le type et la qualité des pièces, sans présumer d'un taux de précision qui n'a
+  pas encore été mesuré.
+
+  \item Les mécanismes d'assistance pourraient enfin être enrichis afin de mieux
+  classer les situations ambiguës et de présenter des choix plus pertinents à
+  l'utilisateur, tout en conservant une validation humaine pour les décisions
+  comptables sensibles.
 \end{itemize}
 
-\acompleter{Sélectionner et justifier les perspectives réellement prévues avec l'entreprise ou l'encadrant.}
+\subsection{Conditions préalables à une mise en production}
+
+La version documentée constitue une base fonctionnelle, mais son exploitation
+continue nécessiterait une phase d'industrialisation. Les conditions
+prioritaires sont les suivantes :
+
+\begin{itemize}[leftmargin=*]
+  \item organiser les sauvegardes de PostgreSQL et des documents, puis tester
+  régulièrement une restauration complète ;
+  \item déployer les échanges sous HTTPS/TLS et mettre en place une gestion et
+  une rotation maîtrisées des secrets ;
+  \item superviser l'API, les workers Celery, Redis et PostgreSQL, ainsi que
+  l'espace disque occupé par le stockage documentaire ;
+  \item suivre les temps de traitement, les erreurs d'extraction et les
+  mécanismes de repli utilisés afin de détecter les dégradations ;
+  \item définir une politique de conservation et de suppression, ainsi que les
+  règles de confidentialité applicables aux données transmises aux services
+  externes ;
+  \item compléter la validation par des tests end-to-end et constituer un corpus
+  OCR/IA anonymisé et versionné pour les évaluations quantitatives.
+\end{itemize}
 
 % ============================================================
 % 14. Références
@@ -1859,6 +2657,12 @@ Redis, \textit{Redis Documentation}, \url{https://redis.io/docs/}.
 \bibitem{paddleocr}
 PaddlePaddle, \textit{PaddleOCR Documentation}, \url{https://www.paddleocr.ai/}.
 
+\bibitem{groq}
+Groq, \textit{Groq API Reference}, \url{https://console.groq.com/docs/api-reference}.
+
+\bibitem{ollama}
+Ollama, \textit{Documentation officielle}, \url{https://docs.ollama.com/}.
+
 \bibitem{docker}
 Docker, \textit{Docker Documentation}, \url{https://docs.docker.com/}.
 
@@ -1877,6 +2681,7 @@ Projet ComptaFlow, \textit{Code source, modèles, services, routes, migrations e
 % 15. Annexes
 % ============================================================
 \appendix
+\renewcommand{\chaptername}{Annexe}
 \chapter{Arborescence technique}
 
 \begin{lstlisting}
@@ -1924,19 +2729,5 @@ pdflatex rapport_comptaflow.tex
 # Variante si latexmk est disponible
 latexmk -pdf rapport_comptaflow.tex
 \end{lstlisting}
-
-\chapter{Informations restant à compléter}
-
-\begin{itemize}[leftmargin=*]
-  \item identité de l'auteur, formation, établissement et année universitaire ;
-  \item nom et présentation de l'entreprise d'accueil ;
-  \item encadrants, période du projet et date de soutenance ;
-  \item remerciements personnels ;
-  \item méthode de gestion de projet réellement suivie ;
-  \item contribution personnelle et difficultés rencontrées ;
-  \item résultats précis des tests et scénarios manuels ;
-  \item captures d'écran anonymisées dans le dossier \texttt{captures/} ;
-  \item bilan des compétences et perspectives validées.
-\end{itemize}
 
 \end{document}

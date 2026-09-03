@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { chooseAvailableEntreprise, listAvailableEntreprises } from "../api/entreprisesApi";
+import { getActiveEntrepriseId } from "../utils/activeEntreprise";
 import {
   confirmBankMovementAllocations,
   getBankMovementCandidates,
@@ -153,7 +154,7 @@ export function RelevesBancairesPage() {
   useEffect(() => {
     listAvailableEntreprises("banque").then((items) => {
       setEntreprises(items);
-      setEntrepriseId((current) => chooseAvailableEntreprise(items, current));
+      setEntrepriseId((current) => chooseAvailableEntreprise(items, current, getActiveEntrepriseId()));
     }).catch(() => setEntreprises([]));
   }, []);
 
@@ -466,7 +467,7 @@ export function RelevesBancairesPage() {
         {success && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{success}</div>}
 
         <section className="mb-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4">
-          <label className="block"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Entreprise</span><select value={entrepriseId} onChange={(e) => setEntrepriseId(e.target.value)} className="w-full rounded-lg border px-3 py-2.5 text-sm"><option value="">Toutes</option>{entreprises.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}</select>{entreprises.length === 0 && <span className="mt-2 block text-xs text-amber-700">Aucune entreprise ne possÃ¨de encore de donnÃ©es dans ce module.</span>}</label>
+          <label className="block"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Entreprise</span><select value={entrepriseId} onChange={(e) => setEntrepriseId(e.target.value)} className="w-full rounded-lg border px-3 py-2.5 text-sm"><option value="">Toutes</option>{entreprises.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}</select>{entreprises.length === 0 && <span className="mt-2 block text-xs text-amber-700">Aucune entreprise ne possède encore de données dans ce module.</span>}</label>
           <label className="block"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Année</span><select value={annee} onChange={(e) => setAnnee(e.target.value ? Number(e.target.value) : "")} className="w-full rounded-lg border px-3 py-2.5 text-sm"><option value="">Toutes</option>{anneesDisponibles.map((year) => <option key={year}>{year}</option>)}</select></label>
           <label className="block"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Mois</span><select value={mois} onChange={(e) => setMois(e.target.value ? Number(e.target.value) : "")} className="w-full rounded-lg border px-3 py-2.5 text-sm"><option value="">Tous</option>{MOIS.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}</select></label>
           <label className="block"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Recherche</span><div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={recherche} onChange={(e) => setRecherche(e.target.value)} className="w-full rounded-lg border py-2.5 pl-9 pr-3 text-sm" placeholder="libellé, référence..." /></div></label>

@@ -5,7 +5,7 @@ et TVA mensuelle. Elle ne modifie pas le pipeline OCR/IA.
 """
 
 import uuid
-from datetime import date as date_type
+from datetime import date as date_type, datetime, timezone
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -30,7 +30,7 @@ from app.models.compte_bancaire_entreprise import CompteBancaireEntreprise
 from app.models.compte_comptable_entreprise import CompteComptableEntreprise
 from app.models.rapprochement_bancaire_allocation import RapprochementBancaireAllocation
 from app.models.user import User
-from app.schemas.ecriture import EcritureOut, EcritureUpdate
+from app.schemas.ecriture import EcritureOut, EcritureUpdate, TopazeMarkRequest
 from app.schemas.ledger import BalanceOut, GrandLivreOut, ReconstructionLedgerOut
 from app.schemas.cpc import CpcCompteDetailOut, CpcOut, CpcV2Out
 from app.schemas.bilan import BilanCompteDetailOut, BilanOut, BilanV2Out
@@ -57,6 +57,7 @@ from app.services import tva_comptable_service
 from app.services import cpc_service
 from app.services import bilan_service
 from app.services import precloture_service
+from app.services import workflow_comptable_service
 
 from app.schemas.registre import (
     RegistreOptionOut,
@@ -369,41 +370,43 @@ def validate_entry(
 ):
     entry = _get_entry_or_404(db, entry_id, current_user.cabinet_id)
     document = db.get(Document, entry.document_id)
-
-    ancien_statut = entry.statut_validation.value
-    entry.statut_validation = StatutValidationEnum.VALIDE
-    entry.validated_by = current_user.id
-
-    generation = ligne_comptable_service.synchroniser_lignes_facture(db, entry)
-    if generation.applicable and not generation.complet:
-        db.rollback()
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "Validation refusée : les lignes Débit/Crédit ne sont pas complètes. "
-                + " | ".join(generation.raisons)
-            ),
-        )
-
-    if document is not None:
-        document.statut = StatutDocumentEnum.VALIDE
-
-    # Si des mouvements bancaires étaient déjà rapprochés à cette facture,
-    # ils deviennent éligibles au journal Banque maintenant que la facture
-    # est validée.
     mouvements = _mouvements_lies_a_ecriture(
         db,
         cabinet_id=current_user.cabinet_id,
         ecriture_id=entry.id,
     )
     for mouvement in mouvements:
+        workflow_comptable_service.verifier_mouvement_modifiable(db, mouvement)
+
+    ancien_statut = entry.statut_validation.value
+    try:
+        workflow_comptable_service.verifier_periode_modifiable(db, entry)
+        anomalies = workflow_comptable_service.controler_et_transitionner(
+            db, entry, document=document, user=current_user, actor_type="user"
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if anomalies:
+        db.commit()
+        raise HTTPException(
+            status_code=422,
+            detail="Contrôles non satisfaits : " + " | ".join(item["message"] for item in anomalies),
+        )
+
+    # Si des mouvements bancaires étaient déjà rapprochés à cette facture,
+    # ils deviennent éligibles au journal Banque maintenant que la facture
+    # est validée.
+    for mouvement in mouvements:
         ligne_comptable_service.synchroniser_lignes_banque(db, mouvement)
 
     audit_service.enregistrer(
-        db, user=current_user, action="accounting_entry.validate",
+        db, user=current_user, action=audit_service.AuditAction.ENTRY_VALIDATED,
+        entreprise_id=entry.entreprise_id,
         resource_type="ecriture_comptable", resource_id=entry.id,
+        description="Relance manuelle des contrôles d'une pré-écriture comptable.",
         avant={"statut_validation": ancien_statut},
-        apres={"statut_validation": StatutValidationEnum.VALIDE.value},
+        apres={"statut_validation": StatutValidationEnum.PRETE_TOPAZE.value},
     )
 
     db.commit()
@@ -419,6 +422,11 @@ def reject_entry(
     entry = _get_entry_or_404(db, entry_id, current_user.cabinet_id)
     document = db.get(Document, entry.document_id)
 
+    try:
+        workflow_comptable_service.verifier_periode_modifiable(db, entry)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     ancien_statut = entry.statut_validation.value
     entry.statut_validation = StatutValidationEnum.REJETE
     entry.validated_by = current_user.id
@@ -427,8 +435,10 @@ def reject_entry(
 
     ligne_comptable_service.synchroniser_lignes_facture(db, entry)
     audit_service.enregistrer(
-        db, user=current_user, action="accounting_entry.reject",
+        db, user=current_user, action=audit_service.AuditAction.ENTRY_REJECTED,
+        entreprise_id=entry.entreprise_id,
         resource_type="ecriture_comptable", resource_id=entry.id,
+        description="Rejet d'une pré-écriture comptable.",
         avant={"statut_validation": ancien_statut},
         apres={"statut_validation": StatutValidationEnum.REJETE.value},
     )
@@ -439,16 +449,48 @@ def reject_entry(
 @router.patch("/entries/{entry_id}/saisie", response_model=EcritureOut)
 def toggle_saisie_topaze(
     entry_id: uuid.UUID,
+    payload: TopazeMarkRequest | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(*_ROLES_VALIDATION)),
 ):
     entry = _get_entry_or_404(db, entry_id, current_user.cabinet_id)
     document = db.get(Document, entry.document_id)
 
-    entry.saisie_topaze = not entry.saisie_topaze
+    try:
+        workflow_comptable_service.verifier_periode_modifiable(db, entry)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    target = payload.saisie if payload is not None else not entry.saisie_topaze
+    if target and entry.statut_validation not in {
+        StatutValidationEnum.PRETE_TOPAZE,
+        StatutValidationEnum.SAISIE_TOPAZE,
+        StatutValidationEnum.VALIDE,
+    }:
+        raise HTTPException(status_code=422, detail="Seule une pré-écriture contrôlée peut être marquée saisie dans Topaze.")
+    ancien = bool(entry.saisie_topaze)
+    ancien_statut = entry.statut_validation.value
+    entry.saisie_topaze = target
+    if target:
+        entry.statut_validation = StatutValidationEnum.SAISIE_TOPAZE
+        entry.ready_for_topaze_at = entry.ready_for_topaze_at or datetime.now(timezone.utc)
+        entry.topaze_entered_at = datetime.now(timezone.utc)
+        entry.topaze_entered_by = current_user.id
+        entry.topaze_batch_reference = payload.reference_lot.strip() if payload and payload.reference_lot else None
+    else:
+        entry.statut_validation = StatutValidationEnum.PRETE_TOPAZE
+        entry.topaze_entered_at = None
+        entry.topaze_entered_by = None
+        entry.topaze_batch_reference = None
     if document is not None:
         document.saisie_topaze = entry.saisie_topaze
 
+    audit_service.enregistrer(
+        db, user=current_user, action=audit_service.AuditAction.ENTRY_MARKED_TOPAZE,
+        entreprise_id=entry.entreprise_id, resource_type="ecriture_comptable",
+        resource_id=entry.id, description="Modification du statut de saisie Topaze.",
+        avant={"saisie_topaze": ancien, "statut_validation": ancien_statut},
+        apres={"saisie_topaze": bool(entry.saisie_topaze), "statut_validation": entry.statut_validation.value, "reference_lot": entry.topaze_batch_reference},
+    )
     db.commit()
     return _get_entry_output(db, entry_id, current_user.cabinet_id)
 
@@ -467,27 +509,49 @@ def update_entry(
     if "montant_ttc" in data and data["montant_ttc"] is None:
         raise HTTPException(status_code=422, detail="Le montant TTC est obligatoire.")
 
-    for field_name, field_value in data.items():
-        setattr(entry, field_name, field_value)
-
-    # Une correction doit toujours être contrôlée une nouvelle fois.
-    entry.statut_validation = StatutValidationEnum.A_VERIFIER
-    entry.validated_by = None
-    if document is not None:
-        document.statut = StatutDocumentEnum.TRAITE
-
-    ligne_comptable_service.synchroniser_lignes_facture(db, entry)
-
-    # Toute ligne Banque précédemment reliée à cette écriture doit être
-    # désactivée tant que la facture corrigée n'est pas revalidée.
+    workflow_comptable_service.verifier_dates_modifiables(
+        db,
+        cabinet_id=entry.cabinet_id,
+        entreprise_id=entry.entreprise_id,
+        target_dates=(entry.date_piece, data.get("date_piece", entry.date_piece)),
+    )
     mouvements = _mouvements_lies_a_ecriture(
         db,
         cabinet_id=current_user.cabinet_id,
         ecriture_id=entry.id,
     )
     for mouvement in mouvements:
+        workflow_comptable_service.verifier_mouvement_modifiable(db, mouvement)
+
+    avant = {field_name: getattr(entry, field_name) for field_name in data}
+    avant["statut_validation"] = entry.statut_validation
+    for field_name, field_value in data.items():
+        setattr(entry, field_name, field_value)
+
+    # Une correction relance immédiatement toute la chaîne de contrôles.
+    try:
+        workflow_comptable_service.verifier_periode_modifiable(db, entry)
+        workflow_comptable_service.controler_et_transitionner(
+            db, entry, document=document, user=current_user, actor_type="user"
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    # Toute ligne Banque précédemment reliée à cette écriture doit être
+    # désactivée tant que la facture corrigée n'est pas revalidée.
+    for mouvement in mouvements:
         ligne_comptable_service.synchroniser_lignes_banque(db, mouvement)
 
+    apres = {field_name: getattr(entry, field_name) for field_name in data}
+    apres["statut_validation"] = entry.statut_validation
+    avant_modifie, apres_modifie = audit_service.valeurs_modifiees(avant, apres)
+    audit_service.enregistrer(
+        db, user=current_user, action=audit_service.AuditAction.ENTRY_UPDATED,
+        entreprise_id=entry.entreprise_id, resource_type="ecriture_comptable",
+        resource_id=entry.id, description="Modification d'une pré-écriture comptable.",
+        avant=avant_modifie, apres=apres_modifie,
+    )
     db.commit()
     return _get_entry_output(db, entry_id, current_user.cabinet_id)
 
@@ -681,8 +745,16 @@ def reconcile_bank_movement_auto(
     current_user: User = Depends(get_current_user),
 ):
     mouvement = _get_bank_movement_or_404(db, movement_id, current_user.cabinet_id)
+    workflow_comptable_service.verifier_mouvement_modifiable(db, mouvement)
     rapprochement_bancaire_service.rapprocher_mouvement(db, mouvement)
     ligne_comptable_service.synchroniser_lignes_banque(db, mouvement)
+    audit_service.enregistrer(
+        db, user=current_user, action="BANK_RECONCILIATION_PROPOSED",
+        entreprise_id=mouvement.entreprise_id, resource_type="mouvement_bancaire",
+        resource_id=mouvement.id, actor_type="system",
+        description="Calcul des propositions de rapprochement bancaire.",
+        apres={"statut_rapprochement": mouvement.statut_rapprochement},
+    )
     db.commit()
     db.refresh(mouvement)
     return mouvement
@@ -700,6 +772,9 @@ def confirm_bank_reconciliation(
 ):
     mouvement = _get_bank_movement_or_404(db, movement_id, current_user.cabinet_id)
     ecriture = _get_entry_or_404(db, entry_id, current_user.cabinet_id)
+    workflow_comptable_service.verifier_mouvement_modifiable(
+        db, mouvement, ecritures_supplementaires=(ecriture,)
+    )
 
     try:
         rapprochement_bancaire_service.confirmer_rapprochement(
@@ -709,6 +784,15 @@ def confirm_bank_reconciliation(
             current_user.id,
         )
         ligne_comptable_service.synchroniser_lignes_banque(db, mouvement)
+        audit_service.enregistrer(
+            db, user=current_user,
+            action=audit_service.AuditAction.BANK_RECONCILIATION_CONFIRMED,
+            entreprise_id=mouvement.entreprise_id,
+            resource_type="mouvement_bancaire", resource_id=mouvement.id,
+            description="Confirmation d'un rapprochement bancaire.",
+            apres={"ecriture_id": ecriture.id, "statut": mouvement.statut_rapprochement},
+            resource_ids=[mouvement.id, ecriture.id], item_count=2,
+        )
         db.commit()
         db.refresh(mouvement)
         return mouvement
@@ -727,8 +811,16 @@ def unlink_bank_reconciliation(
     current_user: User = Depends(require_role(*_ROLES_VALIDATION)),
 ):
     mouvement = _get_bank_movement_or_404(db, movement_id, current_user.cabinet_id)
+    workflow_comptable_service.verifier_mouvement_modifiable(db, mouvement)
     rapprochement_bancaire_service.annuler_rapprochement(db, mouvement)
     ligne_comptable_service.supprimer_lignes_banque(db, mouvement.id)
+    audit_service.enregistrer(
+        db, user=current_user,
+        action=audit_service.AuditAction.BANK_RECONCILIATION_CANCELLED,
+        entreprise_id=mouvement.entreprise_id,
+        resource_type="mouvement_bancaire", resource_id=mouvement.id,
+        description="Annulation d'un rapprochement bancaire.",
+    )
     db.commit()
     db.refresh(mouvement)
     return mouvement
@@ -750,6 +842,11 @@ def confirm_bank_allocations(
     for item in payload.allocations:
         entry = _get_entry_or_404(db, item.ecriture_id, current_user.cabinet_id)
         entries.append((entry, item.montant_affecte, item.montant_devise_affecte))
+    workflow_comptable_service.verifier_mouvement_modifiable(
+        db,
+        mouvement,
+        ecritures_supplementaires=tuple(entry for entry, _, _ in entries),
+    )
     try:
         rapprochement_bancaire_service.confirmer_allocations(
             db,
@@ -765,6 +862,19 @@ def confirm_bank_allocations(
         ):
             db.rollback()
             raise HTTPException(status_code=422, detail=" | ".join(generation.raisons))
+        audit_service.enregistrer(
+            db, user=current_user,
+            action=audit_service.AuditAction.BANK_ALLOCATIONS_CONFIRMED,
+            entreprise_id=mouvement.entreprise_id,
+            resource_type="mouvement_bancaire", resource_id=mouvement.id,
+            description=f"Confirmation de {len(entries)} allocation(s) bancaire(s).",
+            metadata={"allocations": [
+                {"ecriture_id": item.id, "montant_affecte": amount}
+                for item, amount, _ in entries
+            ]},
+            resource_ids=[mouvement.id, *[item.id for item, _, _ in entries]],
+            item_count=len(entries),
+        )
         db.commit()
         db.refresh(mouvement)
         return mouvement
@@ -784,6 +894,7 @@ def update_bank_operation(
     current_user: User = Depends(require_role(*_ROLES_VALIDATION)),
 ):
     mouvement = _get_bank_movement_or_404(db, movement_id, current_user.cabinet_id)
+    workflow_comptable_service.verifier_mouvement_modifiable(db, mouvement)
     data = payload.model_dump(exclude_unset=True)
 
     if "compte_bancaire_entreprise_id" in data:
@@ -866,6 +977,8 @@ def link_internal_transfer(
 ):
     mouvement = _get_bank_movement_or_404(db, movement_id, current_user.cabinet_id)
     other = _get_bank_movement_or_404(db, other_movement_id, current_user.cabinet_id)
+    workflow_comptable_service.verifier_mouvement_modifiable(db, mouvement)
+    workflow_comptable_service.verifier_mouvement_modifiable(db, other)
     try:
         rapprochement_bancaire_service.lier_virement_interne(db, mouvement, other)
         ligne_comptable_service.synchroniser_lignes_banque(db, mouvement)
@@ -972,6 +1085,10 @@ def get_grand_livre(
     date_debut: date_type | None = Query(default=None),
     date_fin: date_type | None = Query(default=None),
     compte_prefix: str | None = Query(default=None, max_length=30),
+    journal: str | None = Query(default=None, max_length=10),
+    statut_topaze: StatutValidationEnum | None = Query(default=None),
+    tiers: str | None = Query(default=None, max_length=150),
+    recherche: str | None = Query(default=None, max_length=150),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -985,6 +1102,10 @@ def get_grand_livre(
         date_debut=date_debut,
         date_fin=date_fin,
         compte_prefix=compte_prefix,
+        journal=journal,
+        statut_topaze=statut_topaze,
+        tiers=tiers,
+        recherche=recherche,
     )
 
 
@@ -1014,6 +1135,11 @@ def rebuild_ledger(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(*_ROLES_VALIDATION)),
 ):
+    workflow_comptable_service.verifier_entreprise_modifiable(
+        db,
+        cabinet_id=current_user.cabinet_id,
+        entreprise_id=entreprise_id,
+    )
     resultat = ligne_comptable_service.reconstruire_lignes_entreprise(
         db,
         cabinet_id=current_user.cabinet_id,
@@ -1381,12 +1507,26 @@ def get_bilan_v2(
     _ensure_company_for_state(
         db, cabinet_id=current_user.cabinet_id, entreprise_id=entreprise_id
     )
-    return bilan_service.calculer_bilan_v2(
+    result = bilan_service.calculer_bilan_v2(
         db,
         cabinet_id=current_user.cabinet_id,
         entreprise_id=entreprise_id,
         exercice=exercice,
     )
+    output = BilanV2Out.model_validate(result)
+    controls = precloture_service.calculer_precloture(
+        db, cabinet_id=current_user.cabinet_id, entreprise_id=entreprise_id, exercice=exercice
+    )
+    reasons = [
+        item.titre for item in controls.anomalies
+        if item.module in {"documents", "ecritures", "banque", "tva"}
+        and item.niveau in {"bloquant", "important"}
+    ]
+    if output.nombre_lignes == 0:
+        reasons.append("Aucune ligne comptable disponible pour cet exercice.")
+    output.raisons_incompletude = list(dict.fromkeys(reasons))
+    output.completude = "complet" if not output.raisons_incompletude else "potentiellement_incomplet"
+    return output
 
 
 @router.get("/controls/{entreprise_id}", response_model=PreClotureOut)

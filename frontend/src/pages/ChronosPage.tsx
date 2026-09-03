@@ -7,7 +7,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import {
   ExternalLink,
@@ -30,6 +30,7 @@ import { ResizableSidebar } from "../components/ResizableSidebar";
 
 import type { DocumentChrono } from "../types/chrono";
 import type { Entreprise } from "../types/entreprise";
+import { getActiveEntrepriseId } from "../utils/activeEntreprise";
 
 const CATEGORIES = [
   "achats",
@@ -116,10 +117,13 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 export function ChronosPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [companies, setCompanies] = useState<Entreprise[]>([]);
   const [documents, setDocuments] = useState<DocumentChrono[]>([]);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
-  const [companyId, setCompanyId] = useState<string | null>(null);
+  const showUnidentified = searchParams.get("non_identifies") === "1";
+  const showToVerify = searchParams.get("a_verifier") === "1";
+  const [companyId, setCompanyId] = useState<string | null>(() => showUnidentified ? null : (searchParams.get("entreprise_id") ?? getActiveEntrepriseId()));
   const [category, setCategory] = useState<string | null>(null);
   const [year, setYear] = useState<number | null>(null);
   const [month, setMonth] = useState<number | null>(null);
@@ -134,6 +138,10 @@ export function ChronosPage() {
       .then(setCompanies)
       .catch(() => setError("Impossible de charger les entreprises."));
   }, []);
+
+  useEffect(() => {
+    setCompanyId(showUnidentified ? null : (searchParams.get("entreprise_id") ?? getActiveEntrepriseId()));
+  }, [searchParams, showUnidentified]);
 
   useEffect(() => {
     let active = true;
@@ -179,15 +187,20 @@ export function ChronosPage() {
 
   const visibleDocuments = useMemo(() => {
     const term = searchTerm.trim().toLocaleLowerCase("fr");
-    if (!term) return documents;
-    return documents.filter((document) => [
+    const scoped = documents.filter((document) => {
+      if (showUnidentified && document.entreprise_id && !document.entreprise_nom?.toLocaleLowerCase("fr").includes("à identifier")) return false;
+      if (showToVerify && document.statut_validation !== "a_verifier" && document.statut !== "erreur") return false;
+      return true;
+    });
+    if (!term) return scoped;
+    return scoped.filter((document) => [
       document.nom_fichier_original,
       document.entreprise_nom,
       document.numero_piece,
       document.tiers,
       document.categorie,
     ].some((value) => value?.toLocaleLowerCase("fr").includes(term)));
-  }, [documents, searchTerm]);
+  }, [documents, searchTerm, showToVerify, showUnidentified]);
 
   async function handleToggleSaisie(
     event: ChangeEvent<HTMLInputElement>,
@@ -313,7 +326,7 @@ export function ChronosPage() {
       <main className="min-w-0 flex-1 p-5 lg:p-7">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Chronos — Tableau comptable</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{showUnidentified ? "Documents à identifier" : showToVerify ? "Documents à vérifier" : "Chronos — Tableau comptable"}</h1>
             <p className="mt-1 text-sm text-slate-500">
               Cliquez sur une ligne pour vérifier le document et ses données extraites.
             </p>

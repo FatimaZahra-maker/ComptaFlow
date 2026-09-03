@@ -20,8 +20,11 @@ class DocumentsParStatut(BaseModel):
 
 
 class EcrituresParStatutValidation(BaseModel):
+    calcul_en_cours: int
     brouillon: int
     a_verifier: int
+    prete_topaze: int
+    saisie_topaze: int
     valide: int
     rejete: int
 

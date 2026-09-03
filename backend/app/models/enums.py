@@ -63,8 +63,13 @@ class TauxTVAEnum(str, enum.Enum):
 
 
 class StatutValidationEnum(str, enum.Enum):
+    CALCUL_EN_COURS = "calcul_en_cours"
     BROUILLON = "brouillon"     # extraction IA brute
     A_VERIFIER = "a_verifier"   # anomalie détectée automatiquement
+    PRETE_TOPAZE = "prete_topaze"
+    SAISIE_TOPAZE = "saisie_topaze"
+    # Statut historique conservé pour lire les anciennes bases et migrations.
+    # Les nouveaux traitements n'y placent plus d'écriture.
     VALIDE = "valide"
     REJETE = "rejete"
     

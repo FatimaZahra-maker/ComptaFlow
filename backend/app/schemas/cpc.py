@@ -77,3 +77,7 @@ class CpcV2Out(BaseModel):
     nombre_lignes: int
     nombre_comptes: int
     source_calcul: str
+    nature_etat: str = "cpc_provisoire_de_controle"
+    avertissement_limite: str = (
+        "CPC provisoire calculé uniquement à partir des écritures disponibles dans ComptaFlow."
+    )

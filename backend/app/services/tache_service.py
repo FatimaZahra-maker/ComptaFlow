@@ -6,7 +6,8 @@ automatique de la prochaine occurrence quand une tâche récurrente est
 marquée terminée (ex: "déclarer la TVA" tous les mois -- terminer
 l'échéance de juillet crée automatiquement celle d'août).
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import Session
@@ -22,7 +23,16 @@ _DELTA_RECURRENCE = {
 
 
 def est_en_retard(tache: Tache) -> bool:
-    return tache.statut != StatutTacheEnum.TERMINEE and tache.date_echeance < date.today()
+    if tache.statut == StatutTacheEnum.TERMINEE:
+        return False
+    maintenant = datetime.now(ZoneInfo("Africa/Casablanca"))
+    if tache.date_echeance < maintenant.date():
+        return True
+    return bool(
+        tache.date_echeance == maintenant.date()
+        and tache.heure_echeance is not None
+        and tache.heure_echeance < maintenant.time().replace(tzinfo=None)
+    )
 
 
 def marquer_terminee_et_regenerer(db: Session, tache: Tache) -> Tache | None:
@@ -35,7 +45,6 @@ def marquer_terminee_et_regenerer(db: Session, tache: Tache) -> Tache | None:
     tache.statut = StatutTacheEnum.TERMINEE
 
     if tache.recurrence == RecurrenceTacheEnum.AUCUNE:
-        db.commit()
         return None
 
     delta = _DELTA_RECURRENCE[tache.recurrence]
@@ -47,11 +56,11 @@ def marquer_terminee_et_regenerer(db: Session, tache: Tache) -> Tache | None:
         titre=tache.titre,
         description=tache.description,
         date_echeance=tache.date_echeance + delta,
+        heure_echeance=tache.heure_echeance,
         priorite=tache.priorite,
         recurrence=tache.recurrence,
         statut=StatutTacheEnum.A_FAIRE,
     )
     db.add(prochaine)
-    db.commit()
-    db.refresh(prochaine)
+    db.flush()
     return prochaine

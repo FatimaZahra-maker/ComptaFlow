@@ -9,11 +9,11 @@ stockées séparément dans ``lignes_comptables``.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, Enum, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -105,9 +105,19 @@ class EcritureComptable(Base, UUIDMixin, TimestampMixin, CabinetScopedMixin):
     )
 
     saisie_topaze: Mapped[bool] = mapped_column(Boolean, default=False)
+    ready_for_topaze_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    topaze_entered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    topaze_entered_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    topaze_batch_reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     document: Mapped["Document"] = relationship(back_populates="ecritures")
-    validated_by_user: Mapped["User | None"] = relationship()
+    validated_by_user: Mapped["User | None"] = relationship(foreign_keys=[validated_by])
 
     def __repr__(self) -> str:
         return f"<EcritureComptable {self.type_ecriture} {self.montant_ttc} MAD>"
