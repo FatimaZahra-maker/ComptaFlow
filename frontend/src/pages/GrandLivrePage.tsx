@@ -167,7 +167,7 @@ export function GrandLivrePage() {
           <label className="text-sm font-medium text-gray-700">Fournisseur / client<input value={tiers} onChange={(e) => setTiers(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" placeholder="Nom du tiers" /></label>
           <label className="text-sm font-medium text-gray-700">Pièce ou libellé<input value={recherche} onChange={(e) => setRecherche(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" placeholder="Recherche" /></label>
           </section>
-        {entreprises.length === 0 && <p className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Aucune entreprise ne possède encore de données dans ce module.</p>}
+        {entreprises.length === 0 && <p className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Aucune entreprise gérée et active n’est disponible dans ce cabinet.</p>}
 
         {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { CheckCircle2, ClipboardCheck, RefreshCw, TriangleAlert } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle2, Circle, ClipboardCheck, RefreshCw, TriangleAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { getPreClotureControls } from "../api/controlsApi";
@@ -10,6 +10,7 @@ import type { PreClotureControls, ControlLevel } from "../types/controls";
 import type { Entreprise } from "../types/entreprise";
 import { createExpectedDocument, listExpectedDocuments, markExpectedDocumentComplete } from "../api/workflowComptableApi";
 import type { ExpectedDocument } from "../types/workflowComptable";
+import { useAssistantConversation } from "../components/assistant/useAssistantConversation";
 
 const MODULE_LABELS: Record<string, string> = {
   documents: "Documents", ecritures: "Écritures", banque: "Banque",
@@ -35,6 +36,7 @@ function errorMessage(error: unknown): string {
 
 export function PreCloturePage() {
   const navigate = useNavigate();
+  const { submit: askAssistant } = useAssistantConversation();
   const [companies, setCompanies] = useState<Entreprise[]>([]);
   const [companyId, setCompanyId] = useState("");
   const [year, setYear] = useState(new Date().getFullYear());
@@ -89,16 +91,15 @@ export function PreCloturePage() {
       ["Saisies Topaze en retard", anomalies.filter((item) => item.code === "saisie_topaze_en_retard").length, "text-orange-700"],
       ["TVA en retard", anomalies.filter((item) => item.code === "declaration_tva_en_retard").length, "text-red-700"],
       ["Anomalies bloquantes", anomalies.filter((item) => item.niveau === "bloquant").length, "text-red-800"],
-      ["Période prête à verrouiller", data?.statut === "pret" ? 1 : 0, "text-emerald-700"],
     ] as const;
   }, [data]);
 
-  return <div className="min-h-screen bg-gray-50 p-5 lg:p-8">
-    <div className="mx-auto max-w-[1400px]">
+  return <div className="min-h-screen bg-[#F8FAFC] p-5 lg:p-8">
+    <div className="mx-auto max-w-[1500px]">
       <header className="mb-6">
-        <div className="flex items-center gap-2 text-green-700"><ClipboardCheck size={22} /><span className="text-sm font-semibold">Contrôles comptables</span></div>
-        <h1 className="mt-1 text-3xl font-bold text-gray-950">Pré-clôture</h1>
-        <p className="mt-1 text-sm text-gray-500">Lecture dynamique des données existantes, sans écriture ni correction automatique.</p>
+        <div className="flex items-center gap-2 text-blue-700"><ClipboardCheck size={20} /><span className="text-xs font-bold uppercase tracking-[0.16em]">Contrôles comptables</span></div>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">Suivi & Pré-clôture</h1>
+        <p className="mt-1 text-sm text-slate-500">Suivez les actions restantes et préparez la clôture sans correction automatique.</p>
       </header>
 
       <section className="mb-5 grid gap-3 rounded-xl border bg-white p-4 shadow-sm md:grid-cols-[1fr_180px_auto]">
@@ -111,15 +112,15 @@ export function PreCloturePage() {
         <label className="text-sm font-medium text-gray-700">Exercice
           <input type="number" min={2000} max={2100} value={year} onChange={(event) => setYear(Number(event.target.value))} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
         </label>
-        <button type="button" onClick={() => void load()} className="mt-auto inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-950 px-4 text-sm font-semibold text-white"><RefreshCw size={16} className={loading ? "animate-spin" : ""} />Actualiser</button>
+        <button type="button" onClick={() => void load()} className="mt-auto inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700"><RefreshCw size={16} className={loading ? "animate-spin" : ""} />Actualiser</button>
       </section>
 
-      {companies.length === 0 && <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Aucune entreprise ne possède encore de données dans ce module.</div>}
+      {companies.length === 0 && <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Aucune entreprise gérée et active n’est disponible dans ce cabinet.</div>}
 
       {error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       {data && <>
-        <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {dashboard.map(([label, count, color]) => <div key={label} className="rounded-xl border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p><p className={`mt-2 text-3xl font-bold ${color}`}>{count}</p></div>)}
+        <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {dashboard.map(([label, count, color]) => <div key={label} className="rounded-[10px] border border-slate-200 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)]"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className={`mt-2 text-[28px] font-bold ${color}`}>{count}</p></div>)}
         </section>
         <section className={`mb-5 flex flex-wrap items-center gap-5 rounded-xl border p-5 ${data.statut === "bloque" ? "border-red-200 bg-red-50" : data.statut === "a_verifier" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
           {data.statut === "pret" ? <CheckCircle2 className="text-emerald-700" size={36} /> : <TriangleAlert className={data.statut === "bloque" ? "text-red-700" : "text-amber-700"} size={36} />}
@@ -127,11 +128,23 @@ export function PreCloturePage() {
           <p className="max-w-2xl text-xs text-gray-600">{data.avertissement_score}</p>
         </section>
 
-        <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Object.values(data.resume).map((item) => <div key={item.module} className="rounded-xl border bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between"><p className="font-bold">{MODULE_LABELS[item.module] ?? item.module}</p><span className={`rounded-full px-2 py-1 text-xs font-bold ${item.statut === "bloque" ? "bg-red-100 text-red-700" : item.statut === "a_verifier" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>{item.statut === "ok" ? "OK" : item.statut === "bloque" ? "Bloqué" : "À vérifier"}</span></div>
-            <p className="mt-2 text-sm text-gray-500">{item.total_anomalies} anomalie(s) · {item.bloquants} bloquante(s)</p>
-          </div>)}
+        <section className="mb-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
+            <div className="border-b border-slate-200 px-5 py-4"><h2 className="text-lg font-bold text-slate-950">Checklist de pré-clôture</h2><p className="text-xs text-slate-500">État réel des modules contrôlés pour cet exercice.</p></div>
+            <div className="divide-y divide-slate-100">
+              {Object.values(data.resume).map((item) => <div key={item.module} className="flex items-start gap-3 px-5 py-3.5">
+                {item.statut === "ok" ? <CheckCircle2 size={19} className="mt-0.5 shrink-0 text-green-600" /> : item.statut === "bloque" ? <TriangleAlert size={19} className="mt-0.5 shrink-0 text-red-600" /> : <Circle size={19} className="mt-0.5 shrink-0 text-amber-500" />}
+                <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold text-slate-900">{MODULE_LABELS[item.module] ?? item.module}</p><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${item.statut === "bloque" ? "bg-red-100 text-red-700" : item.statut === "a_verifier" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>{item.statut === "ok" ? "Conforme" : item.statut === "bloque" ? "Bloqué" : "À vérifier"}</span></div><p className="mt-1 text-xs text-slate-500">{item.total_anomalies} anomalie(s) · {item.bloquants} bloquante(s) · {item.importants} importante(s)</p></div>
+              </div>)}
+            </div>
+          </div>
+
+          <aside className="rounded-xl border border-blue-100 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
+            <div className="flex items-center gap-3"><span className="rounded-lg bg-blue-600 p-2 text-white"><Bot size={19} /></span><div><h2 className="font-bold text-slate-950">ComptaFlow IA</h2><p className="text-xs text-slate-500">Assistant de recherche existant</p></div></div>
+            <p className="mt-5 text-xs font-bold uppercase tracking-wide text-slate-400">Questions suggérées</p>
+            <div className="mt-2 space-y-2">{["Documents manquants", "Écritures non saisies dans Topaze", "TVA de la période", "Mouvements non rapprochés"].map((question) => <button key={question} type="button" onClick={async () => { await askAssistant(question); navigate("/assistant"); }} className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"><span>{question}</span><ArrowRight size={14} /></button>)}</div>
+            <button type="button" onClick={() => navigate("/assistant")} className="mt-4 w-full rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">Ouvrir l’assistant</button>
+          </aside>
         </section>
 
         <section className="mb-5 rounded-xl border bg-white p-4 shadow-sm">

@@ -31,6 +31,7 @@ const RegistersPage = lazy(() => import("./pages/RegistersPage").then((m) => ({ 
 const RegistreComptablePage = lazy(() => import("./pages/RegistreComptablePage").then((m) => ({ default: m.RegistreComptablePage })));
 const RelevesBancairesPage = lazy(() => import("./pages/RelevesBancairesPage").then((m) => ({ default: m.RelevesBancairesPage })));
 const ComptesBancairesPage = lazy(() => import("./pages/ComptesBancairesPage").then((m) => ({ default: m.ComptesBancairesPage })));
+const PlanComptablePage = lazy(() => import("./pages/PlanComptablePage").then((m) => ({ default: m.PlanComptablePage })));
 const TvaMensuellePage = lazy(() => import("./pages/TvaMensuellePage").then((m) => ({ default: m.TvaMensuellePage })));
 const UploadPage = lazy(() => import("./pages/UploadPage").then((m) => ({ default: m.UploadPage })));
 const VentesPage = lazy(() => import("./pages/VentesPage").then((m) => ({ default: m.VentesPage })));
@@ -103,6 +104,10 @@ export default function App() {
           <Route
             path="/comptes-bancaires"
             element={<PrivatePage><ComptesBancairesPage /></PrivatePage>}
+          />
+          <Route
+            path="/plan-comptable"
+            element={<PrivatePage><PlanComptablePage /></PrivatePage>}
           />
           <Route
             path="/registres"

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight, BarChart3, Bell, Bot, Building2, FileText, FolderUp, HelpCircle, Moon, PieChart, ShieldCheck, UserRound } from "lucide-react";
 import { listChronoDocuments } from "../api/chronosApi";
 import { useAuth } from "../context/AuthContext";
+import { BrandMark } from "../components/BrandMark";
 import "./HomePage.css";
 import "./HomePageFix.css";
 
@@ -30,7 +31,7 @@ export function HomePage() {
     <div className="home-shell">
       <header className="home-header">
         <button type="button" className="home-brand" onClick={() => navigate("/accueil")} aria-label="Accueil ComptaFlow">
-          <span className="home-brand-mark">CF</span><span className="home-brand-name">COMPTAFLOW</span><span className="home-brand-divider" /><span className="home-brand-tagline">Votre comptabilité, simplifiée.</span>
+          <BrandMark className="home-brand-mark" style={{ display: "block", flexShrink: 0, borderRadius: 0, background: "transparent", boxShadow: "none", filter: "drop-shadow(0 5px 8px rgb(244 123 31 / 20%))" }} /><span className="home-brand-name">ComptaFlow</span><span className="home-brand-divider" /><span className="home-brand-tagline">Votre comptabilité, simplifiée.</span>
         </button>
         <nav className="home-actions" aria-label="Actions rapides">
           <button type="button" onClick={() => navigate("/notifications")} aria-label="Notifications"><Bell /></button>

@@ -16,8 +16,8 @@ import {
   BookOpenText,
   CalendarClock,
   CalendarCheck,
+  ChevronDown,
   ClipboardCheck,
-  Cloud,
   Clock,
   FileStack,
   FileSearch,
@@ -26,6 +26,7 @@ import {
   History,
   Landmark,
   LogOut,
+  Menu,
   MessageCircle,
   Plus,
   Receipt,
@@ -44,8 +45,8 @@ import { listEntreprises } from "../api/entreprisesApi";
 import { listTaches } from "../api/tachesApi";
 import { getUnreadMessageCount } from "../api/messagesApi";
 import { useAuth } from "../context/AuthContext";
-import { ResizableSidebar } from "./ResizableSidebar";
 import { AssistantWidget } from "./assistant/AssistantWidget";
+import { BrandMark } from "./BrandMark";
 import { ACTIVE_ENTREPRISE_EVENT, ACTIVE_ENTREPRISE_KEY, setActiveEntrepriseId } from "../utils/activeEntreprise";
 
 import type { Entreprise } from "../types/entreprise";
@@ -90,6 +91,7 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
       { label: "Ventes", route: "/ventes", icon: TrendingUp },
       { label: "Banque", route: "/banque", icon: Landmark },
       { label: "Comptes bancaires", route: "/comptes-bancaires", icon: Landmark },
+      { label: "Plan comptable", route: "/plan-comptable", icon: BookOpen },
       { label: "Écritures", route: "/registers", icon: BookOpenText },
       { label: "Registres", route: "/registres", icon: FileStack },
       { label: "Grand Livre", route: "/grand-livre", icon: BookOpen },
@@ -144,10 +146,11 @@ function getRequestError(error: unknown): string {
 }
 
 function isRouteActive(pathname: string, route: string): boolean {
-  if (route === "/upload") {
+  const routePath = route.split("?")[0];
+  if (routePath === "/upload") {
     return pathname === "/upload" || pathname === "/documents";
   }
-  return pathname === route || pathname.startsWith(`${route}/`);
+  return pathname === routePath || pathname.startsWith(`${routePath}/`);
 }
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -163,8 +166,6 @@ export function Layout({ children }: { children: ReactNode }) {
       return null;
     }
   });
-  const activeCompany = companies.find((company) => company.id === activeCompanyId) ?? null;
-
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -175,6 +176,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [tasksCount, setTasksCount] = useState(0);
   const [messagesCount, setMessagesCount] = useState(0);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const notificationContainerRef = useRef<HTMLDivElement>(null);
@@ -290,6 +292,7 @@ export function Layout({ children }: { children: ReactNode }) {
   useEffect(() => {
     setSearchOpen(false);
     setNotificationsOpen(false);
+    setMobileNavOpen(false);
   }, [location.pathname]);
 
   function selectCompany(id: string | null) {
@@ -307,122 +310,85 @@ export function Layout({ children }: { children: ReactNode }) {
     return <div className="min-h-screen">{children}</div>;
   }
 
-  return (
-    <div className="flex min-h-screen bg-slate-50">
-      <ResizableSidebar
-        storageKey="main-nav"
-        defaultWidth={260}
-        minWidth={210}
-        maxWidth={360}
-        className="bg-gradient-to-b from-green-900 to-green-950 text-green-50"
+  const visibleGroups = NAVIGATION_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) =>
+      (!item.requiresCompany || activeCompanyId) &&
+      (!item.roles || (user && item.roles.includes(user.role))),
+    ),
+  })).filter((group) => group.items.length > 0);
+
+  function navItem(item: NavigationItem, compact = false) {
+    const Icon = item.icon;
+    const active = isRouteActive(location.pathname, item.route);
+    const badge = item.route === "/notifications"
+      ? notifications.length
+      : item.route === "/rappels"
+        ? tasksCount
+        : item.route === "/messagerie"
+          ? messagesCount
+          : 0;
+    return (
+      <button
+        key={item.route}
+        type="button"
+        onClick={() => navigate(item.route)}
+        className={`flex items-center gap-2 rounded-lg text-sm font-semibold transition ${compact ? "w-full px-3 py-2 text-left" : "px-3 py-2"} ${
+          active ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+        }`}
       >
-        <div className="flex min-h-full flex-col">
-          <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-500 shadow-lg shadow-green-950/20">
-              <Cloud size={21} />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-lg font-bold text-white">ComptaFlow</p>
-              <p className="text-[11px] text-green-200/70">Gestion comptable intelligente</p>
-            </div>
-          </div>
+        <Icon size={16} className="shrink-0" />
+        <span className="truncate">{item.label}</span>
+        {badge > 0 && <span className="ml-auto rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">{badge > 99 ? "99+" : badge}</span>}
+      </button>
+    );
+  }
 
-          <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
-            {NAVIGATION_GROUPS.filter((group) => activeCompanyId || group.title !== "Gestion comptable").map((group) => (
-              <section key={group.title}>
-                <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-green-200/50">
-                  {group.title}
-                </p>
-                <div className="space-y-1">
-                  {group.items.filter((item) => (!item.requiresCompany || activeCompanyId) && (!item.roles || (user && item.roles.includes(user.role)))).map((item) => {
-                    const Icon = item.icon;
-                    const active = isRouteActive(location.pathname, item.route);
-                    const badge = item.route === "/notifications"
-                      ? notifications.length
-                      : item.route === "/rappels"
-                        ? tasksCount
-                        : item.route === "/messagerie"
-                          ? messagesCount
-                        : 0;
+  const accountingItems = visibleGroups.find((group) => group.title === "Gestion comptable")?.items ?? [];
+  const overviewItems = visibleGroups.find((group) => group.title === "Vue d'ensemble")?.items ?? [];
+  const organizationItems = visibleGroups.find((group) => group.title === "Organisation")?.items ?? [];
+  const directRoutes = new Set(["/accueil", "/dashboard", "/upload", "/tva-mensuelle", "/banque", "/rapports"]);
 
-                    return (
-                      <button
-                        key={item.route}
-                        type="button"
-                        onClick={() => navigate(item.route)}
-                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
-                          active
-                            ? "bg-green-500 text-white shadow-lg shadow-green-950/20"
-                            : "text-green-50/85 hover:bg-white/10 hover:text-white"
-                        }`}
-                      >
-                        <Icon size={18} className="shrink-0" />
-                        <span className="truncate">{item.label}</span>
-                        {badge > 0 && (
-                          <span className="ml-auto flex min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] text-white">
-                            {badge > 99 ? "99+" : badge}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
+        <div className="mx-auto flex h-16 max-w-[1800px] items-center gap-3 px-4 lg:px-6">
+          <button type="button" onClick={() => navigate("/accueil")} className="mr-1 flex shrink-0 items-center gap-2.5" aria-label="Accueil ComptaFlow">
+            <BrandMark className="h-10 w-11 shrink-0 drop-shadow-sm" />
+            <span className="text-base font-bold tracking-tight text-slate-950 sm:text-lg">ComptaFlow</span>
+          </button>
+
+          <nav className="hidden items-center gap-0.5 xl:flex" aria-label="Navigation principale">
+            {overviewItems.filter((item) => directRoutes.has(item.route)).map((item) => navItem(item))}
+            {accountingItems.length > 0 && <div className="group relative">
+              <button type="button" className={`flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold ${accountingItems.some((item) => isRouteActive(location.pathname, item.route)) ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"}`}>Comptabilité <ChevronDown size={14} /></button>
+              <div className="invisible absolute left-0 top-full z-[100] mt-1 grid w-[430px] grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-white p-2 opacity-0 shadow-xl transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
+                {accountingItems.filter((item) => !directRoutes.has(item.route)).map((item) => navItem(item, true))}
+              </div>
+            </div>}
+            {accountingItems.filter((item) => directRoutes.has(item.route)).map((item) => navItem(item))}
+            <div className="group relative">
+              <button type="button" className={`flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold ${[...overviewItems, ...organizationItems].filter((item) => !directRoutes.has(item.route)).some((item) => isRouteActive(location.pathname, item.route)) ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"}`}>Suivi <ChevronDown size={14} /></button>
+              <div className="invisible absolute left-0 top-full z-[100] mt-1 grid w-[430px] grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-white p-2 opacity-0 shadow-xl transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
+                {[...overviewItems, ...organizationItems].filter((item) => !directRoutes.has(item.route)).map((item) => navItem(item, true))}
+              </div>
+            </div>
+            {organizationItems.filter((item) => directRoutes.has(item.route)).map((item) => navItem(item))}
           </nav>
 
-          <div className="border-t border-white/10 p-3">
-            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-green-200/50">
-              Entreprises
-            </p>
-            <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
-              <button
-                type="button"
-                onClick={() => selectCompany(null)}
-                className={`w-full rounded-lg px-3 py-2 text-left text-sm ${
-                  activeCompanyId === null
-                    ? "bg-white/15 text-white"
-                    : "text-green-50/80 hover:bg-white/10"
-                }`}
-              >
-                Toutes les entreprises
-              </button>
-              {companies.map((company) => (
-                <button
-                  key={company.id}
-                  type="button"
-                  onClick={() => selectCompany(company.id)}
-                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${
-                    activeCompanyId === company.id
-                      ? "bg-white/15 text-white"
-                      : "text-green-50/80 hover:bg-white/10"
-                  }`}
-                >
-                  <span className="truncate">{company.nom}</span>
-                  <span
-                    className={`ml-auto h-2 w-2 shrink-0 rounded-full ${
-                      company.creee_automatiquement ? "bg-orange-400" : "bg-green-400"
-                    }`}
-                  />
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate("/upload")}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-green-600/70 px-3 py-2 text-xs font-semibold text-green-100 hover:bg-white/10"
-            >
-              <Plus size={14} /> Importer un document
-            </button>
-          </div>
-        </div>
-      </ResizableSidebar>
+          <button type="button" onClick={() => setMobileNavOpen((open) => !open)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 xl:hidden" aria-label="Afficher la navigation"><Menu size={21} /></button>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="relative z-50 flex h-16 shrink-0 items-center gap-4 overflow-visible border-b border-slate-200 bg-white px-5 lg:px-7">
+          <div className="ml-auto hidden min-w-0 max-w-[180px] items-center gap-2 lg:flex">
+            <Building2 size={16} className="shrink-0 text-blue-600" />
+            <select value={activeCompanyId ?? ""} onChange={(event) => selectCompany(event.target.value || null)} className="min-w-0 max-w-[155px] rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500">
+              <option value="">Toutes les entreprises</option>
+              {companies.map((company) => <option key={company.id} value={company.id}>{company.nom}</option>)}
+            </select>
+          </div>
+
           <div
             ref={searchContainerRef}
-            className="relative z-[100] w-full max-w-2xl"
+            className="relative z-[100] hidden w-36 xl:block 2xl:w-full 2xl:max-w-xs"
           >
             <Search
               size={18}
@@ -440,7 +406,7 @@ export function Layout({ children }: { children: ReactNode }) {
               }}
               autoComplete="off"
               placeholder="Rechercher une facture, un ICE, un tiers..."
-              className="w-full rounded-xl border border-slate-300 bg-slate-50 py-2.5 pl-10 pr-10 text-sm outline-none transition focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-9 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
             />
             {query && (
               <button
@@ -482,7 +448,7 @@ export function Layout({ children }: { children: ReactNode }) {
                         type="button"
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => selectSearchResult(item)}
-                        className="flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-green-50"
+                        className="flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-blue-50"
                       >
                         <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${
                           SEARCH_TYPE_CLASSES[item.type] ?? "bg-slate-100 text-slate-700"
@@ -507,12 +473,7 @@ export function Layout({ children }: { children: ReactNode }) {
             )}
           </div>
 
-          <button type="button" onClick={() => navigate("/entreprises/selection")} className="hidden max-w-64 items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-left lg:flex" title="Changer d’entreprise">
-            <Building2 size={17} className="shrink-0 text-blue-700" />
-            <span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-wide text-blue-500">Entreprise actuelle</span><span className="block truncate text-sm font-bold text-blue-950">{activeCompany?.nom ?? "Sélectionner une entreprise"}</span></span>
-          </button>
-
-          <div ref={notificationContainerRef} className="relative ml-auto shrink-0">
+          <div ref={notificationContainerRef} className="relative shrink-0">
             <button
               type="button"
               onClick={() => setNotificationsOpen((open) => !open)}
@@ -565,7 +526,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   <button
                     type="button"
                     onClick={() => navigate("/notifications")}
-                    className="w-full border-t px-4 py-3 text-center text-xs font-semibold text-green-700 hover:bg-green-50"
+                    className="w-full border-t px-4 py-3 text-center text-xs font-semibold text-blue-700 hover:bg-blue-50"
                   >
                     Voir toutes les notifications
                   </button>
@@ -574,7 +535,7 @@ export function Layout({ children }: { children: ReactNode }) {
             )}
           </div>
 
-          <div className="hidden min-w-0 text-right leading-tight sm:block">
+          <div className="hidden min-w-0 text-right leading-tight 2xl:block">
             <p className="max-w-56 truncate text-sm font-semibold text-slate-800">
               {user?.email ?? "Cabinet"}
             </p>
@@ -583,7 +544,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={logout}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-700 hover:bg-green-200"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700 hover:bg-blue-200"
             title="Déconnexion"
           >
             {(user?.nom?.[0] ?? user?.email?.[0] ?? "U").toUpperCase()}
@@ -596,10 +557,20 @@ export function Layout({ children }: { children: ReactNode }) {
           >
             <LogOut size={18} />
           </button>
-        </header>
+        </div>
 
-        <main className="min-w-0 flex-1 overflow-auto">{children}</main>
-      </div>
+        {mobileNavOpen && <nav className="max-h-[calc(100vh-64px)] overflow-y-auto border-t border-slate-200 bg-white p-3 xl:hidden" aria-label="Navigation mobile">
+          <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:hidden">
+            <label className="text-xs font-semibold text-slate-500">Entreprise
+              <select value={activeCompanyId ?? ""} onChange={(event) => selectCompany(event.target.value || null)} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"><option value="">Toutes les entreprises</option>{companies.map((company) => <option key={company.id} value={company.id}>{company.nom}</option>)}</select>
+            </label>
+          </div>
+          {visibleGroups.map((group) => <section key={group.title} className="mb-3"><p className="mb-1 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">{group.title}</p><div className="grid gap-1 sm:grid-cols-2 md:grid-cols-3">{group.items.map((item) => navItem(item, true))}</div></section>)}
+          <button type="button" onClick={() => navigate("/upload")} className="mt-1 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"><Plus size={15} />Importer un document</button>
+        </nav>}
+      </header>
+
+      <main className="min-w-0">{children}</main>
       <AssistantWidget />
     </div>
   );

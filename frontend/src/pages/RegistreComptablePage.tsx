@@ -375,7 +375,7 @@ export function RegistreComptablePage() {
 
         {!isInitializing && entreprises.length === 0 && !error && (
           <div className="rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-600">
-            Aucune entreprise ne possède encore de données dans ce module.
+            Aucune entreprise gérée et active n’est disponible dans ce cabinet.
           </div>
         )}
 

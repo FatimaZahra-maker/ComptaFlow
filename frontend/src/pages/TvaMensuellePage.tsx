@@ -222,7 +222,7 @@ export function TvaMensuellePage() {
 
         {entreprises.length === 0 && (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            Aucune entreprise ne possède encore de données dans ce module.
+            Aucune entreprise gérée et active n’est disponible dans ce cabinet.
           </div>
         )}
 

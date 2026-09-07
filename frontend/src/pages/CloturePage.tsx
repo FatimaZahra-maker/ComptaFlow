@@ -118,7 +118,7 @@ export function CloturePage() {
           <label className="text-sm font-medium">Exercice<input type="number" min={2000} max={2100} value={exercice} onChange={(event) => setExercice(Number(event.target.value))} className="mt-1 w-full rounded-lg border px-3 py-2" /></label>
         </section>
 
-        {companies.length === 0 && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Aucune entreprise ne possède encore de données dans ce module.</div>}
+        {companies.length === 0 && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Aucune entreprise gérée et active n’est disponible dans ce cabinet.</div>}
 
         <form onSubmit={submit} className="mb-5 grid gap-3 rounded-xl border bg-white p-4 shadow-sm md:grid-cols-3 lg:grid-cols-6">
           <select value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as TypeRegularisationCloture })} className="rounded-lg border px-3 py-2">{TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>

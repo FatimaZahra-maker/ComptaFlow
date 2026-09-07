@@ -65,31 +65,31 @@
 \contentsline {subsection}{\numberline {7.3.7}Idempotence et reprise des traitements}{44}{subsection.7.3.7}%
 \contentsline {chapter}{\numberline {8}Fonctionnalités principales réalisées}{45}{chapter.8}%
 \contentsline {section}{\numberline {8.1}Authentification et choix du parcours}{45}{section.8.1}%
-\contentsline {section}{\numberline {8.2}Espace entreprise et tableau de bord}{47}{section.8.2}%
-\contentsline {section}{\numberline {8.3}Import et suivi documentaire}{48}{section.8.3}%
-\contentsline {section}{\numberline {8.4}Contrôle détaillé et validation}{49}{section.8.4}%
-\contentsline {section}{\numberline {8.5}Plan comptable et comptes bancaires}{50}{section.8.5}%
-\contentsline {section}{\numberline {8.6}Gestion bancaire et rapprochements}{51}{section.8.6}%
-\contentsline {section}{\numberline {8.7}Suivi opérationnel}{51}{section.8.7}%
-\contentsline {section}{\numberline {8.8}États et contrôles comptables}{52}{section.8.8}%
-\contentsline {subsection}{\numberline {8.8.1}TVA comptable et préparation Topaze}{53}{subsection.8.8.1}%
-\contentsline {subsection}{\numberline {8.8.2}Contrôles de pré-clôture}{54}{subsection.8.8.2}%
-\contentsline {section}{\numberline {8.9}Assistant sécurisé et journal d'audit}{55}{section.8.9}%
-\contentsline {section}{\numberline {8.10}Contribution personnelle}{57}{section.8.10}%
-\contentsline {chapter}{\numberline {9}Tests et validation}{59}{chapter.9}%
-\contentsline {section}{\numberline {9.1}Stratégie de validation}{59}{section.9.1}%
-\contentsline {section}{\numberline {9.2}Couverture fonctionnelle des tests automatisés}{59}{section.9.2}%
-\contentsline {section}{\numberline {9.3}Résultats obtenus}{60}{section.9.3}%
-\contentsline {section}{\numberline {9.4}Exemples de scénarios de recette}{60}{section.9.4}%
-\contentsline {section}{\numberline {9.5}Contrôles de sécurité complémentaires}{63}{section.9.5}%
-\contentsline {section}{\numberline {9.6}Traçabilité des besoins fonctionnels}{64}{section.9.6}%
-\contentsline {section}{\numberline {9.7}Problèmes rencontrés et corrections}{64}{section.9.7}%
-\contentsline {subsection}{\numberline {9.7.1}Contraintes de ressources pour les traitements OCR et IA}{65}{subsection.9.7.1}%
-\contentsline {chapter}{\numberline {10}Conclusion générale}{66}{chapter.10}%
-\contentsline {section}{\numberline {10.1}Bilan}{66}{section.10.1}%
-\contentsline {section}{\numberline {10.2}Compétences acquises}{66}{section.10.2}%
-\contentsline {section}{\numberline {10.3}Perspectives}{67}{section.10.3}%
-\contentsline {subsection}{\numberline {10.3.1}Conditions préalables à une mise en production}{68}{subsection.10.3.1}%
-\contentsline {chapter}{Références}{69}{chapter*.50}%
-\contentsline {chapter}{\numberline {A}Arborescence technique}{70}{appendix.A}%
-\contentsline {chapter}{\numberline {B}Commandes de validation}{71}{appendix.B}%
+\contentsline {section}{\numberline {8.2}Espace entreprise et tableau de bord}{48}{section.8.2}%
+\contentsline {section}{\numberline {8.3}Import et suivi documentaire}{49}{section.8.3}%
+\contentsline {section}{\numberline {8.4}Contrôle détaillé et validation}{51}{section.8.4}%
+\contentsline {section}{\numberline {8.5}Plan comptable et comptes bancaires}{52}{section.8.5}%
+\contentsline {section}{\numberline {8.6}Gestion bancaire et rapprochements}{54}{section.8.6}%
+\contentsline {section}{\numberline {8.7}Suivi opérationnel}{54}{section.8.7}%
+\contentsline {section}{\numberline {8.8}États et contrôles comptables}{55}{section.8.8}%
+\contentsline {subsection}{\numberline {8.8.1}TVA comptable et préparation Topaze}{57}{subsection.8.8.1}%
+\contentsline {subsection}{\numberline {8.8.2}Contrôles de pré-clôture}{58}{subsection.8.8.2}%
+\contentsline {section}{\numberline {8.9}Assistant sécurisé et journal d'audit}{59}{section.8.9}%
+\contentsline {section}{\numberline {8.10}Contribution personnelle}{61}{section.8.10}%
+\contentsline {chapter}{\numberline {9}Tests et validation}{63}{chapter.9}%
+\contentsline {section}{\numberline {9.1}Stratégie de validation}{63}{section.9.1}%
+\contentsline {section}{\numberline {9.2}Couverture fonctionnelle des tests automatisés}{63}{section.9.2}%
+\contentsline {section}{\numberline {9.3}Résultats obtenus}{64}{section.9.3}%
+\contentsline {section}{\numberline {9.4}Exemples de scénarios de recette}{64}{section.9.4}%
+\contentsline {section}{\numberline {9.5}Contrôles de sécurité complémentaires}{67}{section.9.5}%
+\contentsline {section}{\numberline {9.6}Traçabilité des besoins fonctionnels}{68}{section.9.6}%
+\contentsline {section}{\numberline {9.7}Problèmes rencontrés et corrections}{68}{section.9.7}%
+\contentsline {subsection}{\numberline {9.7.1}Contraintes de ressources pour les traitements OCR et IA}{69}{subsection.9.7.1}%
+\contentsline {chapter}{\numberline {10}Conclusion générale}{70}{chapter.10}%
+\contentsline {section}{\numberline {10.1}Bilan}{70}{section.10.1}%
+\contentsline {section}{\numberline {10.2}Compétences acquises}{70}{section.10.2}%
+\contentsline {section}{\numberline {10.3}Perspectives}{71}{section.10.3}%
+\contentsline {subsection}{\numberline {10.3.1}Conditions préalables à une mise en production}{72}{subsection.10.3.1}%
+\contentsline {chapter}{Références}{73}{chapter*.51}%
+\contentsline {chapter}{\numberline {A}Arborescence technique}{74}{appendix.A}%
+\contentsline {chapter}{\numberline {B}Commandes de validation}{75}{appendix.B}%

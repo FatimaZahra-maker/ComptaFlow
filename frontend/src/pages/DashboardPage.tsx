@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { getDashboard } from "../api/dashboardApi";
 import type { Dashboard } from "../types/dashboard";
-import { ACTIVE_ENTREPRISE_EVENT, getActiveEntrepriseId } from "../utils/activeEntreprise";
+import { ACTIVE_ENTREPRISE_EVENT, getActiveEntrepriseId, setActiveEntrepriseId } from "../utils/activeEntreprise";
 
 // --- ICÔNES SVG NATIVES ---
 const IconWrapper = ({ children, className }: { children: React.ReactNode, className?: string }) => (
@@ -38,16 +38,16 @@ function dashboardErrorMessage(error: unknown): string {
 const StatCard = ({ title, value, icon: Icon, colorText, colorBg, onClick }: { title: string, value: number | string, icon: any, colorText: string, colorBg: string, onClick: () => void }) => (
   <button 
     onClick={onClick}
-    className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between w-full text-left"
+    className="flex w-full flex-col justify-between rounded-[10px] border border-slate-200 bg-white p-4 text-left shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition-all hover:border-blue-200 hover:shadow-md"
   >
-    <div className="flex justify-between items-start mb-4 w-full">
+    <div className="mb-2 flex w-full items-start justify-between">
       <h3 className="text-sm font-semibold text-slate-600">{title}</h3>
       <div className={`p-2 rounded-lg ${colorBg}`}>
         <Icon className={`w-5 h-5 ${colorText}`} />
       </div>
     </div>
     <div className="flex items-baseline gap-2">
-      <span className={`text-3xl font-bold ${colorText === 'text-slate-600' ? 'text-slate-800' : colorText}`}>
+      <span className={`text-2xl font-bold ${colorText === 'text-slate-600' ? 'text-slate-900' : colorText}`}>
         {value}
       </span>
     </div>
@@ -112,10 +112,10 @@ export function DashboardPage() {
   const hasUrgencies = docErrors > 0 || ecrituresVerification > 0;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto w-full">
+    <div className="mx-auto w-full max-w-[1500px] p-5 sm:p-6 lg:p-8">
       
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-slate-800">Vue d'ensemble</h1>
+        <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">Pilotage financier</p><h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">Vue d'ensemble</h1><p className="mt-1 text-sm text-slate-500">Résumé opérationnel des documents et écritures du dossier.</p><div className="mt-2 flex flex-wrap items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${entrepriseId ? "bg-blue-100 text-blue-700" : "bg-slate-200 text-slate-700"}`}>Périmètre : {entrepriseId ? "entreprise sélectionnée" : "tout le cabinet"}</span>{entrepriseId && <button type="button" onClick={() => setActiveEntrepriseId(null)} className="text-xs font-semibold text-blue-700 hover:underline">Afficher toutes les entreprises</button>}</div></div>
         
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -162,21 +162,34 @@ export function DashboardPage() {
         </div>
       )}
 
-      <section className="mb-10">
+      <section className="mb-6">
         <div className="flex items-baseline justify-between mb-4">
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Documents</h2>
-          <span className="text-sm font-medium text-slate-500">Total : {dashboard.total_documents || 0}</span>
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Indicateurs principaux</h2>
+          <span className="text-sm font-medium text-slate-500">Données de la période sélectionnée</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-          <StatCard title="En attente" value={dashboard.documents_par_statut?.en_attente || 0} icon={Icons.Clock} colorText="text-slate-600" colorBg="bg-slate-100" onClick={() => navigate("/chronos")} />
-          <StatCard title="En traitement" value={dashboard.documents_par_statut?.en_traitement || 0} icon={Icons.RefreshCw} colorText="text-blue-600" colorBg="bg-blue-50" onClick={() => navigate("/chronos")} />
-          <StatCard title="Traités" value={dashboard.documents_par_statut?.traite || 0} icon={Icons.CheckCircle2} colorText="text-indigo-600" colorBg="bg-indigo-50" onClick={() => navigate("/chronos")} />
-          <StatCard title="Validés" value={dashboard.documents_par_statut?.valide || 0} icon={Icons.CheckCircle2} colorText="text-emerald-600" colorBg="bg-emerald-50" onClick={() => navigate("/chronos")} />
-          <StatCard title="Erreur" value={docErrors} icon={Icons.XCircle} colorText="text-red-600" colorBg="bg-red-50" onClick={() => navigate("/chronos")} />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard title="Documents" value={dashboard.total_documents || 0} icon={Icons.FileText} colorText="text-blue-600" colorBg="bg-blue-50" onClick={() => navigate("/chronos")} />
+          <StatCard title="Écritures" value={dashboard.total_ecritures || 0} icon={Icons.FileText} colorText="text-blue-600" colorBg="bg-blue-50" onClick={() => navigate("/registers")} />
+          <StatCard title="Topaze à saisir" value={(dashboard.ecritures_par_statut?.prete_topaze || 0) + (dashboard.ecritures_par_statut?.valide || 0)} icon={Icons.CheckCircle2} colorText="text-emerald-600" colorBg="bg-green-50" onClick={() => navigate("/registers")} />
+          <StatCard title="Anomalies à traiter" value={docErrors + ecrituresVerification} icon={Icons.AlertTriangle} colorText={(docErrors + ecrituresVerification) > 0 ? "text-amber-600" : "text-emerald-600"} colorBg={(docErrors + ecrituresVerification) > 0 ? "bg-amber-50" : "bg-green-50"} onClick={() => navigate(docErrors > 0 ? "/chronos" : "/registers")} />
         </div>
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <section className="mb-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
+        <div className="border-b border-slate-200 px-5 py-4"><h2 className="text-lg font-bold text-slate-950">Processus de traitement documentaire</h2><p className="text-xs text-slate-500">Lecture directe des volumes disponibles dans les statuts actuels.</p></div>
+        <div className="grid divide-y divide-slate-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-6">
+          {[
+            ["Documents reçus", dashboard.total_documents || 0],
+            ["En analyse", dashboard.documents_par_statut?.en_traitement || 0],
+            ["Données extraites", dashboard.documents_par_statut?.traite || 0],
+            ["Contrôlés", dashboard.documents_par_statut?.valide || 0],
+            ["Écritures proposées", dashboard.total_ecritures || 0],
+            ["Validées / saisies", (dashboard.ecritures_par_statut?.prete_topaze || 0) + (dashboard.ecritures_par_statut?.valide || 0) + (dashboard.ecritures_par_statut?.saisie_topaze || 0)],
+          ].map(([label, value]) => <div key={String(label)} className="relative px-4 py-4"><p className="text-2xl font-bold text-slate-950">{value}</p><p className="mt-1 text-xs font-medium text-slate-500">{label}</p></div>)}
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         <section className="lg:col-span-6">
           <div className="flex items-baseline justify-between mb-4">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Écritures Comptables</h2>

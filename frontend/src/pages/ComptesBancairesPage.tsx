@@ -143,7 +143,7 @@ export function ComptesBancairesPage() {
               <option value="">Sélectionner</option>
               {entreprises.map((item) => <option key={item.id} value={item.id}>{item.nom}</option>)}
             </select>
-            {entreprises.length === 0 && <p className="mt-2 text-xs text-amber-700">Aucune entreprise ne possède encore de données dans ce module.</p>}
+            {entreprises.length === 0 && <p className="mt-2 text-xs text-amber-700">Aucune entreprise gérée et active n’est disponible dans ce cabinet.</p>}
           </label>
         </header>
 

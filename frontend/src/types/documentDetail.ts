@@ -6,6 +6,9 @@ export interface EcritureResume {
   numero_piece: string | null;
   date_piece: string | null;
   tiers: string | null;
+  compte_tiers: string | null;
+  compte_tva: string | null;
+  compte_ht: string | null;
   montant_ht: string | null;
   taux_tva: string | null;
   montant_tva: string | null;

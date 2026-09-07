@@ -389,7 +389,7 @@ export function UploadPage() {
                               onClick={() => navigate(`/documents/${document.id}`)}
                               className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"
                             >
-                              <FileSearch size={14} /> Vérifier
+                              <FileSearch size={14} /> Vérifier / modifier
                             </button>
                             <button
                               type="button"

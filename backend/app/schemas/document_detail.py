@@ -18,6 +18,9 @@ class EcritureResumeOut(BaseModel):
     numero_piece: str | None = None
     date_piece: date | None = None
     tiers: str | None = None
+    compte_tiers: str | None = None
+    compte_tva: str | None = None
+    compte_ht: str | None = None
     montant_ht: Decimal | None = None
     taux_tva: str | None = None
     montant_tva: Decimal | None = None

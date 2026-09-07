@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import axios from "axios";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -41,9 +42,12 @@ import {
   validateDocument,
 } from "../api/documentsApi";
 import { listEntreprises } from "../api/entreprisesApi";
+import { listPlanAccounts } from "../api/planComptableApi";
+import { useAuth } from "../context/AuthContext";
 
 import type { DocumentDetail, EcritureResume } from "../types/documentDetail";
 import type { Entreprise } from "../types/entreprise";
+import type { CompteComptableEntreprise } from "../types/planComptable";
 import type {
   MouvementBancaire,
   MouvementBancaireUpdate,
@@ -119,6 +123,9 @@ interface EntryFormState {
   taux_tva: string;
   montant_tva: string;
   montant_ttc: string;
+  compte_tiers: string;
+  compte_tva: string;
+  compte_ht: string;
 }
 
 interface MovementFormState {
@@ -206,7 +213,22 @@ function createEntryForm(entry: EcritureResume): EntryFormState {
     taux_tva: entry.taux_tva ?? "",
     montant_tva: entry.montant_tva ?? "",
     montant_ttc: entry.montant_ttc ?? "",
+    compte_tiers: entry.compte_tiers ?? "",
+    compte_tva: entry.compte_tva ?? "",
+    compte_ht: entry.compte_ht ?? "",
   };
+}
+
+function requestErrorMessage(error: unknown, fallback: string): string {
+  if (!axios.isAxiosError(error)) return fallback;
+  const detail = error.response?.data?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail.map((item) => item?.msg).filter((item): item is string => typeof item === "string");
+    if (messages.length) return messages.join(" | ");
+  }
+  if (!error.response) return "Le backend est inaccessible. Vérifiez qu’il est démarré.";
+  return fallback;
 }
 
 function createMovementForm(movement: MouvementBancaire): MovementFormState {
@@ -265,10 +287,12 @@ function DataCard({
 export function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [detail, setDetail] = useState<DocumentDetail | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [entreprises, setEntreprises] = useState<Entreprise[]>([]);
+  const [planAccounts, setPlanAccounts] = useState<CompteComptableEntreprise[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentAction, setCurrentAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -284,7 +308,12 @@ export function DocumentDetailPage() {
     taux_tva: "",
     montant_tva: "",
     montant_ttc: "",
+    compte_tiers: "",
+    compte_tva: "",
+    compte_ht: "",
   });
+
+  const canReview = Boolean(user && ["admin_cabinet", "expert_comptable", "chef_mission"].includes(user.role));
 
   const refresh = useCallback(async () => {
     if (!id) {
@@ -348,6 +377,16 @@ export function DocumentDetailPage() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!detail?.entreprise_id) {
+      setPlanAccounts([]);
+      return;
+    }
+    listPlanAccounts(detail.entreprise_id)
+      .then(setPlanAccounts)
+      .catch(() => setPlanAccounts([]));
+  }, [detail?.entreprise_id]);
 
   const entrepriseName = useMemo(() => {
     if (!detail?.entreprise_id) {
@@ -418,13 +457,16 @@ export function DocumentDetailPage() {
         taux_tva: entryForm.taux_tva || undefined,
         montant_tva: entryForm.montant_tva || undefined,
         montant_ttc: entryForm.montant_ttc || undefined,
+        compte_tiers: entryForm.compte_tiers || null,
+        compte_tva: entryForm.compte_tva || null,
+        compte_ht: entryForm.compte_ht || null,
       });
 
       setIsEntryModalOpen(false);
       await refresh();
       showSuccess("Les données comptables ont été modifiées.");
-    } catch {
-      showError("La modification des données comptables a échoué.");
+    } catch (requestError) {
+      showError(requestErrorMessage(requestError, "La modification des données comptables a échoué."));
     } finally {
       setCurrentAction(null);
     }
@@ -456,8 +498,8 @@ export function DocumentDetailPage() {
       setMovementForm(null);
       await refresh();
       showSuccess("Le mouvement bancaire a été modifié.");
-    } catch {
-      showError("La modification du mouvement bancaire a échoué.");
+    } catch (requestError) {
+      showError(requestErrorMessage(requestError, "La modification du mouvement bancaire a échoué."));
     } finally {
       setCurrentAction(null);
     }
@@ -474,8 +516,8 @@ export function DocumentDetailPage() {
       const updated = await validateDocument(detail.id);
       setDetail(updated);
       showSuccess("Le document a été validé.");
-    } catch {
-      showError("La validation a échoué. Vérifiez vos droits.");
+    } catch (requestError) {
+      showError(requestErrorMessage(requestError, "La validation du document a échoué."));
     } finally {
       setCurrentAction(null);
     }
@@ -488,8 +530,8 @@ export function DocumentDetailPage() {
       const updated = await assignDocumentEntreprise(detail.id, entrepriseId);
       setDetail(updated);
       showSuccess("Entreprise attribuée. Le retraitement sécurisé du document a été lancé.");
-    } catch {
-      showError("L’attribution de l’entreprise a échoué.");
+    } catch (requestError) {
+      showError(requestErrorMessage(requestError, "L’attribution de l’entreprise a échoué."));
     } finally {
       setCurrentAction(null);
     }
@@ -514,8 +556,8 @@ export function DocumentDetailPage() {
       const updated = await rejectDocument(detail.id);
       setDetail(updated);
       showSuccess("Le document a été rejeté.");
-    } catch {
-      showError("Le rejet du document a échoué. Vérifiez vos droits.");
+    } catch (requestError) {
+      showError(requestErrorMessage(requestError, "Le rejet du document a échoué."));
     } finally {
       setCurrentAction(null);
     }
@@ -544,8 +586,8 @@ export function DocumentDetailPage() {
           ? "Le document est maintenant marqué comme saisi."
           : "Le document n'est plus marqué comme saisi.",
       );
-    } catch {
-      showError("La mise à jour du statut de saisie a échoué.");
+    } catch (requestError) {
+      showError(requestErrorMessage(requestError, "La mise à jour du statut de saisie a échoué."));
     } finally {
       setCurrentAction(null);
     }
@@ -570,8 +612,8 @@ export function DocumentDetailPage() {
       await retraiterDocument(detail.id);
       await refresh();
       showSuccess("Le retraitement du document a été lancé.");
-    } catch {
-      showError("Le retraitement du document a échoué.");
+    } catch (requestError) {
+      showError(requestErrorMessage(requestError, "Le retraitement du document a échoué."));
     } finally {
       setCurrentAction(null);
     }
@@ -597,8 +639,8 @@ export function DocumentDetailPage() {
     try {
       await deleteDocument(detail.id);
       navigate("/chronos", { replace: true });
-    } catch {
-      showError("La suppression définitive du document a échoué.");
+    } catch (requestError) {
+      showError(requestErrorMessage(requestError, "La suppression définitive du document a échoué."));
       setCurrentAction(null);
     }
   }
@@ -617,8 +659,8 @@ export function DocumentDetailPage() {
           format === "xlsx" ? "Excel" : "CSV"
         }.`,
       );
-    } catch {
-      showError("L'export des données extraites a échoué.");
+    } catch (requestError) {
+      showError(requestErrorMessage(requestError, "L'export des données extraites a échoué."));
     } finally {
       setCurrentAction(null);
     }
@@ -656,6 +698,11 @@ export function DocumentDetailPage() {
   const validationStatus =
     detail.ecriture?.statut_validation ??
     (detail.statut === "valide" ? "valide" : "a_verifier");
+  const entryType = detail.ecriture?.type_ecriture;
+  const thirdPartyUsage = entryType === "vente" ? "client" : "fournisseur";
+  const thirdPartyAccounts = planAccounts.filter((account) => account.type_usage === thirdPartyUsage);
+  const htAccounts = planAccounts.filter((account) => account.type_usage === "ht");
+  const vatAccounts = planAccounts.filter((account) => account.type_usage === "tva");
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 lg:p-6">
@@ -790,6 +837,26 @@ export function DocumentDetailPage() {
             <CheckCircle2 className="mt-0.5 shrink-0" size={17} />
             {success}
           </div>
+        )}
+
+        {detail.ecriture && ["a_verifier", "brouillon", "rejete"].includes(validationStatus) && (
+          <section className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+            <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 shrink-0 text-amber-600" size={20} />
+                <div>
+                  <p className="font-bold text-amber-950">Ce document nécessite votre contrôle</p>
+                  <p className="mt-1 text-sm text-amber-800">Comparez la pièce originale aux données extraites, corrigez-les si nécessaire, puis validez le document.</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 lg:shrink-0">
+                <button type="button" onClick={openEntryEditor} disabled={!canReview} title={!canReview ? "Action réservée aux responsables de validation." : undefined} className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"><Pencil size={16} />Modifier les données</button>
+                <button type="button" onClick={() => void handleReject()} disabled={!canReview || currentAction === "reject"} title={!canReview ? "Action réservée aux responsables de validation." : undefined} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"><X size={16} />Rejeter</button>
+                <button type="button" onClick={() => void handleValidate()} disabled={!canReview || currentAction === "validate"} title={!canReview ? "Action réservée aux responsables de validation." : undefined} className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"><Check size={16} />Valider</button>
+              </div>
+            </div>
+            {!canReview && <p className="mt-3 text-xs font-semibold text-amber-800">Votre rôle permet la consultation, mais la modification, le rejet et la validation sont réservés à l’administrateur, à l’expert-comptable ou au chef de mission.</p>}
+          </section>
         )}
 
         {detail.message_erreur && (
@@ -1114,7 +1181,8 @@ export function DocumentDetailPage() {
               <button
                 type="button"
                 onClick={() => void handleReject()}
-                disabled={currentAction === "reject"}
+                disabled={!canReview || currentAction === "reject"}
+                title={!canReview ? "Action réservée aux responsables de validation." : undefined}
                 className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
               >
                 <X size={17} />
@@ -1124,7 +1192,8 @@ export function DocumentDetailPage() {
               <button
                 type="button"
                 onClick={() => void handleValidate()}
-                disabled={currentAction === "validate"}
+                disabled={!canReview || currentAction === "validate"}
+                title={!canReview ? "Action réservée aux responsables de validation." : undefined}
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50"
               >
                 <Check size={17} />
@@ -1263,6 +1332,42 @@ export function DocumentDetailPage() {
                   }
                 />
               </label>
+
+              <div className="sm:col-span-2 mt-2 border-t border-slate-100 pt-4">
+                <p className="text-sm font-bold text-slate-900">Imputation comptable</p>
+                <p className="mt-1 text-xs text-slate-500">Seuls les comptes actifs du plan comptable de cette entreprise peuvent être sélectionnés.</p>
+              </div>
+
+              <label>
+                <FieldLabel>Compte {thirdPartyUsage === "client" ? "client" : "fournisseur"}</FieldLabel>
+                <select value={entryForm.compte_tiers} onChange={(event) => setEntryForm({ ...entryForm, compte_tiers: event.target.value })} className={INPUT_CLASS} required>
+                  <option value="">Sélectionner un compte</option>
+                  {thirdPartyAccounts.map((account) => <option key={account.id} value={account.numero_compte}>{account.numero_compte} — {account.libelle}</option>)}
+                </select>
+              </label>
+
+              <label>
+                <FieldLabel>Compte HT</FieldLabel>
+                <select value={entryForm.compte_ht} onChange={(event) => setEntryForm({ ...entryForm, compte_ht: event.target.value })} className={INPUT_CLASS} required>
+                  <option value="">Sélectionner un compte</option>
+                  {htAccounts.map((account) => <option key={account.id} value={account.numero_compte}>{account.numero_compte} — {account.libelle}</option>)}
+                </select>
+              </label>
+
+              <label>
+                <FieldLabel>Compte TVA</FieldLabel>
+                <select value={entryForm.compte_tva} onChange={(event) => setEntryForm({ ...entryForm, compte_tva: event.target.value })} className={INPUT_CLASS} required={Number(entryForm.montant_tva) > 0}>
+                  <option value="">{Number(entryForm.montant_tva) > 0 ? "Sélectionner un compte" : "TVA non applicable"}</option>
+                  {vatAccounts.map((account) => <option key={account.id} value={account.numero_compte}>{account.numero_compte} — {account.libelle}</option>)}
+                </select>
+              </label>
+
+              {planAccounts.length === 0 && (
+                <div className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  Le plan comptable de cette entreprise est vide. Ajoutez d’abord les comptes exacts nécessaires.
+                  <button type="button" onClick={() => navigate(`/plan-comptable?entreprise_id=${detail.entreprise_id ?? ""}`)} className="ml-2 font-bold text-blue-700 underline">Ouvrir le plan comptable</button>
+                </div>
+              )}
             </div>
 
             <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4">

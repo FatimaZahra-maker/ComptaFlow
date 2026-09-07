@@ -211,6 +211,12 @@ export function RelevesBancairesPage() {
     return { depot, retrait, documents: documents.size, rapproches, ambigus };
   }, [mouvements]);
 
+  const mouvementsAIdentifier = useMemo(() => {
+    if (entrepriseId) return 0;
+    const managedIds = new Set(entreprises.map((item) => item.id));
+    return mouvements.filter((movement) => !managedIds.has(movement.entreprise_id)).length;
+  }, [entrepriseId, entreprises, mouvements]);
+
   const exportColumns: ExportColumn<MouvementBancaireListe>[] = [
     { header: "Entreprise", value: (row) => row.entreprise_nom ?? "" },
     { header: "Date", value: (row) => formatDate(row.date_operation) },
@@ -465,9 +471,10 @@ export function RelevesBancairesPage() {
 
         {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         {success && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{success}</div>}
+        {mouvementsAIdentifier > 0 && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><span><strong>{mouvementsAIdentifier} mouvement(s)</strong> appartiennent à des relevés encore classés dans « Entreprise à identifier ». Attribuez leurs documents à une entreprise gérée pour pouvoir les filtrer correctement.</span><button type="button" onClick={() => navigate("/chronos?non_identifies=1")} className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700">Identifier les documents</button></div>}
 
         <section className="mb-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4">
-          <label className="block"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Entreprise</span><select value={entrepriseId} onChange={(e) => setEntrepriseId(e.target.value)} className="w-full rounded-lg border px-3 py-2.5 text-sm"><option value="">Toutes</option>{entreprises.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}</select>{entreprises.length === 0 && <span className="mt-2 block text-xs text-amber-700">Aucune entreprise ne possède encore de données dans ce module.</span>}</label>
+          <label className="block"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Entreprise</span><select value={entrepriseId} onChange={(e) => setEntrepriseId(e.target.value)} className="w-full rounded-lg border px-3 py-2.5 text-sm"><option value="">Toutes</option>{entreprises.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}</select>{entreprises.length === 0 && <span className="mt-2 block text-xs text-amber-700">Aucune entreprise gérée et active n’est disponible dans ce cabinet.</span>}</label>
           <label className="block"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Année</span><select value={annee} onChange={(e) => setAnnee(e.target.value ? Number(e.target.value) : "")} className="w-full rounded-lg border px-3 py-2.5 text-sm"><option value="">Toutes</option>{anneesDisponibles.map((year) => <option key={year}>{year}</option>)}</select></label>
           <label className="block"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Mois</span><select value={mois} onChange={(e) => setMois(e.target.value ? Number(e.target.value) : "")} className="w-full rounded-lg border px-3 py-2.5 text-sm"><option value="">Tous</option>{MOIS.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}</select></label>
           <label className="block"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Recherche</span><div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={recherche} onChange={(e) => setRecherche(e.target.value)} className="w-full rounded-lg border py-2.5 pl-9 pr-3 text-sm" placeholder="libellé, référence..." /></div></label>

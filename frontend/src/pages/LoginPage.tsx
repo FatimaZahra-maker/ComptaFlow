@@ -6,12 +6,13 @@ import { useNavigate } from "react-router-dom";
 import { login } from "../api/authApi";
 import { requestAccessRenewal } from "../api/messagesApi";
 import { useAuth } from "../context/AuthContext";
+import { BrandMark } from "../components/BrandMark";
 import "./LoginPage.css";
 
 function LoginBrand() {
   return <div className="login-brand" aria-label="ComptaFlow">
-    <svg className="login-brand-mark" viewBox="0 0 72 58" aria-hidden="true"><defs><linearGradient id="brand-orange" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#f59b56" /><stop offset="1" stopColor="#d45b1f" /></linearGradient></defs><path d="M52 7H30C17 7 8 16 8 29s9 22 22 22h12V39H30c-6 0-10-4-10-10s4-10 10-10h16z" fill="url(#brand-orange)" /><path d="M31 25h30l-6 11H43v16H31z" fill="url(#brand-orange)" /></svg>
-    <span>COMPTA<span>FLOW</span></span>
+    <BrandMark className="login-brand-mark" />
+    <span>Compta<span>Flow</span></span>
   </div>;
 }
 

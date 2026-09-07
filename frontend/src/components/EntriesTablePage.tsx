@@ -297,7 +297,7 @@ export function EntriesTablePage({
               <select value={quarter} onChange={(event) => setQuarter(Number(event.target.value))} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm"><option value={1}>1er trimestre</option><option value={2}>2e trimestre</option><option value={3}>3e trimestre</option><option value={4}>4e trimestre</option></select>
             ) : <div className="flex items-center rounded-lg border border-green-200 bg-green-50 px-3 text-sm font-semibold text-green-700">Toute l’année</div>}
           </div>
-          {companies.length === 0 && !loading && <p className="mt-3 text-sm text-amber-700">Aucune entreprise ne possède encore de données dans ce module.</p>}
+          {companies.length === 0 && !loading && <p className="mt-3 text-sm text-amber-700">Aucune entreprise gérée et active n’est disponible dans ce cabinet.</p>}
         </section>
 
         <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
